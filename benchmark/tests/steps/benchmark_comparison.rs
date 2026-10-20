@@ -1871,6 +1871,96 @@ fn write_variant_manifest(root: &Path, manifest: &serde_yaml_ng::Value) -> Resul
     Ok(path)
 }
 
+fn rewrite_first_typo_task(
+    root: &Path,
+    mutate: impl FnOnce(&mut serde_json::Value),
+) -> Result<(), String> {
+    let path = root.join("gold/typo.jsonl");
+    let text = fs::read_to_string(&path)
+        .map_err(|error| format!("read variant gold {}: {error}", path.display()))?;
+    let mut lines = text.lines();
+    let first = lines
+        .next()
+        .ok_or("fixture typo gold is empty")?;
+    let mut task: serde_json::Value =
+        serde_json::from_str(first).map_err(|error| format!("parse variant gold: {error}"))?;
+    mutate(&mut task);
+    let mut out = serde_json::to_string(&task)
+        .map_err(|error| format!("serialize variant gold: {error}"))?;
+    out.push('\n');
+    for line in lines {
+        out.push_str(line);
+        out.push('\n');
+    }
+    fs::write(&path, out).map_err(|error| format!("write variant gold {}: {error}", path.display()))
+}
+
+#[given("a fixture gold task whose path is absent from the fixed checkout")]
+fn gold_path_absent(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-gold-path-absent")?;
+    rewrite_first_typo_task(&root, |task| {
+        task["expected"][0]["path"] = serde_json::Value::String("src/absent.py".to_string());
+    })?;
+    let manifest = read_fixture_manifest()?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[given("a fixture gold task whose line range exceeds the file")]
+fn gold_line_range_exceeds(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-gold-line-range")?;
+    rewrite_first_typo_task(&root, |task| {
+        task["expected"][0]["end_line"] = serde_json::Value::from(1000);
+    })?;
+    let manifest = read_fixture_manifest()?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then(regex = r#"^the error names the gold task "([^"]+)" and the missing path "([^"]+)"$"#)]
+fn error_names_missing_gold_path(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [task, path] = captures else {
+        return Err("missing-gold-path step needs two captures".into());
+    };
+    let message = &world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; a report was produced")?
+        .message;
+    for expected in [task.as_str(), path.as_str(), "does not exist"] {
+        if !message.contains(expected) {
+            return Err(format!("error does not contain `{expected}`: {message}"));
+        }
+    }
+    Ok(())
+}
+
+#[then(regex = r#"^the error names the gold task "([^"]+)" and the out-of-range end line$"#)]
+fn error_names_out_of_range_line(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [task] = captures else {
+        return Err("out-of-range-gold step needs one capture".into());
+    };
+    let message = &world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; a report was produced")?
+        .message;
+    for expected in [task.as_str(), "1000", "exceeds"] {
+        if !message.contains(expected) {
+            return Err(format!("error does not contain `{expected}`: {message}"));
+        }
+    }
+    Ok(())
+}
+
 #[given(regex = r"^fixture-timeout with an index deadline of (\d+) seconds? on (\S+)$")]
 fn fixture_timeout(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
     let [deadline, repository] = captures else {

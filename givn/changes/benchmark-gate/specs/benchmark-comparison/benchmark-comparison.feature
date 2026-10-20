@@ -148,6 +148,22 @@ Feature: Benchmark comparison
     And no report.json or report.md is published
 
   @givn.added
+  Scenario: A gold task whose path is absent stops the run
+    Given a fixture gold task whose path is absent from the fixed checkout
+    When the maintainer runs the benchmark in replay mode
+    Then the run exits with code 2
+    And the error names the gold task "typo-1" and the missing path "src/absent.py"
+    And no report.json or report.md is published
+
+  @givn.added
+  Scenario: A gold line range outside the file stops the run
+    Given a fixture gold task whose line range exceeds the file
+    When the maintainer runs the benchmark in replay mode
+    Then the run exits with code 2
+    And the error names the gold task "typo-1" and the out-of-range end line
+    And no report.json or report.md is published
+
+  @givn.added
   Scenario: An uninstallable or unstartable candidate is recorded and the run continues
     Given fixture-unstartable whose MCP handshake fails
     When the maintainer runs the benchmark in replay mode
