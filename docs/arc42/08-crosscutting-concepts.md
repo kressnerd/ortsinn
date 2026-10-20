@@ -22,12 +22,13 @@ missing expected answer.
 
 ## Canonical keys and fingerprints
 
-Cassette keys are SHA-256 over a canonical JSON object: sorted keys, normalized
-fields, and no request headers, request IDs, timestamps, or transport metadata.
-Model response IDs are replaced with a stable value when recorded. The report
-carries the manifest, gold, model-cassette, and result-cassette fingerprints,
-plus the exact reproduction command. Timestamps and run metadata are excluded
-from measurement identity.
+Result entries are indexed by `(candidate, metric, task, arm)`; model entries
+by a deterministic composite key. The cassette fingerprint is SHA-256 over the
+file bytes. Replay verifies each recorded candidate version/commit, repository
+commit, gold digest, and committed-cassette digest before scoring; a mismatch
+exits 2 and writes no report. The report carries the manifest, gold,
+model-cassette, and result-cassette fingerprints, plus the exact reproduction
+command. Timestamps and run metadata are excluded from measurement identity.
 
 ## Closed status model
 

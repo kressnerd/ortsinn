@@ -91,9 +91,9 @@ the product remains MCP-only.
 lexical, token, or command overlap with an existing capability. The decision
 is recorded directly.
 
-| Capability | Decision | Rationale |
+| Proposed capability | Decision | Rationale |
 |---|---|---|
-| `benchmark-comparison` | `NEW in benchmark-comparison` | No permanent capability covers a maintainer-run comparison of external tools. This change adds the harness and report contract; `benchmark-run` extends the same capability with the real-candidate measurement. It is a project gate, not a product runtime use case. |
+| `benchmark-comparison` | NEW in benchmark-comparison | No permanent capability covers a maintainer-run comparison of external tools. This change adds the harness and report contract; `benchmark-run` extends the same capability with the real-candidate measurement. It is a project gate, not a product runtime use case. |
 
 ## Out of Scope
 

@@ -51,8 +51,8 @@ cassettes are `benchmark-run`'s deployment, not this change's.
 | Path | Content | Pin / identity |
 |---|---|---|
 | `benchmark/tests/fixtures/e2e/repo` | Tiny Python checkout | `fixture-repo`, revision `fixture-1`, commit `1111…`, 120 code lines |
-| `benchmark/tests/fixtures/e2e/gold` | Four JSONL gold files | Versions 1; fingerprints `sha256:fixture-typo-v1`, `sha256:fixture-nl-v1`, `sha256:fixture-explanation-v1`, `sha256:fixture-concept-v1` |
-| `benchmark/tests/fixtures/e2e/cassettes` | Result and model cassettes | `sha256:fixture-results-v1`, `sha256:fixture-model-v1` |
+| `benchmark/tests/fixtures/e2e/gold` | Five JSONL gold files | Versions 1; computed `sha256:<hex>` for typo, natural-language, explanation, concept, and concept-equivalence |
+| `benchmark/tests/fixtures/e2e/cassettes` | Result and model cassettes | Computed `sha256:<hex>` for each file; every result records candidate version and commit |
 | `benchmark/evidence/visual` | Committed terminal transcripts | Two `@e2e` scenario transcripts |
 | `target/coverage/{non-e2e,e2e}` | Per-scope cargo-llvm-cov targets | Distinct instrumentation runs |
 

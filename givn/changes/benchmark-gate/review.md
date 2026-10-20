@@ -2,7 +2,7 @@
 
 README-IMPACT: updated - Quick start, Usage
 
-The review was run against the completed task set (`givn status`: 69/69) and
+The review was run against the completed task set (`givn status`: 100/100) and
 the committed tree through the hardening commits. The scope split is the
 operator decision recorded below. The change delivers the fixture-backed
 harness and report contract; `benchmark-run` owns the real candidate adapters,
@@ -62,11 +62,21 @@ manifest, or a production script, not `tests/` or the spec.
 | S21 | `9fd8a5fe` | Yes |
 | S22 gold path | `35fd2b0` | Yes (`gold/mod.rs`, `manifest.rs`, fixture manifest) |
 | S23 gold line range | `9203c40` | Yes (`GoldValidationError` in `gold/mod.rs`) |
+| S11 hardening: concept-equivalence gold identity | `7e75dce` | Yes (`gold/mod.rs`, fixture gold/manifest) |
+| S16 hardening: applied index deadline | `2dbd702` | Yes (`manifest.rs`, `runner.rs`, `render.rs`) |
+| S24 multi-repository values | `acca925` | Yes (`metrics/*`, `report/model.rs`, `report/render.rs`) |
+| S25 gold fingerprint mismatch | `6f29f06` | Yes (`manifest.rs`, `gold/mod.rs`) |
+| S26 cassette fingerprint mismatch | `41368d4` | Yes (`runner.rs`) |
+| S27 limitations and invalid-report rejection | `acca925` / `e961244` | Yes (`report/model.rs`, `report/render.rs`, `runner.rs`) |
+| S28 candidate identity mismatch | `59f8bb6` | Yes (`record/cassette.rs`, `runner.rs`, fixture cassette) |
+| S15 extension: uninstallable vs unstartable | `68e4533` | Coverage extension; the closed status model in `metrics/common.rs` already supported both reasons |
 
 The S4/S7/S18 finding from the previous review is remediated: each now has a
 follow-up production commit for its behavior (no-expansion arm availability,
 typed missing-recorded-response failure, gap status and rendering). S22/S23
-add the gold path/line validation production change and its scenarios.
+add the gold path/line validation production change and its scenarios; S24–S28
+add the multi-repository, fingerprint, candidate-identity, limitations, and
+write-validation coverage.
 
 ### Promised-architecture cross-check
 
@@ -154,10 +164,10 @@ digital twins; no real candidate process is part of the runnable stack.
 
 | `verify.command` value | `verify.e2e_command` value | Identical? | Regular scope scenario count | E2e scope scenario count | E2e count strictly smaller? |
 |---|---|---|---|---|---|
-| `./run-tests.sh` | `./run-tests.sh --e2e` | No | 23 (21 non-`@e2e` + 2 `@e2e`) | 2 | Yes (2 < 23) |
+| `./run-tests.sh` | `./run-tests.sh --e2e` | No | 28 (26 non-`@e2e` + 2 `@e2e`) | 2 | Yes (2 < 28) |
 
-The regular command executes all 23 scenarios; the coverage regular scope
-excludes `@e2e` and runs 21. The counts are from the targeted runs recorded in
+The regular command executes all 28 scenarios; the coverage regular scope
+excludes `@e2e` and runs 26. The counts are from the targeted runs recorded in
 `tasks.md` and the static feature count. No archive verification receipt exists yet; the archive records
 the per-scope counts.
 
@@ -173,15 +183,22 @@ the per-scope counts.
 | Staging directory | `target/givn-features/` | Same | Yes |
 | Feature discovery | `GIVN_FEATURES` else `givn/specs` plus every active `givn/changes/*/specs`, no hard-coded id | `env.sh` `givn_resolve_features` | Yes |
 | Real adapters / MCP / gold proposer / public inputs / fetch | `benchmark-run` interface | Not built; absent by design | Yes |
-| Gold validation | Path containment, file exists, ordered range, end line inside file, explanation evidence ranges | `Gold::load` + `validate_location` | Yes |
+| Gold validation | Declared SHA-256, path containment, file exists, ordered range, end line inside file, explanation evidence ranges | `Gold::load` + `validate_location` | Yes |
+| Gold/cassette identity | Every gold set and committed cassette has a computed digest checked before scoring; mismatches exit 2 with no report | `Gold::load`, `cassette_identity` | Yes |
+| Candidate identity | Each recorded result carries candidate version/commit, checked against the manifest | `RecordedResult`, `verify_fixed_inputs` | Yes |
+| Index deadlines | `IndexRecord.deadline_seconds` records the applied deadline; availability is per candidate and repository | `manifest.rs`, `runner.rs`, `metrics/common.rs` | Yes |
+| Per-repository values | Every metric carries `per_repository`; aggregates combine repository cells | `metrics/*`, `report/model.rs`, `report/render.rs` | Yes |
+| Limitations and write validation | `limitations` list and `Report::validate()` before `report.json`/`report.md` | `report/model.rs`, `report/render.rs`, `runner.rs` | Yes |
 | Coverage merge | Two `CARGO_TARGET_DIR` runs, two Cobertura files merged by `benchmark/tools/cobertura.py`, per-scope probes | Same | Yes |
 | `reqwest` version | 0.13.5 | 0.13.5 in manifest and lock | Yes |
 | Local run command | Fixture manifest under `--mode replay` | Same | Yes |
 | Manual record-run gate | `benchmark-run`'s gate; deferral dispositioned by the operator decision | Not checked in this change; recorded as the `DEFERRAL` below | Yes |
 
-No design deviation remains. The earlier deviations (staging path, hard-coded
-change id, `run_and_exit` wording, `reqwest` lock, coverage mechanism) were
-resolved by code and/or the updated design and the re-run design-review.
+No design deviation remains in the built tree. The earlier deviations
+(staging path, hard-coded change id, `run_and_exit` wording, `reqwest` lock,
+coverage mechanism) were resolved by code and the updated design. The
+hardening pass changed the report, fixture, and fixed-input contracts; a fresh
+design-review is required for those changes and is not claimed by this review.
 
 ### Interaction coverage verification
 
@@ -194,6 +211,30 @@ The use-case `## Interactions` table has exactly these two entries; the design
 matrix has exactly these two rows; the feature has exactly these two `@e2e`
 scenarios; the step file uses the promised subprocess driver. No inventory
 entry is unmapped and no matrix row is extra.
+
+## Hardening pass findings (F-05, F-06, F-10)
+
+The fresh-context design grill raised the following findings after the
+split. Each is resolved or, where the grill overreached, the artifact was
+narrowed instead of relabelled.
+
+| Finding | Disposition | Evidence |
+|---|---|---|
+| F-05 — concept-equivalence had no gold identity; the concept count excluded the variants | Resolved: the gold is split into `concept.jsonl` (5) and `concept_equivalence.jsonl` (4), each with version, count, and computed digest; `Gold::load` validates the count; S11 asserts the identity | `7e75dce`; S11 output in `tasks.md` |
+| F-06 — the report omitted the applied index deadline | Resolved: every index record carries `deadline_seconds`; S16 asserts the applied 1-second deadline alongside elapsed time and `index_timeout` | `2dbd702`; S16 output in `tasks.md` |
+| F-10.1 — candidate identity mismatch had no scenario | Resolved: recorded results carry candidate version/commit; `verify_fixed_inputs` compares them; a mismatch exits 2 with no report | `59f8bb6`; S28 |
+| F-10.2 — gold fingerprint mismatch had no scenario; fingerprints were labels | Resolved: fixture gold digests are computed SHA-256 values and checked before parsing; S25 mutates the file and keeps the declared digest | `1722dae`; S25 |
+| F-10.3 — cassette fingerprint mismatch/corruption had no scenario | Resolved: committed cassette digests are checked; S26 mutates the result cassette and keeps the declared digest | `1722dae`; S26 |
+| F-10.4 — multi-repository values had no fixture or model field | Resolved: every metric has `per_repository`; S24 adds `fixture-extra` with its own gold and asserts per-repository and aggregate values | `acca925`; S24 |
+| F-10.5 — limitations and invalid-report validation had no scenario | Resolved: the report has a closed `limitations` list and `Report::validate()` runs before write; S27 asserts both | `acca925`; S27 |
+| F-10.6 — only `candidate_unstartable` was exercised | Resolved: S15 records `fixture-uninstallable` and `fixture-unstartable` with distinct reasons and a continuing run | `1722dae`; S15 |
+| F-10.7 — concept-equivalence gold identity had no scenario | Resolved with F-05 (S11) | `7e75dce`; S11 |
+
+The grill's split boundary is unchanged: no real candidate adapter, public
+fixed input, real gold set, fetch, or real record run is added. The harness
+now verifies every fixed input replay can check (candidate identity,
+repository commit, gold digest, cassette digest, gold path/range), and the
+report carries per-repository values, applied deadlines, and limitations.
 
 ## Use-Case And Persona Conformance
 
@@ -210,9 +251,11 @@ the primary actor is named and triggered; the capability passes the placement
 test; the scenarios observe report content without mutating state;
 preconditions are split by mode; the Goal/Trigger do not name a mechanism; the
 capability name is goal-shaped; the main flow is one goal; no Extends/Includes
-misuse exists. `## Extensions` now lists extensions 1–12, each with its
-main-flow step reference; extension 10 was already corrected and 11–12 were
-added for gold validation.
+misuse exists. `## Extensions` now lists extensions 1–17, each with its
+main-flow step reference; extension 10 covers the all-unavailable gap, 11–12
+gold path/line validation, 13–14 gold/cassette digest verification, 15
+candidate identity, 16 per-repository values, and 17 limitations/write
+validation.
 
 PERSONAS: maintainer--ortsinn
 
@@ -226,7 +269,7 @@ OPERATOR-DECISION: 2026-10-20 — the user chose to split the real-candidate mea
 DEFERRAL: the manual real record-run acceptance gate (one committed `benchmark/evidence/record-runs/<candidate>-<repository>.json` from a real `--mode record` run plus a replay probe per installed candidate) — dispositioned by the operator decision above; `benchmark-run` owns the gate, its committed evidence, and the real measured report.
 
 The deferral is not evidence that a real measurement was made. This change's
-acceptance evidence is the committed fixture, 23 scenarios (21 regular and 2
+acceptance evidence is the committed fixture, 28 scenarios (26 regular and 2
 `@e2e` CLI), and the measured two-scope coverage.
 
 ## Visual Review
@@ -282,16 +325,16 @@ crosscutting concepts, an ADR verdict, quality scenarios, risks, and new terms.
 
 | Arc42 chapter or architectural fact | Durable-doc source | `arc42.md` claim | `design.md` treatment | `tasks.md` treatment | Implementation evidence | Match? |
 |---|---|---|---|---|---|---|
-| Harness goal and quality goals | `docs/arc42/01-introduction-and-goals.md` | Yes — harness goal, quality goals, split | Scope and traceability | S1–S23 | Fixture report, CLI, e2e, coverage | Yes |
+| Harness goal and quality goals | `docs/arc42/01-introduction-and-goals.md` | Yes — harness goal, quality goals, split | Scope and traceability | S1–S28 | Fixture report, CLI, e2e, coverage | Yes |
 | Operator split and `benchmark-run` boundary | `docs/arc42/02-architecture-constraints.md` | Yes — split constraint | Scope, decisions | Split/operator section | Review `OPERATOR-DECISION` and `DEFERRAL`; `benchmark-run` proposal | Yes |
-| Fixture checkout, cassettes, fake endpoint | `docs/arc42/03-context-and-scope.md` | Yes — context diagrams and interface table | Scope, recording, fixture contract | S1–S23 | Fixture tree, S20/S21 | Yes |
-| Harness strategy and gold validation | `docs/arc42/04-solution-strategy.md` | Yes — strategy | Technology decisions, gold sets | S22/S23 | `gold/mod.rs`, scenarios | Yes |
+| Fixture checkout, cassettes, fake endpoint | `docs/arc42/03-context-and-scope.md` | Yes — context diagrams and interface table | Scope, recording, fixture contract | S1–S28 | Fixture tree, S20/S21 | Yes |
+| Harness strategy and gold validation | `docs/arc42/04-solution-strategy.md` | Yes — strategy | Technology decisions, gold sets | S22/S23/S24–S28 | `gold/mod.rs`, scenarios | Yes |
 | Crate building blocks | `docs/arc42/05-building-block-view.md` | Yes — level-1/2 views | Harness tree, internal primitives | No task creates absent components | Tree matches; real adapters marked `benchmark-run` | Yes |
-| Replay/record/timeout/mismatch flows | `docs/arc42/06-runtime-view.md` | Yes — four flows | Run sequence | S1–S23 | `runner.rs`, S6/S7/S14/S22/S23 | Yes |
+| Replay/record/timeout/mismatch flows | `docs/arc42/06-runtime-view.md` | Yes — four flows | Run sequence | S1–S28 | `runner.rs`, S6/S7/S14/S22/S23/S24–S28 | Yes |
 | Fixture deployment, LLVM 23, coverage targets | `docs/arc42/07-deployment-view.md` | Yes — deployment diagram | Local runnability, coverage | Coverage gate task | `env.sh`, scripts, measured reports | Yes |
-| Recording boundary, gold validation, closed statuses | `docs/arc42/08-crosscutting-concepts.md` | Yes — crosscutting concepts | Recording, metrics, gold, gaps | S2–S23 | Implemented and covered | Yes |
+| Recording boundary, gold validation, closed statuses | `docs/arc42/08-crosscutting-concepts.md` | Yes — crosscutting concepts | Recording, metrics, gold, gaps | S2–S28 | Implemented and covered | Yes |
 | ADR verdict | `docs/arc42/09-architecture-decisions.md` | Yes — `ADR action: NONE` | Decisions D1–D4 | No ADR task | Register and chapter agree | Yes |
-| Quality scenarios QS-001–QS-015 | `docs/arc42/10-quality-requirements.md` | Yes — quality tree/scenarios | Risks, coverage | S1–S23 | Scenarios and measured coverage | Yes |
+| Quality scenarios QS-001–QS-015 | `docs/arc42/10-quality-requirements.md` | Yes — quality tree/scenarios | Risks, coverage | S1–S28 | Scenarios and measured coverage | Yes |
 | R-001–R-011, TD-001–TD-005 | `docs/arc42/11-risks-and-technical-debt.md` | Yes — risks/debt | Risks | Split section | Matches the split and coverage mechanism | Yes |
 | Glossary terms | `docs/arc42/12-glossary.md` | Yes — terms added | Metrics/recording/gaps | Feature uses them | Fixture candidate and missing terms added | Yes |
 
@@ -334,6 +377,13 @@ ARC42 CONFORMANCE: CLEAN
 | S4 no-expansion arm | `benchmark/src/metrics/common.rs` | 2. Missing production change behind the scenario | `no_expansion_arm_cell` added (`de400364`). |
 | S7 missing recorded response | `benchmark/src/runner.rs` | 2. Missing production change behind the scenario | Typed `MissingRecordedResponse` added (`948fdf7`). |
 | S18 gap status | `benchmark/src/metrics/gaps.rs` | 2. Missing production change behind the scenario | `Gap::unavailable`/`not_applicable` and rendering added (`2d36756`). |
+| F-05 concept-equivalence gold identity | `benchmark/src/gold/mod.rs`, fixture gold/manifest | 2. Missing contract identity | Separate `concept_equivalence` set, version, count, and digest added (`7e75dce`); S11 asserts it. |
+| F-06 applied index deadline | `benchmark/src/manifest.rs`, `runner.rs`, `render.rs` | 2. Missing report field | `IndexRecord.deadline_seconds` added (`2dbd702`); S16 asserts the 1-second deadline. |
+| Multi-repository values | `benchmark/src/metrics/*`, `report/model.rs` | 1. Missing production behavior | `per_repository` scores added (`acca925`); S24 asserts `3/5`, `2/5`, and `5/10`. |
+| Gold/cassette identity verification | `benchmark/src/gold/mod.rs`, `runner.rs` | 1. Missing production behavior | Digests checked with exit 2 and no report (`1722dae`); S25/S26. |
+| Candidate identity verification | `benchmark/src/record/cassette.rs`, `runner.rs` | 1. Missing production behavior | Recorded version/commit checked against the manifest (`59f8bb6`); S28. |
+| Limitations and report validation | `report/model.rs`, `report/render.rs`, `runner.rs` | 1. Missing production behavior | `limitations` and `Report::validate()` added (`acca925`); S27. |
+| Uninstallable vs unstartable | `metrics/common.rs`, fixture | 3. Coverage-only gap | Both reasons were already supported; S15 now records both candidates (`1722dae`). |
 
 No region is unclassified. The real candidate adapters and public fixed inputs
 are a different change's deliverable (`benchmark-run`); they are not an
@@ -344,7 +394,7 @@ language.
 
 ## Scenario execution evidence
 
-Recorded evidence in `tasks.md`: 1 feature, 23 scenarios, 142 steps for the
+Recorded evidence in `tasks.md`: 1 feature, 28 scenarios, 171 steps for the
 regular scope and 1 feature, 2 scenarios, 14 steps for the e2e scope, both
 exit 0. The review ran the configured local command once. `givn lint --change
 benchmark-gate` exits 0 and reports one clean file.

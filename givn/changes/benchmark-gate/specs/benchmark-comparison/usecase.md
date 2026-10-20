@@ -48,8 +48,8 @@ Replay mode:
 ## Main flow
 
 1. The maintainer requests a benchmark run with the fixed manifest, a recording mode, and an output location.
-2. The benchmark verifies the fixed inputs replay can check: each recorded result's repository commit, every gold path and line range at the fixed checkout, and that every model dependency exists in the model cassette. The manifest, gold, and cassette fingerprints are reported as recorded identities; a locally recorded cassette's digest is computed when it is written.
-3. The benchmark loads each candidate's normalized results and recorded setup, applies the index deadlines, and records unavailable candidates and timed-out indexes instead of dropping them.
+2. The benchmark verifies every fixed input replay can check: each recorded result's candidate version and commit against the manifest, its repository commit, every gold file's declared SHA-256 digest, each committed cassette's declared digest, every gold path and line range at the fixed checkout, and that every model dependency exists in the model cassette. A mismatch fails the run with exit code 2 and publishes no report; a locally recorded cassette is identified by the digest computed when it is written.
+3. The benchmark loads each candidate's normalized results and recorded setup, applies the effective index deadline per candidate and repository, and records unavailable candidates and timed-out indexes instead of dropping them. The report names the applied deadline and elapsed time.
 4. The benchmark reads the fixed gold queries for typo recall, natural-language retrieval, concept recall, and explanation correctness from the normalized results and, where recorded, an explanation with citations.
 5. Where a candidate supports disabling query expansion, the benchmark scores the concept-recall queries without expansion and records a separate arm.
 6. The benchmark scores each metric and each arm, records coverage and any unavailable capability with its reason, and computes the measured gaps.
@@ -90,6 +90,20 @@ Replay mode:
   publishes no report.
 - 12 (main flow step 2): A gold task whose line range exceeds the file fails
   the run with exit code 2, names the task and range, and publishes no report.
+- 13 (main flow step 2): A gold file whose content no longer matches its
+  declared fingerprint fails the run with exit code 2, names the gold set and
+  both fingerprints, and publishes no report.
+- 14 (main flow step 2): A cassette whose content no longer matches its
+  declared fingerprint fails the run with exit code 2, names the cassette and
+  both fingerprints, and publishes no report.
+- 15 (main flow step 2): A recorded result from a different candidate version
+  fails the run with exit code 2, names the candidate and both versions, and
+  publishes no report.
+- 16 (main flow step 6): A multi-repository run reports each repository's
+  value separately and combines them into the aggregate instead of collapsing
+  the repositories.
+- 17 (main flow step 7): The report states its limitations, and an
+  inconsistent report is rejected before either report file is written.
 
 ## Rules
 
@@ -192,9 +206,9 @@ sequenceDiagram
     participant C as Recorded result cassette
     participant P as Recording boundary
     M->>B: run with fixed manifest
-    B->>F: verify revision and gold path/line ranges
-    B->>G: load fixed tasks and fingerprints
-    B->>C: load normalized candidate results (replay)
+    B->>F: verify revision, candidate identity, and gold path/line ranges
+    B->>G: verify gold digests and load fixed tasks
+    B->>C: verify cassette digest and load normalized results (replay)
     alt record mode
         B->>P: record model requests against the loopback endpoint
         P-->>B: recorded responses

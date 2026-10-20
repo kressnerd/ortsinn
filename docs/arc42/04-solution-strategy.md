@@ -15,9 +15,10 @@
 - **Closed status model instead of zeros.** Each cell is `measured`,
   `unavailable` with a reason, or `not_applicable` with a reason; coverage is
   attempted divided by attempted plus unavailable, excluding not-applicable.
-- **Validate gold against the fixed checkout.** Every expected path, line
-  range, explanation target, and acceptable-evidence range is checked before
-  scoring; a mismatch fails the run with exit code 2.
+- **Validate every fixed input.** Candidate version/commit, repository commit,
+  gold and committed-cassette SHA-256 digests, every expected path and line
+  range, explanation target, and acceptable-evidence range are checked before
+  scoring; a mismatch fails the run with exit code 2 and writes no report.
 - **Rust workspace-local harness.** One Rust crate in the project workspace,
   one toolchain, no container; isolation comes from the read-only fixture
   checkout, the caller-owned report directory, and a loopback recorder.

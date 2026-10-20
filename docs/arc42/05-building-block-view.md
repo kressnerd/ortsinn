@@ -46,11 +46,11 @@ results, and publish a complete report or fail without publishing one.
 
 | Element | Responsibility |
 |---|---|
-| Input verifier | Check each result's recorded repository commit against the manifest and verify every model dependency exists in the model cassette. |
-| Gold verifier | Require the checkout; check path containment, file existence, ordered line ranges, end lines inside the file, and explanation evidence ranges. |
+| Input verifier | Check each result's recorded candidate version/commit and repository commit against the manifest, verify committed cassette digests, and verify every model dependency exists in the model cassette. |
+| Gold verifier | Require the checkout; verify each file's declared SHA-256; check path containment, file existence, ordered line ranges, end lines inside the file, and explanation evidence ranges. |
 | Record path | Post fixture model requests to the loopback endpoint, write model and result cassettes under the caller's output directory, then score them. |
 | Replay path | Read the normalized result and model cassettes; a missing model response is a typed `MissingRecordedResponse` and exit 2. |
-| Deadline recording | Apply the manifest index deadline; a breach is `timed_out` with `index_timeout` and keeps the elapsed time. |
+| Deadline recording | Apply the manifest index deadline per candidate and repository; every index record carries the applied `deadline_seconds`, and a breach is `timed_out` with `index_timeout` and the elapsed time. |
 | Gap calculator | Compute `to_target` (with `target_status`) and `to_best`, or `unavailable`/`not_applicable` with a reason. |
 | Report writer | Validate and write `report.json` and `report.md` only after every input and cassette check passed. |
 
@@ -104,5 +104,5 @@ input.
 
 | Element | Responsibility |
 |---|---|
-| Fixture gold | Committed typo, natural-language, explanation, and concept JSONL with version, task count, and recorded fingerprint. |
+| Fixture gold | Committed typo, natural-language, explanation, concept, and concept-equivalence JSONL with version, task count, and computed SHA-256 fingerprint. |
 | Synthetic generator | Seeded 10M-line TypeScript/Python/Rust monorepo with gold from the same construction. |

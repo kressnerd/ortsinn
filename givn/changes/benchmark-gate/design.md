@@ -291,7 +291,8 @@ The harness consumes normalized candidate records, not a candidate process.
 A result is:
 
 ```text
-{candidate, repository, repository_commit, metric, task, arm,
+{candidate, candidate_version, candidate_commit, repository, repository_commit,
+ metric, task, arm,
  results: [{path, start_line, end_line, symbol, kind, resolution}],
  explanation?: {text, citations: [{path, start_line, end_line}]},
  error?, model_requests: [{key, query}]}
@@ -311,10 +312,10 @@ This change proves the scoring, report, and replay behavior of the record
 shape against the committed fixture.
 
 Index deadlines are manifest fields. A deadline breach marks that
-candidate/repository unavailable with `index_timeout`, records the elapsed
-time, and leaves the candidate in the report. A per-query error counts as a
-miss for that query and is counted separately in the error total. There are no
-automatic retries.
+candidate/repository unavailable with `index_timeout` for that repository
+only, records the applied `deadline_seconds` and the elapsed time, and leaves
+the candidate in the report. A per-query error counts as a miss for that query
+and is counted separately in the error total. There are no automatic retries.
 
 ## Recording and replay
 
@@ -336,11 +337,17 @@ Replay is the default and the only mode needed for a free rerun.
   entries by a deterministic key (`model:explanation:<candidate>:<task>` or
   `model:embedding:<candidate>:<model>`). The SHA-256 fingerprint is computed
   over the cassette file bytes, not over a request object.
+- Replay verifies every fixed input it can check: each result's candidate
+  version and commit against the manifest, each result's repository commit,
+  every gold file's digest, and each committed cassette's digest. A mismatch
+  exits 2, names the input and both values, and writes no report. A locally
+  recorded cassette (the record→replay scenario) is identified by its computed
+  digest because the record run created it.
 - A missing model key fails the run with exit code 2 through the typed
   `MissingRecordedResponse` (key, candidate, repository, task, query, layer).
   It never falls back to a live call in replay and never writes a partial
   "complete" report.
-- The report records `mode`, the manifest fingerprint, the gold fingerprint,
+- The report records `mode`, the manifest fingerprint, each gold fingerprint,
   the model-cassette fingerprint, the result-cassette fingerprint, and the
   exact reproduction command.
 
@@ -429,19 +436,25 @@ gold and the loader/validator; the real public gold sets, the draft proposer
 their review are `benchmark-run`'s.
 
 - The committed fixture gold files are `typo.jsonl`,
-  `natural_language.jsonl`, `explanation.jsonl`, and `concept.jsonl` under
-  `benchmark/tests/fixtures/e2e/gold/`.
-- `Gold::load` reads each file named by the manifest's `gold` list, checks the
-  task count, and validates every expected location against the repository's
-  fixed `checkout`: path inside the checkout, file present, ordered line
-  range, and end line inside the file. Explanation targets and their
-  acceptable-evidence ranges are validated the same way. A missing path or
-  out-of-range line fails the run before scoring.
+  `natural_language.jsonl`, `explanation.jsonl`, `concept.jsonl`, and
+  `concept_equivalence.jsonl` under `benchmark/tests/fixtures/e2e/gold/`.
+  `concept.jsonl` holds the five concept tasks; `concept_equivalence.jsonl`
+  holds the four equivalence variants, so each family has its own version,
+  task count, and digest.
+- `Gold::load` reads each file named by the manifest's `gold` list, verifies
+  the file's SHA-256 against the declared `fingerprint` before parsing,
+  checks the task count summed across that metric's entries, and validates
+  every expected location against the repository's fixed `checkout`: path
+  inside the checkout, file present, ordered line range, and end line inside
+  the file. Explanation targets and their acceptable-evidence ranges are
+  validated the same way. A fingerprint mismatch, missing path, or
+  out-of-range line fails the run before scoring and publishes no report.
 - `benchmark/src/gen/synthetic_repo.rs` writes the synthetic gold from the same
   construction, so every expected location is exact and the seed fixes it.
-- Every gold file has a `version` and a recorded fingerprint in the manifest;
-  the report names both. The fixture fingerprints are recorded identifiers
-  (`sha256:fixture-typo-v1`, and so on), not computed digests.
+- Every gold file has a `version` and a computed `sha256:<hex>` fingerprint in
+  the manifest; the report names both. A gold file changed without updating
+  its declared fingerprint exits 2 and names the set, the expected digest,
+  and the actual digest.
 - Gold is frozen before the first record run. Changing a task after seeing
   results requires a new gold version and manifest fingerprint; the report
   records the change. This prevents tuning the expected answers to a
@@ -458,15 +471,21 @@ fixed enough that every Then-step can assert an exact number.
 | Repository | `fixture-repo`, revision `fixture-1`, commit `1111111111111111111111111111111111111111`, 120 code lines |
 | Fixture candidates | `fixture-ocbi` commit `aaaa…` (40 hex), `fixture-ckb` commit `bbbb…`, `fixture-serena` commit `cccc…`; all version `fixture-1`, adapter `fixture`, adapter version 1 |
 | Gold task counts | 5 typo, 4 natural-language, 4 explanation, 5 concept, 4 concept-equivalence variants |
-| Gold fingerprints | `sha256:fixture-typo-v1`, `sha256:fixture-nl-v1`, `sha256:fixture-explanation-v1`, `sha256:fixture-concept-v1`; `gold_version: 1` for each |
-| Result cassette fingerprint | `sha256:fixture-results-v1` |
-| Model cassette fingerprint | `sha256:fixture-model-v1` |
-| Mismatch variant | commit `2222…` for `fixture-repo`; the run must exit 2 and publish no complete report |
+| Gold fingerprints | Computed `sha256:<hex>` for each file; the five fixture sets are `67ec37…` (typo), `dbdb52…` (natural-language), `e9de35…` (explanation), `13faa3…` (concept), and `e37e8f…` (concept-equivalence); `gold_version: 1` for each |
+| Result cassette fingerprint | Computed `sha256:0c98fd…`; every entry records the candidate version and commit as well as the repository commit |
+| Model cassette fingerprint | Computed `sha256:7f63ef…` |
+| Mismatch variant | repository commit `2222…` for `fixture-repo`; the run must exit 2 and publish no complete report |
+| Candidate-identity variant | one recorded result's `candidate_version` is `fixture-0`; the run must exit 2, name `fixture-ocbi` and both versions, and publish no report |
+| Gold-fingerprint variant | `gold/typo.jsonl` is mutated while the manifest keeps its digest; the run must exit 2, name the typo gold set and both digests, and publish no report |
+| Cassette-fingerprint variant | the result cassette is mutated while the manifest keeps its digest; the run must exit 2, name the result cassette and both digests, and publish no report |
 | Gold-path variant | `typo-1` expected path `src/absent.py`; the run must exit 2, name the task and path, and publish no report |
 | Gold-line variant | `typo-1` expected end line `1000`; the run must exit 2, name the task and out-of-range line, and publish no report |
-| Timeout variant | `fixture-timeout`, `index_deadline_seconds: 1` on `fixture-repo`; status `index_timeout`, elapsed recorded, every metric for that cell unavailable |
-| Unstartable variant | `fixture-unstartable`, whose MCP handshake fails; recorded `unavailable` with `candidate_unstartable`, run continues |
+| Multi-repository variant | adds `fixture-extra` (`extra-1`, commit `2222…`, 40 code lines) with a five-task typo gold set; per-repository typo @1 is `3/5` for `fixture-repo` and `2/5` for `fixture-extra`, aggregate `5/10` |
+| Timeout variant | `fixture-timeout`, `index_deadline_seconds: 1` on `fixture-repo`; status `index_timeout`, applied deadline and elapsed time recorded, every metric for that cell unavailable |
+| Uninstallable variant | `fixture-uninstallable`, recorded as `unavailable` with `candidate_uninstallable`; the run continues |
+| Unstartable variant | `fixture-unstartable`, recorded as `unavailable` with `candidate_unstartable` (the real adapter's MCP handshake is `benchmark-run`'s); the run continues |
 | Query-error variant | one of the 4 NL tasks returns an error; recall stays `2/4`, `query_errors: 1` |
+| Limitations variant | the base report carries a `Limitations` section and `limitations` list; an inconsistent report is rejected before write |
 
 Expected values (each family is measured by one fixture candidate; a candidate
 whose family is `not_applicable` is excluded from that family's coverage
@@ -525,16 +544,21 @@ Required top-level content:
 - **Candidates**: id, version, source commit, install command, adapter and
   adapter version, the recorded setup (environment, indexers, doctor output,
   language-support tiers, embedding configuration, `git_metadata`, per-index
-  status/duration), candidate status, and the unavailability reason. The
-  capability set drives scoring and capability gaps.
+  status/duration and the effective `deadline_seconds`), candidate status, and
+  the unavailability reason. The capability set drives scoring and capability
+  gaps. `candidate_uninstallable` and `candidate_unstartable` are distinct
+  recorded reasons and both leave the run continuing with the other
+  candidates.
 - **Metrics**: for each family, the target as `{value, status, source}` with
   status `confirmed | proposed | unstated`, aggregate
-  value/numerator/denominator/coverage, per-candidate cells, the
-  concept-equivalence family with default/no-expansion arms, and the
-  no-expansion arm for concept recall. A cell is `measured`, `unavailable`
-  with a reason, or `not_applicable` with a reason; it is never a fabricated
-  zero. A proposed target's gap is labelled "to proposed target" in the
-  rendered report, never "accepted target".
+  value/numerator/denominator/coverage, per-candidate cells, `per_repository`
+  cells for every fixed repository, the concept-equivalence family with
+  default/no-expansion arms, and the no-expansion arm for concept recall. A
+  cell is `measured`, `unavailable` with a reason, or `not_applicable` with a
+  reason; it is never a fabricated zero. A proposed target's gap is labelled
+  "to proposed target" in the rendered report, never "accepted target".
+  Aggregates combine the repository cells, so a multi-repository run reports
+  each repository's value instead of collapsing it.
 - **Gaps**: `to_target` for every metric with a stated target, as
   `value - target`, carrying `status: measured | unavailable | not_applicable`
   with a reason and `target_status: confirmed | proposed`; `to_best` for every
@@ -552,19 +576,27 @@ Required top-level content:
   benchmark -- run --manifest ... --mode replay --out ...`), the toolchain
   prefix as a report field, and all fingerprints. The report states that
   replay requires no candidate install and no external model call.
-- **Rendered limitations**: the report carries the limitations as labels and
-  reasons rather than a separate section: the proposed target label, every
-  `unavailable` capability reason such as `no_natural_language_search` or
-  `no_explanation_operation`, the fixture CKB Rust Tier 3 setup note, and the
-  labelled regex proxy arm. The report contains no path choice.
+- **Limitations**: a closed `limitations` string list containing the proposed
+  target label, every `unavailable` capability reason such as
+  `no_natural_language_search` or `no_explanation_operation`, the fixture CKB
+  Rust Tier 3 setup note, the labelled regex proxy arm, and the explanation
+  rubric's surface-form rule. The report contains no path choice.
+- **Write validation**: `Report::validate()` checks the schema version,
+  coverage arithmetic (`coverage.numerator == attempted`,
+  `coverage.denominator == attempted + unavailable`), measured/non-measured
+  value and fraction invariants, gap status/value invariants, the required
+  gold fingerprints, and a non-empty limitations list. `write_reports` calls
+  it before creating either file, so an inconsistent report is rejected and
+  nothing is published.
 
 `report.md` is one heading per section and bullet lines, not tables: Run,
 Reproduction, Fixed inputs, Gold sets, Candidates, Typo recall,
 Natural-language retrieval, Explanation correctness, Concept recall (with
 concept and concept-equivalence default and no-expansion values and
-coverage), Measured gaps, and Path decision. The measured-gaps section
-appears before the deferred path decision. The terminal summary uses the four
-metric section names and prints the report path; `--width` controls the
+coverage), Measured gaps, Limitations, and Path decision. Each metric section
+also lists its per-repository values. The measured-gaps section appears before
+the limitations and the deferred path decision. The terminal summary uses the
+four metric section names and prints the report path; `--width` controls the
 rendered line width, and `COLUMNS` is the fallback when the option is absent.
 
 ## Data model
@@ -599,18 +631,18 @@ candidates:
       embedding: {provider: custom, base_url: "http://127.0.0.1:43117/v1", model: nomic-embed-text}
       git_metadata: present
       indexes:
-        - {repository: fixture-repo, status: indexed, seconds: 2.5}
+        - {repository: fixture-repo, status: indexed, seconds: 2.5, deadline_seconds: 14400}
   # fixture-ckb, fixture-serena
 targets:
   typo_recall_at_1: {value: 0.90, status: proposed, source: "proposal attachments 1/7 (AC-01); not confirmed"}
   typo_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
   # natural_language_recall_at_5, explanation_correctness, concept_recall_at_5, concept_equivalence_recall_at_5
 gold:
-  - {repository: fixture-repo, metric: typo, version: 1, tasks: 5, fingerprint: "sha256:fixture-typo-v1", path: gold/typo.jsonl}
-  # one entry per metric
+  - {repository: fixture-repo, metric: typo, version: 1, tasks: 5, fingerprint: "sha256:67ec37…", path: gold/typo.jsonl}
+  # one entry per metric, including concept_equivalence
 cassettes:
-  results: {path: cassettes/results/results.jsonl, fingerprint: "sha256:fixture-results-v1"}
-  model: {path: cassettes/model/model.jsonl, fingerprint: "sha256:fixture-model-v1"}
+  results: {path: cassettes/results/results.jsonl, fingerprint: "sha256:0c98fd…"}
+  model: {path: cassettes/model/model.jsonl, fingerprint: "sha256:7f63ef…"}
 index_deadlines: {public_repository_seconds: 14400, synthetic_seconds: 28800}
 ```
 
@@ -623,15 +655,16 @@ Report
   inputs: {repositories[{id, url, revision, commit, language, loc}], gold[{repository, metric, version, tasks, fingerprint}]}
   candidates[]: {id, version, commit, install, adapter, adapter_version, setup, status, unavailable_reason}
   metrics:
-    typo: {target, aggregate: Score, recall_at_5: Score, per_candidate{}, recall_at_5_per_candidate{}, no_match_rate, no_match_rate_per_candidate{}}
-    natural_language: {target, aggregate: Score, per_candidate{}, mrr_at_10{value, attempted}, query_errors, query_errors_per_candidate{}, proxy_arms{}}
-    explanation: {target, aggregate: Score, per_candidate{}, evidence_grounding{value, attempted}}
-    concept: {target, aggregate, per_candidate, arms{default: Arm, no_expansion: Arm}}
-    concept_equivalence: {target, aggregate, per_candidate, arms{default, no_expansion}}
+    typo: {target, aggregate: Score, recall_at_5: Score, per_candidate{}, recall_at_5_per_candidate{}, no_match_rate, no_match_rate_per_candidate{}, per_repository{}}
+    natural_language: {target, aggregate: Score, per_candidate{}, mrr_at_10{value, attempted}, query_errors, query_errors_per_candidate{}, proxy_arms{}, per_repository{}}
+    explanation: {target, aggregate: Score, per_candidate{}, evidence_grounding{value, attempted}, per_repository{}}
+    concept: {target, aggregate, per_candidate, arms{default: Arm, no_expansion: Arm}, per_repository{}}
+    concept_equivalence: {target, aggregate, per_candidate, arms{default, no_expansion}, per_repository{}}
   gaps:
     to_target{}: Gap
     to_best{}: Gap
     capability_gaps[]{candidate, capability, reason}
+  limitations[]: string
   path_decision: {status: deferred, owner: maintainer--ortsinn, artifact: docs/decisions/benchmark-path.md, rule}
   reproduction: {command, toolchain_prefix, manifest_fingerprint, gold_fingerprints{}, model_cassette_fingerprint, result_cassette_fingerprint, candidate_install_required, external_model_calls}
 
@@ -656,7 +689,7 @@ cross-checks this list against the tree.
 | `RecordedResult`, `ModelDependency`, `ResultCassette`, `ModelCassette` | `src/record/cassette.rs` | Normalized-result and model layers, cassette fingerprints. |
 | `NormalizedLocation`, `ExplanationResponse`, `Citation` | `src/adapters/mod.rs` | Normalized result contract. |
 | `MissingRecordedResponse`, `RunFailure`, `RunResult` | `src/runner.rs` | Typed replay-miss and exit-code failure model. |
-| `Score`, `Coverage`, `Arm`, `Gap`, `Report`, `CandidateReport` | `src/report/model.rs` | Closed status model and report schema. |
+| `Score`, `Coverage`, `Arm`, `Gap`, `Report`, `CandidateReport` | `src/report/model.rs` | Closed status model, report schema, and `Report::validate()`. |
 | `Gold`, `GoldTask`, `ExplanationTask`, `ConceptEntry` | `src/gold/mod.rs` | Gold loading and path/line validation. |
 | `SyntheticRepo` | `src/gen/synthetic_repo.rs` | Fixed-seed 10M-line generator and its gold. |
 | `FakeOpenAiEndpoint`, `ModelRecorder` | `src/record/proxy.rs` | Loopback OpenAI-compatible recording boundary. |
@@ -837,11 +870,16 @@ there is no concrete answer, use the E2E scenario instead.
 | A fixed-input mismatch stops the run | Fingerprint/revision mismatch, non-zero exit, no complete report. |
 | A gold task whose path is absent stops the run | Gold path validation at the fixed checkout, exit 2, no report. |
 | A gold line range outside the file stops the run | Gold line-range validation at the fixed checkout, exit 2, no report. |
-| An uninstallable or unstartable candidate is recorded and the run continues | Candidate-level unavailability with reason. |
-| A candidate that exceeds its index deadline is unavailable, not zero | Deadline derivation, elapsed time, and never-zero cells. |
+| An uninstallable or unstartable candidate is recorded and the run continues | Distinct candidate-level unavailability reasons (`candidate_uninstallable`, `candidate_unstartable`) and the continuing run. |
+| A candidate that exceeds its index deadline is unavailable, not zero | Deadline derivation, applied deadline, elapsed time, and never-zero cells. |
 | A query error counts as a miss and is reported separately | Error total and the miss denominator. |
 | A metric with no measured candidate reports an unavailable gap | The all-unavailable `to_best`/`to_target` boundary. |
 | Report does not score a regex interface mismatch as natural-language recall | Serena NL unavailability and the proxy exclusion from the NL aggregate. |
+| Report states values for each repository | Per-repository aggregation of a multi-repository run. |
+| A gold fingerprint mismatch stops the run | Gold digest verification, exit 2, no report. |
+| A cassette fingerprint mismatch stops the run | Cassette digest verification, exit 2, no report. |
+| A candidate identity mismatch stops the run | Recorded candidate version/commit verification, exit 2, no report. |
+| Report states its limitations and rejects an invalid report | The closed limitations list and `Report::validate()` before write. |
 
 No regular scenario re-asserts only the E2E outcome. The E2E's measured-value
 assertion is an end-to-end fidelity check on the CLI and the fixture contract;
@@ -988,16 +1026,16 @@ all-zero report cannot pass. The measured probe output is recorded in
 | Use-case guarantee, rule, or flow | Technical decision | Evidence |
 |---|---|---|
 | Goal: reproducible harness and report contract with identity, coverage, and gaps | Manifest + report model + renderer | Scenario "Report identifies every candidate and fixed repository revision" |
-| Success guarantee: complete fixture-backed report; real measurement is `benchmark-run`'s | Committed fixture contract and exact Then-step values | 23 scenarios: 21 regular plus 2 `@e2e` |
-| Main flow 2: verify the fixed inputs replay can check | Result-commit and model-dependency checks plus `checkout` path/line gold validation; manifest/gold/cassette fingerprints are reported identities | Scenarios "Replay rerun...", "The synthetic monorepo...", "A fixed-input mismatch stops the run", and the gold path/line scenarios |
-| Main flow 3: recorded setup, deadlines, and unavailable candidates | `recorded_setup`, `index_deadlines`, closed status model | Timeout and unstartable scenarios; candidate setup scenario |
+| Success guarantee: complete fixture-backed report; real measurement is `benchmark-run`'s | Committed fixture contract and exact Then-step values | 28 scenarios: 26 regular plus 2 `@e2e` |
+| Main flow 2: verify the fixed inputs replay can check | Candidate version/commit, result commit, gold and cassette digest verification, model-dependency checks, and `checkout` path/line validation | Scenarios "Replay rerun...", "A fixed-input mismatch...", "A gold fingerprint mismatch...", "A cassette fingerprint mismatch...", "A candidate identity mismatch...", and the gold path/line scenarios |
+| Main flow 3: recorded setup, deadlines, and unavailable candidates | `recorded_setup`, `index_deadlines`, `IndexRecord.deadline_seconds`, closed status model | Timeout, uninstallable/unstartable, and candidate setup scenarios |
 | Main flow 4: four metric families | `metrics/typo.rs`, `natural_language.rs`, `explanation.rs`, `concept.rs` | Scenario "Report contains the four acceptance measurements" |
 | Main flow 5: no-expansion arm | `no_expansion_arm_cell` and the concept metrics | Scenario "Report compares concept recall with and without query expansion" |
 | Main flow 6: coverage and measured gaps | Micro-average, status model, `gaps.to_target`/`to_best` | Scenario "Report states measured gaps..." |
 | Main flow 7: deferred path decision | `path_decision` report field and Markdown section | Scenario "Report states measured gaps..." and the E2E |
 | R1: read-only over fixed inputs | Fixture checkout is read-only; output goes to the report directory | Candidate setup section; fixture checkout |
 | R2: unavailable is never zero | Closed status model and coverage denominators | Unavailable-capability scenario |
-| R3: candidate/repository/gold identity | Manifest and report identity fields | Identity scenario |
+| R3: candidate/repository/gold identity | Manifest and report identity fields; recorded candidate version/commit; per-set gold digest | Identity, gold-identity, and candidate-identity-mismatch scenarios |
 | R4: all four measurement families | Metric modules and report sections | Four-measurements scenario |
 | R5: no-expansion comparison | Arm handling and `not_applicable` | No-expansion scenario |
 | R6: replay is free and external-call free | Result and model cassettes; replay mode | Replay scenario; E2E |
@@ -1017,6 +1055,11 @@ all-zero report cannot pass. The measured probe output is recorded in
 | Extension 10 (step 6): no measured candidate yields unavailable gaps, not zero | `Gap::unavailable` with `no_measured_candidate` | Scenario "A metric with no measured candidate reports an unavailable gap" |
 | Extension 11 (step 2): an absent gold path fails the run | `validate_location` canonicalizes inside the checkout | Scenario "A gold task whose path is absent stops the run" |
 | Extension 12 (step 2): an out-of-range gold line fails the run | `validate_location` counts file lines | Scenario "A gold line range outside the file stops the run" |
+| Extension 13 (step 2): a stale gold digest fails the run | `Gold::load` compares the file digest with the manifest | Scenario "A gold fingerprint mismatch stops the run" |
+| Extension 14 (step 2): a stale cassette digest fails the run | `cassette_identity` compares committed cassette digests | Scenario "A cassette fingerprint mismatch stops the run" |
+| Extension 15 (step 2): a stale candidate identity fails the run | `verify_fixed_inputs` compares candidate version/commit | Scenario "A candidate identity mismatch stops the run" |
+| Extension 16 (step 6): multi-repository values are reported separately | `per_repository` scores in every metric; aggregates combine repository cells | Scenario "Report states values for each repository" |
+| Extension 17 (step 7): limitations are stated and invalid reports are rejected | `limitations` list and `Report::validate()` before write | Scenario "Report states its limitations and rejects an invalid report" |
 | Persona `maintainer--ortsinn` (user-visible terminal/report) | CLI summary and report; owner of the deferred decision | E2E transcript and report |
 | Persona `upstream--maintainer` (conditional) | Report is the only artifact consumed if the path is a contribution; no runtime surface | Report contract; post-report decision record |
 | D2–D4 | Carried to `benchmark-run`; this change fixes the contract they must satisfy | Decisions ledger; `benchmark-run` proposal |
@@ -1028,10 +1071,13 @@ all-zero report cannot pass. The measured probe output is recorded in
   hand-built; a real adapter could need a result shape (file-only resolution,
   an error record, a timed-out index) the scorer does not handle, and the
   fixture suite would still pass. Mitigation: the normalized-result contract
-  is the reviewed interface; every failure family (missing response, mismatch,
-  timeout, unstartable, query error, all-unavailable gap) has its own scenario;
-  and `benchmark-run` records the real cassettes in the same shape and must
-  publish the real measured report before the product-path decision.
+  is the reviewed interface; every fixed-input and report failure family
+  (missing response, repository-commit mismatch, candidate-identity mismatch,
+  gold/cassette digest mismatch, gold path/range violation, timeout,
+  uninstallable, unstartable, query error, all-unavailable gap, invalid
+  report) has its own scenario; and `benchmark-run` records the real cassettes
+  in the same shape and must publish the real measured report before the
+  product-path decision.
 - The split leaves the real comparison unpublished until `benchmark-run`
   completes. The deferral is recorded as the operator decision and is not
   evidence that the real measurement was made.

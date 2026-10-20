@@ -1177,6 +1177,274 @@
 - [x] COMMIT: scenario/steps
   `e90db47d1322251e98de9373d777e0223e32d4db`.
 
+## Hardening pass — F-05 concept-equivalence gold identity (S11)
+
+- [x] RED — S11 gained the Then-step for the concept-equivalence set. The
+  loader had no `concept_equivalence` gold entry, so the replay produced no
+  report and the first gold Then failed:
+  ```text
+  Scenario: Report names each gold set's version, task count, and fingerprint
+   ✔  Given the fixture benchmark inputs
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✘  Then the typo gold set is version 1 with 5 tasks and fingerprint "..."
+      Step panicked. Captured output: the benchmark replay must have produced a report
+  [Summary]
+  1 scenario (1 failed)
+  3 steps (2 passed, 1 failed)
+  EXIT=101
+  ```
+- [x] GREEN — the concept file was split into `gold/concept.jsonl` (5 tasks)
+  and `gold/concept_equivalence.jsonl` (4 variants); the manifest has a
+  `concept_equivalence` entry with version 1, task count 4, and computed
+  digest; `Gold::load` filters equivalence entries per set and checks the
+  declared count summed over the metric. Production files:
+  `benchmark/src/gold/mod.rs`, `benchmark/tests/fixtures/e2e/manifest.yaml`,
+  `benchmark/tests/fixtures/e2e/gold/{concept,concept_equivalence}.jsonl`,
+  `benchmark/tests/steps/benchmark_comparison.rs`.
+  ```text
+  Scenario: Report names each gold set's version, task count, and fingerprint
+   ✔  Given the fixture benchmark inputs
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the typo gold set is version 1 with 5 tasks and fingerprint "sha256:67ec37…"
+   ✔  And the natural-language gold set is version 1 with 4 tasks and fingerprint "sha256:dbdb52…"
+   ✔  And the explanation gold set is version 1 with 4 tasks and fingerprint "sha256:e9de35…"
+   ✔  And the concept gold set is version 1 with 5 tasks and fingerprint "sha256:13faa3…"
+   ✔  And the concept-equivalence gold set is version 1 with 4 tasks and fingerprint "sha256:e37e8f…"
+  [Summary]
+  1 scenario (1 passed)
+  7 steps (7 passed)
+  EXIT=0
+  ```
+- [x] REFACTOR — the leaky `manifest.gold_set(metric)` count check was
+  replaced by `ensure_declared_count`, which sums every entry for the metric;
+  the targeted run stayed 1 scenario (1 passed), 7 steps (7 passed).
+- [x] COMMIT: `7e75dce` (fixture, loader, feature, steps).
+
+## Hardening pass — F-06 applied index deadline (S16)
+
+- [x] RED — the design-grill report recorded the prior index record as
+  `{status, seconds, reason}` in `target/benchmark-index-timeout/out/report.json`
+  with no applied deadline, so the new Then-step ("the report records the
+  applied index deadline of 1 second") had no field to read.
+- [x] GREEN — `IndexRecord.deadline_seconds` carries the effective deadline;
+  `recorded_setup` fills it for every index and keeps the elapsed seconds;
+  `report.md` renders "of a 1s deadline". Production files:
+  `benchmark/src/manifest.rs`, `benchmark/src/runner.rs`,
+  `benchmark/src/report/render.rs`,
+  `benchmark/tests/steps/benchmark_comparison.rs`.
+  ```text
+  Scenario: A candidate that exceeds its index deadline is unavailable, not zero
+   ✔  Given fixture-timeout with an index deadline of 1 second on fixture-repo
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the report marks fixture-timeout unavailable on fixture-repo with the reason "index_timeout"
+   ✔  And the report records the applied index deadline of 1 second
+   ✔  And the report records the elapsed index time
+   ✔  And every metric for fixture-timeout on fixture-repo is unavailable and never zero
+   ✔  And the run continues with the other candidates
+  [Summary]
+  1 scenario (1 passed)
+  7 steps (7 passed)
+  EXIT=0
+  ```
+- [x] REFACTOR — no change; targeted run stayed 7 steps (7 passed).
+- [x] COMMIT: `2dbd702`.
+
+## Hardening pass — fixed-input and report families (F-10)
+
+### S24 — Report states values for each repository
+
+- [x] RED — the variant adds `fixture-extra` with its own typo gold set and
+  recorded results; the report had no per-repository field:
+  ```text
+  Scenario: Report states values for each repository
+   ✔  Given a fixture with a second repository and its own typo gold set
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the report names fixture-extra at revision "extra-1", commit "2222…", and 40 code lines
+   ✘  And the typo recall at rank one for fixture-repo is 0.60 with 3 of 5 tasks
+      Step panicked. Captured output: report has no per-repository typo value for fixture-repo
+  [Summary]
+  1 scenario (1 failed)
+  4 steps (3 passed, 1 failed)
+  EXIT=101
+  ```
+- [x] GREEN — gold tasks carry their repository; each metric scores every
+  manifest repository separately, combines repository cells for candidates and
+  aggregates, and publishes `per_repository`. Production files:
+  `benchmark/src/gold/mod.rs`, `benchmark/src/metrics/{common,typo,natural_language,explanation,concept}.rs`,
+  `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`,
+  `benchmark/tests/steps/benchmark_comparison.rs`.
+  ```text
+  Scenario: Report states values for each repository
+   ✔  Given a fixture with a second repository and its own typo gold set
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the report names fixture-extra at revision "extra-1", commit "2222…", and 40 code lines
+   ✔  And the typo recall at rank one for fixture-repo is 0.60 with 3 of 5 tasks
+   ✔  And the typo recall at rank one for fixture-extra is 0.40 with 2 of 5 tasks
+   ✔  And the typo recall at rank one is 0.50 with 5 of 10 tasks
+  [Summary]
+  1 scenario (1 passed)
+  6 steps (6 passed)
+  EXIT=0
+  ```
+- [x] REFACTOR — metric availability takes the repository, so a deadline
+  breach no longer leaks across repositories; targeted run stayed 6 steps
+  (6 passed).
+- [x] COMMIT: production `acca925`; scenario assertion `084752d`.
+
+### S25 — A gold fingerprint mismatch stops the run
+
+- [x] RED — the gold file was mutated while the manifest kept its digest; the
+  run published a report:
+  ```text
+  Scenario: A gold fingerprint mismatch stops the run
+   ✔  Given a fixture gold file changed without updating its declared fingerprint
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✘  Then the run exits with code 2
+      Step panicked. Captured output: the run did not fail; a report was produced
+  [Summary]
+  1 scenario (1 failed)
+  3 steps (2 passed, 1 failed)
+  EXIT=101
+  ```
+- [x] GREEN — `Gold::load` computes the file SHA-256 and requires the declared
+  digest before parsing. The variants that intentionally mutate gold
+  (`S22`/`S23`) refresh their manifest digest so they still reach path/line
+  validation. Production files: `benchmark/src/gold/mod.rs`,
+  `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  ```text
+  Scenario: A gold fingerprint mismatch stops the run
+   ✔  Given a fixture gold file changed without updating its declared fingerprint
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the run exits with code 2
+   ✔  And the error names the typo gold set and the mismatched expected and actual fingerprints
+   ✔  And no report.json or report.md is published
+  [Summary]
+  1 scenario (1 passed)
+  5 steps (5 passed)
+  EXIT=0
+  ```
+- [x] REFACTOR — no change; targeted run stayed 5 steps (5 passed).
+- [x] COMMIT: `6f29f06`.
+
+### S26 — A cassette fingerprint mismatch stops the run
+
+- [x] RED — the result cassette was mutated while the manifest kept its
+  digest; the run published a report:
+  ```text
+  Scenario: A cassette fingerprint mismatch stops the run
+   ✔  Given a fixture result cassette changed without updating its declared fingerprint
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✘  Then the run exits with code 2
+      Step panicked. Captured output: the run did not fail; a report was produced
+  [Summary]
+  1 scenario (1 failed)
+  3 steps (2 passed, 1 failed)
+  EXIT=101
+  ```
+- [x] GREEN — replay fingerprints a committed cassette and requires the
+  manifest's declared digest; the recorded-cassette variants refresh their
+  declared digest. Production files: `benchmark/src/runner.rs`,
+  `benchmark/tests/steps/benchmark_comparison.rs`.
+  ```text
+  Scenario: A cassette fingerprint mismatch stops the run
+   ✔  Given a fixture result cassette changed without updating its declared fingerprint
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the run exits with code 2
+   ✔  And the error names the result cassette and the mismatched expected and actual fingerprints
+   ✔  And no report.json or report.md is published
+  [Summary]
+  1 scenario (1 passed)
+  5 steps (5 passed)
+  EXIT=0
+  ```
+- [x] REFACTOR — the missing-response and query-error variants refresh their
+  declared cassette digests; targeted runs stayed GREEN.
+- [x] COMMIT: `41368d4`.
+
+### S27 — Report states its limitations and rejects an invalid report
+
+- [x] RED — the report had no `limitations` list:
+  ```text
+  Scenario: Report states its limitations and rejects an invalid report
+   ✔  Given the fixture benchmark inputs
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✘  Then the report states the explanation rubric's surface-form limitation
+      Step panicked. Captured output: report.json has no limitations list
+  [Summary]
+  1 scenario (1 failed)
+  3 steps (2 passed, 1 failed)
+  EXIT=101
+  ```
+- [x] GREEN — the report carries a closed `limitations` list (proposed target,
+  unavailable capabilities, setup tiers, proxy arm, surface-form rule),
+  `report.md` renders `## Limitations`, and `write_reports` calls
+  `Report::validate()` before creating either file. Production files:
+  `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`,
+  `benchmark/src/runner.rs`.
+  ```text
+  Scenario: Report states its limitations and rejects an invalid report
+   ✔  Given the fixture benchmark inputs
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the report states the explanation rubric's surface-form limitation
+   ✔  And the report lists the proposed target, the unavailable capability reasons, and the regex proxy arm as limitations
+   ✔  And an invalid report is rejected before it is written
+  [Summary]
+  1 scenario (1 passed)
+  5 steps (5 passed)
+  EXIT=0
+  ```
+- [x] REFACTOR — no change; targeted run stayed 5 steps (5 passed).
+- [x] COMMIT: `e961244`.
+
+### S28 — A candidate identity mismatch stops the run
+
+- [x] RED — the design-grill report F-02/F-10 recorded that a cassette
+  substituted for a different candidate version replayed silently and still
+  cited the old identity. The fixture results now carry `candidate_version`
+  and `candidate_commit`; the variant flips one to `fixture-0`.
+- [x] GREEN — `verify_fixed_inputs` requires a recorded candidate version and
+  commit for every result and compares both with the manifest. Production
+  files: `benchmark/src/record/cassette.rs`, `benchmark/src/runner.rs`,
+  `benchmark/tests/fixtures/e2e/cassettes/results/results.jsonl`,
+  `benchmark/tests/steps/benchmark_comparison.rs`.
+  ```text
+  Scenario: A candidate identity mismatch stops the run
+   ✔  Given a fixture result cassette recorded for a different candidate version
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the run exits with code 2
+   ✔  And the error names fixture-ocbi and the mismatched candidate versions
+   ✔  And no report.json or report.md is published
+  [Summary]
+  1 scenario (1 passed)
+  5 steps (5 passed)
+  EXIT=0
+  ```
+- [x] REFACTOR — no change; targeted run stayed 5 steps (5 passed).
+- [x] COMMIT: `59f8bb6`.
+
+### S15 extension — uninstallable and unstartable are distinct
+
+- [x] GREEN — the variant records `fixture-uninstallable`
+  (`candidate_uninstallable`) and `fixture-unstartable`
+  (`candidate_unstartable`); the existing closed status model marks both
+  unavailable and keeps their capability gaps while the run continues. The
+  coverage gap was the missing fixture candidate, not a missing status shape.
+  ```text
+  Scenario: An uninstallable or unstartable candidate is recorded and the run continues
+   ✔  Given fixture-uninstallable and fixture-unstartable as recorded fixture candidates
+   ✔  When the maintainer runs the benchmark in replay mode
+   ✔  Then the report marks fixture-uninstallable unavailable with the reason "candidate_uninstallable"
+   ✔  And the report marks fixture-unstartable unavailable with the reason "candidate_unstartable"
+   ✔  And the run completes and reports measured values for fixture-ocbi and fixture-ckb
+   ✔  And the report lists fixture-uninstallable and fixture-unstartable in the capability gaps
+  [Summary]
+  1 scenario (1 passed)
+  6 steps (6 passed)
+  EXIT=0
+  ```
+- [x] COMMIT: `68e4533`; the production status model was already present in
+  `benchmark/src/metrics/common.rs`.
+
 ## Coverage gate
 
 - [x] `./measure-coverage.sh` writes both Cobertura reports from distinct
@@ -1205,12 +1473,12 @@
 - [x] The manual real record-run gate is not checked off in this change; it is
   deferred by that operator decision and is `benchmark-run`'s task.
 
-- Combined active set (S1–S23):
+- Combined active set (S1–S28):
   ```text
   $ ./run-tests.sh
   1 feature
-  23 scenarios (23 passed)
-  142 steps (142 passed)
+  28 scenarios (28 passed)
+  171 steps (171 passed)
   EXIT=0
 
   $ ./run-tests.sh --e2e
