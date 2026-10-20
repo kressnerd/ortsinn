@@ -836,10 +836,9 @@ fn missing_response_fixture(world: &mut BenchmarkWorld) -> Result<(), String> {
         .collect();
     fs::write(&model_path, format!("{}\n", kept.join("\n")))
         .map_err(|error| format!("write model cassette without {MISSING_MODEL_KEY}: {error}"))?;
-    fs::copy(fixture.join("manifest.yaml"), root.join("manifest.yaml"))
-        .map_err(|error| format!("copy fixture manifest: {error}"))?;
-
-    world.manifest_path = root.join("manifest.yaml");
+    let mut manifest = read_fixture_manifest()?;
+    refresh_cassette_fingerprint(&mut manifest, &root, "model")?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
     world.out_dir = root.join("out");
     world.missing_model = Some((
         MISSING_MODEL_KEY.to_string(),
@@ -1453,24 +1452,40 @@ fn a_fixture_manifest_with_commit(
     load_fixture(world)
 }
 
-const UNSTARTABLE_CANDIDATE: &str = r#"
-id: fixture-unstartable
+const UNINSTALLABLE_CANDIDATE: &str = r#"
+id: fixture-uninstallable
 version: fixture-1
 commit: "dddddddddddddddddddddddddddddddddddddddd"
 install: "fixture adapter"
 adapter: fixture
 adapter_version: 1
 unavailable:
+  reason: candidate_uninstallable
+  detail: "fixture adapter install failed"
+setup:
+  git_metadata: present
+  indexes:
+    - {repository: fixture-repo, status: not_installed, seconds: 0.0, reason: candidate_uninstallable}
+"#;
+
+const UNSTARTABLE_CANDIDATE: &str = r#"
+id: fixture-unstartable
+version: fixture-1
+commit: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+install: "fixture adapter"
+adapter: fixture
+adapter_version: 1
+unavailable:
   reason: candidate_unstartable
-  detail: "MCP initialize handshake did not complete"
+  detail: "fixture adapter did not start"
 setup:
   git_metadata: present
   indexes:
     - {repository: fixture-repo, status: not_started, seconds: 0.0, reason: candidate_unstartable}
 "#;
 
-#[given("fixture-unstartable whose MCP handshake fails")]
-fn fixture_unstartable(world: &mut BenchmarkWorld) -> Result<(), String> {
+#[given("fixture-uninstallable and fixture-unstartable as recorded fixture candidates")]
+fn fixture_uninstallable_and_unstartable(world: &mut BenchmarkWorld) -> Result<(), String> {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .ok_or("benchmark crate has no workspace root")?
@@ -1491,13 +1506,18 @@ fn fixture_unstartable(world: &mut BenchmarkWorld) -> Result<(), String> {
         .map_err(|error| format!("read fixture manifest: {error}"))?;
     let mut manifest: serde_yaml_ng::Value = serde_yaml_ng::from_str(&text)
         .map_err(|error| format!("parse fixture manifest: {error}"))?;
-    let candidate: serde_yaml_ng::Value = serde_yaml_ng::from_str(UNSTARTABLE_CANDIDATE)
-        .map_err(|error| format!("parse fixture-unstartable candidate: {error}"))?;
-    manifest
-        .get_mut("candidates")
-        .and_then(serde_yaml_ng::Value::as_sequence_mut)
-        .ok_or("fixture manifest has no candidates sequence")?
-        .push(candidate);
+    for (name, template) in [
+        ("fixture-uninstallable", UNINSTALLABLE_CANDIDATE),
+        ("fixture-unstartable", UNSTARTABLE_CANDIDATE),
+    ] {
+        let candidate: serde_yaml_ng::Value = serde_yaml_ng::from_str(template)
+            .map_err(|error| format!("parse {name} candidate: {error}"))?;
+        manifest
+            .get_mut("candidates")
+            .and_then(serde_yaml_ng::Value::as_sequence_mut)
+            .ok_or("fixture manifest has no candidates sequence")?
+            .push(candidate);
+    }
     fs::write(
         root.join("manifest.yaml"),
         serde_yaml_ng::to_string(&manifest)
@@ -1569,15 +1589,26 @@ fn run_completes_with_measured_candidates(world: &mut BenchmarkWorld) -> Result<
     Ok(())
 }
 
-#[then("the report lists fixture-unstartable in the capability gaps")]
-fn unstartable_capability_gap(world: &mut BenchmarkWorld) -> Result<(), String> {
-    let gap = report(world)
-        .gaps
-        .capability_gaps
-        .iter()
-        .find(|gap| gap.candidate == "fixture-unstartable")
-        .ok_or("report does not list fixture-unstartable in its capability gaps")?;
-    assert_eq!(gap.reason, "candidate_unstartable", "capability gap reason");
+#[then(regex = r"^the report lists (\S+) and (\S+) in the capability gaps$")]
+fn unavailable_capability_gaps(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [first, second] = captures else {
+        return Err("capability gap step needs two captures".into());
+    };
+    for (candidate, reason) in [
+        (first.as_str(), "candidate_uninstallable"),
+        (second.as_str(), "candidate_unstartable"),
+    ] {
+        let gap = report(world)
+            .gaps
+            .capability_gaps
+            .iter()
+            .find(|gap| gap.candidate == candidate)
+            .ok_or_else(|| format!("report does not list {candidate} in its capability gaps"))?;
+        assert_eq!(gap.reason, reason, "capability gap reason");
+    }
     Ok(())
 }
 
@@ -1861,6 +1892,43 @@ fn read_fixture_manifest() -> Result<serde_yaml_ng::Value, String> {
     serde_yaml_ng::from_str(&text).map_err(|error| format!("parse fixture manifest: {error}"))
 }
 
+fn refresh_gold_fingerprint(
+    manifest: &mut serde_yaml_ng::Value,
+    root: &Path,
+    metric: &str,
+) -> Result<(), String> {
+    let set = manifest
+        .get_mut("gold")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no gold sequence")?
+        .iter_mut()
+        .find(|set| set["metric"] == metric)
+        .ok_or_else(|| format!("fixture manifest has no {metric} gold entry"))?;
+    let relative = set["path"]
+        .as_str()
+        .ok_or("gold entry has no path")?
+        .to_string();
+    let fingerprint = benchmark::manifest::file_fingerprint(&root.join(relative))
+        .map_err(|error| format!("fingerprint variant gold: {error:#}"))?;
+    set["fingerprint"] = serde_yaml_ng::Value::String(fingerprint);
+    Ok(())
+}
+
+fn refresh_cassette_fingerprint(
+    manifest: &mut serde_yaml_ng::Value,
+    root: &Path,
+    layer: &str,
+) -> Result<(), String> {
+    let relative = manifest["cassettes"][layer]["path"]
+        .as_str()
+        .ok_or_else(|| format!("manifest has no {layer} cassette path"))?
+        .to_string();
+    let fingerprint = benchmark::record::cassette::fingerprint(&root.join(relative))
+        .map_err(|error| format!("fingerprint variant {layer} cassette: {error:#}"))?;
+    manifest["cassettes"][layer]["fingerprint"] = serde_yaml_ng::Value::String(fingerprint);
+    Ok(())
+}
+
 fn write_variant_manifest(root: &Path, manifest: &serde_yaml_ng::Value) -> Result<PathBuf, String> {
     let path = root.join("manifest.yaml");
     fs::write(
@@ -1902,7 +1970,8 @@ fn gold_path_absent(world: &mut BenchmarkWorld) -> Result<(), String> {
     rewrite_first_typo_task(&root, |task| {
         task["expected"][0]["path"] = serde_json::Value::String("src/absent.py".to_string());
     })?;
-    let manifest = read_fixture_manifest()?;
+    let mut manifest = read_fixture_manifest()?;
+    refresh_gold_fingerprint(&mut manifest, &root, "typo")?;
     world.manifest_path = write_variant_manifest(&root, &manifest)?;
     world.out_dir = root.join("out");
     load_fixture(world)
@@ -1914,7 +1983,8 @@ fn gold_line_range_exceeds(world: &mut BenchmarkWorld) -> Result<(), String> {
     rewrite_first_typo_task(&root, |task| {
         task["expected"][0]["end_line"] = serde_json::Value::from(1000);
     })?;
-    let manifest = read_fixture_manifest()?;
+    let mut manifest = read_fixture_manifest()?;
+    refresh_gold_fingerprint(&mut manifest, &root, "typo")?;
     world.manifest_path = write_variant_manifest(&root, &manifest)?;
     world.out_dir = root.join("out");
     load_fixture(world)
@@ -2195,13 +2265,9 @@ fn natural_language_query_error(world: &mut BenchmarkWorld) -> Result<(), String
         return Err("fixture result cassette has no fixture-ocbi nl-3 entry".into());
     }
     fs::write(&path, rewritten).map_err(|error| format!("write errored cassette: {error}"))?;
-    fs::copy(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/e2e/manifest.yaml"),
-        root.join("manifest.yaml"),
-    )
-    .map_err(|error| format!("copy fixture manifest: {error}"))?;
-
-    world.manifest_path = root.join("manifest.yaml");
+    let mut manifest = read_fixture_manifest()?;
+    refresh_cassette_fingerprint(&mut manifest, &root, "results")?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
     world.out_dir = root.join("out");
     load_fixture(world)
 }
@@ -2528,6 +2594,397 @@ fn regex_proxy_arm_excluded(world: &mut BenchmarkWorld, captures: &[String]) -> 
         return Err(format!(
             "report.md does not label the regex arm as the proxy: {expected}"
         ));
+    }
+    Ok(())
+}
+
+fn report_json(world: &BenchmarkWorld) -> Result<serde_json::Value, String> {
+    let path = world.out_dir.join("report.json");
+    let text = fs::read_to_string(&path)
+        .map_err(|error| format!("read report {}: {error}", path.display()))?;
+    serde_json::from_str(&text)
+        .map_err(|error| format!("parse report {}: {error}", path.display()))
+}
+
+const EXTRA_REPOSITORY: &str = r#"
+id: fixture-extra
+url: "fixture://fixture-extra"
+revision: extra-1
+commit: "2222222222222222222222222222222222222222"
+language: python
+checkout: repo-extra
+loc:
+  language_code_lines: 40
+  total_code_lines: 40
+  tool: fixture
+  command: "wc -l benchmark/tests/fixtures/e2e/repo-extra/src/*.py"
+  exclusions: []
+"#;
+
+fn extra_repository_source() -> String {
+    let mut source = String::new();
+    for line in 1..=60 {
+        source.push_str(&format!("def extra_{line}():\n    return {line}\n"));
+    }
+    source
+}
+
+fn extra_typo_gold() -> String {
+    let mut gold = String::new();
+    for (task, line) in [1u32, 11, 21, 31, 41].iter().enumerate() {
+        gold.push_str(&format!(
+            "{{\"id\":\"extra-{}\",\"query\":\"extra helper {}\",\"expected\":[{{\"path\":\"src/extra.py\",\"start_line\":{line},\"end_line\":{line},\"symbol\":\"extra_{line}\"}}]}}\n",
+            task + 1,
+            task + 1
+        ));
+    }
+    gold
+}
+
+fn extra_results() -> Vec<serde_json::Value> {
+    let mut entries = Vec::new();
+    for task in 1..=5u32 {
+        let results = match task {
+            1 => serde_json::json!([{"path": "src/extra.py", "start_line": 1, "end_line": 1, "symbol": "extra_1", "kind": "function", "resolution": "symbol"}]),
+            2 => serde_json::json!([{"path": "src/extra.py", "start_line": 11, "end_line": 11, "symbol": "extra_11", "kind": "function", "resolution": "symbol"}]),
+            _ => serde_json::json!([]),
+        };
+        entries.push(serde_json::json!({
+            "candidate": "fixture-ocbi",
+            "repository": "fixture-extra",
+            "repository_commit": "2222222222222222222222222222222222222222",
+            "metric": "typo",
+            "task": format!("extra-{task}"),
+            "arm": "default",
+            "results": results,
+        }));
+    }
+    entries
+}
+
+#[given("a fixture with a second repository and its own typo gold set")]
+fn second_repository_fixture(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-second-repository")?;
+    let source = root.join("repo-extra/src/extra.py");
+    fs::create_dir_all(
+        source
+            .parent()
+            .ok_or("extra repository source has no parent")?,
+    )
+    .map_err(|error| format!("create extra repository: {error}"))?;
+    fs::write(&source, extra_repository_source())
+        .map_err(|error| format!("write extra repository source: {error}"))?;
+
+    let gold_path = root.join("gold/extra/typo.jsonl");
+    fs::create_dir_all(
+        gold_path
+            .parent()
+            .ok_or("extra gold has no parent")?,
+    )
+    .map_err(|error| format!("create extra gold directory: {error}"))?;
+    fs::write(&gold_path, extra_typo_gold())
+        .map_err(|error| format!("write extra gold: {error}"))?;
+    let fingerprint = benchmark::manifest::file_fingerprint(&gold_path)
+        .map_err(|error| format!("fingerprint extra gold: {error:#}"))?;
+
+    let mut manifest = read_fixture_manifest()?;
+    let repository: serde_yaml_ng::Value = serde_yaml_ng::from_str(EXTRA_REPOSITORY)
+        .map_err(|error| format!("parse extra repository: {error}"))?;
+    manifest
+        .get_mut("repositories")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no repositories sequence")?
+        .push(repository);
+    let gold: serde_yaml_ng::Value = serde_yaml_ng::from_str(&format!(
+        "{{repository: fixture-extra, metric: typo, version: 1, tasks: 5, fingerprint: \"{fingerprint}\", path: gold/extra/typo.jsonl}}"
+    ))
+    .map_err(|error| format!("parse extra gold entry: {error}"))?;
+    manifest
+        .get_mut("gold")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no gold sequence")?
+        .push(gold);
+
+    let cassette_path = root.join("cassettes/results/results.jsonl");
+    let mut cassette = fs::read_to_string(&cassette_path)
+        .map_err(|error| format!("read result cassette: {error}"))?;
+    for entry in extra_results() {
+        cassette.push_str(
+            &serde_json::to_string(&entry)
+                .map_err(|error| format!("serialize extra result: {error}"))?,
+        );
+        cassette.push('\n');
+    }
+    fs::write(&cassette_path, cassette)
+        .map_err(|error| format!("write extra results: {error}"))?;
+    let cassette_fingerprint = benchmark::record::cassette::fingerprint(&cassette_path)
+        .map_err(|error| format!("fingerprint variant result cassette: {error:#}"))?;
+    manifest["cassettes"]["results"]["fingerprint"] =
+        serde_yaml_ng::Value::String(cassette_fingerprint);
+
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then(
+    regex = r"^the typo recall at rank one for (\S+) is ([\d.]+) with (\d+) of (\d+) tasks$"
+)]
+fn typo_recall_at_one_per_repository(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [repository, value, numerator, denominator] = captures else {
+        return Err("per-repository typo step needs four captures".into());
+    };
+    let json = report_json(world)?;
+    let expected_value: f64 = value
+        .parse()
+        .map_err(|error| format!("parse per-repository value: {error}"))?;
+    let pointer = format!("/metrics/typo/per_repository/{repository}");
+    let cell = json
+        .pointer(&pointer)
+        .ok_or_else(|| format!("report has no per-repository typo value for {repository}"))?;
+    let actual_value = cell
+        .get("value")
+        .and_then(serde_json::Value::as_f64)
+        .ok_or_else(|| format!("{repository} per-repository typo value is not measured"))?;
+    check_value(actual_value, value, "per-repository typo recall @1")?;
+    let expected_value_json = cell
+        .get("value")
+        .and_then(serde_json::Value::as_f64)
+        .ok_or("missing measured value")?;
+    if (expected_value_json - expected_value).abs() > 1e-9 {
+        return Err(format!(
+            "{repository} per-repository typo value is {expected_value_json}, expected {expected_value}"
+        ));
+    }
+    let actual_numerator = cell
+        .get("numerator")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| format!("{repository} per-repository cell has no numerator"))?;
+    let actual_denominator = cell
+        .get("denominator")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| format!("{repository} per-repository cell has no denominator"))?;
+    check_counts(
+        actual_numerator,
+        actual_denominator,
+        numerator,
+        denominator,
+        "per-repository typo recall @1",
+    )?;
+    Ok(())
+}
+
+#[given("a fixture gold file changed without updating its declared fingerprint")]
+fn gold_fingerprint_mismatch(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-gold-fingerprint-mismatch")?;
+    rewrite_first_typo_task(&root, |task| {
+        task["query"] = serde_json::Value::String("mutated after the fingerprint".to_string());
+    })?;
+    let manifest = read_fixture_manifest()?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then(
+    regex = r"^the error names the (\S+) gold set and the mismatched expected and actual fingerprints$"
+)]
+fn error_names_gold_fingerprints(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [metric] = captures else {
+        return Err("gold-fingerprint error step needs one capture".into());
+    };
+    let message = &world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; a report was produced")?
+        .message;
+    let manifest = world
+        .manifest
+        .as_ref()
+        .ok_or("variant manifest was not loaded")?;
+    let set = manifest
+        .gold
+        .iter()
+        .find(|set| set.metric == metric.as_str())
+        .ok_or_else(|| format!("manifest has no {metric} gold set"))?;
+    let base = world
+        .manifest_path
+        .parent()
+        .ok_or("variant manifest has no parent")?;
+    let actual = benchmark::manifest::file_fingerprint(&base.join(&set.path))
+        .map_err(|error| format!("fingerprint gold file: {error:#}"))?;
+    if set.fingerprint == actual {
+        return Err("the variant gold file was not mutated".into());
+    }
+    for expected in [metric.as_str(), set.fingerprint.as_str(), actual.as_str(), "gold"] {
+        if !message.contains(expected) {
+            return Err(format!("error does not contain `{expected}`: {message}"));
+        }
+    }
+    Ok(())
+}
+
+#[given("a fixture result cassette changed without updating its declared fingerprint")]
+fn cassette_fingerprint_mismatch(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-cassette-fingerprint-mismatch")?;
+    let path = root.join("cassettes/results/results.jsonl");
+    let text = fs::read_to_string(&path)
+        .map_err(|error| format!("read result cassette: {error}"))?;
+    let mut lines = text.lines();
+    let first = lines.next().ok_or("fixture result cassette is empty")?;
+    let mut entry: serde_json::Value =
+        serde_json::from_str(first).map_err(|error| format!("parse result cassette: {error}"))?;
+    entry["results"][0]["end_line"] = serde_json::Value::from(9999);
+    let mut rewritten = serde_json::to_string(&entry)
+        .map_err(|error| format!("serialize mutated result: {error}"))?;
+    rewritten.push('\n');
+    for line in lines {
+        rewritten.push_str(line);
+        rewritten.push('\n');
+    }
+    fs::write(&path, rewritten).map_err(|error| format!("write mutated cassette: {error}"))?;
+    let manifest = read_fixture_manifest()?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then(
+    regex = r"^the error names the (result|model) cassette and the mismatched expected and actual fingerprints$"
+)]
+fn error_names_cassette_fingerprints(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [layer] = captures else {
+        return Err("cassette-fingerprint error step needs one capture".into());
+    };
+    let message = &world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; a report was produced")?
+        .message;
+    let manifest = world
+        .manifest
+        .as_ref()
+        .ok_or("variant manifest was not loaded")?;
+    let cassette = match layer.as_str() {
+        "result" => &manifest.cassettes.results,
+        "model" => &manifest.cassettes.model,
+        other => return Err(format!("unknown cassette layer {other}")),
+    };
+    let base = world
+        .manifest_path
+        .parent()
+        .ok_or("variant manifest has no parent")?;
+    let actual = benchmark::record::cassette::fingerprint(&base.join(&cassette.path))
+        .map_err(|error| format!("fingerprint cassette: {error:#}"))?;
+    if cassette.fingerprint == actual {
+        return Err("the variant cassette was not mutated".into());
+    }
+    for expected in [
+        layer.as_str(),
+        "cassette",
+        cassette.fingerprint.as_str(),
+        actual.as_str(),
+    ] {
+        if !message.contains(expected) {
+            return Err(format!("error does not contain `{expected}`: {message}"));
+        }
+    }
+    Ok(())
+}
+
+fn limitations(world: &BenchmarkWorld) -> Result<Vec<String>, String> {
+    let json = report_json(world)?;
+    json.get("limitations")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "report.json has no limitations list".to_string())?
+        .iter()
+        .map(|entry| {
+            entry
+                .as_str()
+                .map(str::to_string)
+                .ok_or_else(|| "limitation is not a string".to_string())
+        })
+        .collect()
+}
+
+#[then("the report states the explanation rubric's surface-form limitation")]
+fn explanation_surface_form_limitation(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let limitations = limitations(world)?;
+    if !limitations
+        .iter()
+        .any(|limitation| limitation.contains("surface form"))
+    {
+        return Err(format!(
+            "report limitations do not state the surface-form limitation: {limitations:?}"
+        ));
+    }
+    let markdown = fs::read_to_string(world.out_dir.join("report.md"))
+        .map_err(|error| format!("read report.md: {error}"))?;
+    if !markdown.contains("## Limitations") {
+        return Err("report.md has no Limitations section".into());
+    }
+    Ok(())
+}
+
+#[then(
+    "the report lists the proposed target, the unavailable capability reasons, and the regex proxy arm as limitations"
+)]
+fn report_limitations_list(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let limitations = limitations(world)?;
+    for expected in [
+        "proposed",
+        "no_explanation_operation",
+        "no_natural_language_search",
+        "regex_pattern_search_proxy",
+    ] {
+        if !limitations
+            .iter()
+            .any(|limitation| limitation.contains(expected))
+        {
+            return Err(format!(
+                "report limitations do not name `{expected}`: {limitations:?}"
+            ));
+        }
+    }
+    let markdown = fs::read_to_string(world.out_dir.join("report.md"))
+        .map_err(|error| format!("read report.md: {error}"))?;
+    if !markdown.contains("regex_pattern_search_proxy") {
+        return Err("report.md limitations do not name the regex proxy arm".into());
+    }
+    Ok(())
+}
+
+#[then("an invalid report is rejected before it is written")]
+fn invalid_report_rejected(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = world
+        .report
+        .as_ref()
+        .ok_or("the run did not produce a report")?;
+    let mut invalid = report.clone();
+    invalid.metrics.typo.aggregate.coverage.numerator += 1;
+    let out = world.out_dir.join("invalid-report");
+    if let Err(error) = benchmark::report::render::write_reports(&invalid, &out) {
+        if !format!("{error:#}").contains("coverage") {
+            return Err(format!(
+                "invalid report was rejected for the wrong reason: {error:#}"
+            ));
+        }
+    } else {
+        return Err("an inconsistent report was written instead of rejected".into());
+    }
+    for name in ["report.json", "report.md"] {
+        if out.join(name).exists() {
+            return Err(format!("rejected report wrote {name}"));
+        }
     }
     Ok(())
 }

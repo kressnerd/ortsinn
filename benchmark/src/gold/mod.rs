@@ -85,6 +85,16 @@ impl Gold {
                 repository.id
             );
             let path = base.join(&set.path);
+            let actual = crate::manifest::file_fingerprint(&path)
+                .with_context(|| format!("fingerprint gold file {}", path.display()))?;
+            anyhow::ensure!(
+                actual == set.fingerprint,
+                "gold set {} {} fingerprint mismatch: expected {}, actual {}",
+                set.repository,
+                set.metric,
+                set.fingerprint,
+                actual
+            );
             let label = format!("{} {}", repository.id, set.metric);
             match set.metric.as_str() {
                 "typo" => {

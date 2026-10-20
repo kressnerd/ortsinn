@@ -119,16 +119,18 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
         resolve_cassette(out_dir, &base, &manifest.cassettes.results.path);
     let (model_path, model_recorded) =
         resolve_cassette(out_dir, &base, &manifest.cassettes.model.path);
-    let result_fingerprint = if results_recorded {
-        cassette::fingerprint(&results_path)?
-    } else {
-        manifest.cassettes.results.fingerprint.clone()
-    };
-    let model_fingerprint = if model_recorded {
-        cassette::fingerprint(&model_path)?
-    } else {
-        manifest.cassettes.model.fingerprint.clone()
-    };
+    let result_fingerprint = cassette_identity(
+        &results_path,
+        &manifest.cassettes.results,
+        results_recorded,
+        "result",
+    )?;
+    let model_fingerprint = cassette_identity(
+        &model_path,
+        &manifest.cassettes.model,
+        model_recorded,
+        "model",
+    )?;
 
     let cassette = ResultCassette::load(&results_path)?;
     let models = ModelCassette::load(&model_path)?;
@@ -250,6 +252,29 @@ fn resolve_cassette(out_dir: &Path, base: &Path, relative: &str) -> (PathBuf, bo
     } else {
         (base.join(relative), false)
     }
+}
+
+/// Fingerprint a cassette and, for a committed fixed-input cassette, require
+/// the manifest's declared digest. A locally recorded cassette was written by
+/// this run, so its computed digest becomes the report identity; the manifest
+/// still declares the committed cassette's digest.
+fn cassette_identity(
+    path: &Path,
+    declared: &crate::manifest::CassetteRef,
+    local: bool,
+    layer: &str,
+) -> Result<String> {
+    let actual = cassette::fingerprint(path)?;
+    if !local {
+        anyhow::ensure!(
+            actual == declared.fingerprint,
+            "{layer} cassette fingerprint mismatch for {}: expected {}, actual {}",
+            path.display(),
+            declared.fingerprint,
+            actual
+        );
+    }
+    Ok(actual)
 }
 
 fn write_jsonl<T: serde::Serialize>(path: &Path, entries: impl Iterator<Item = T>) -> Result<()> {
