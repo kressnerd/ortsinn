@@ -93,13 +93,14 @@ targets:
   concept_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
   concept_equivalence_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
 gold:
-  - {repository: fixture-repo, metric: typo, version: 1, tasks: 5, fingerprint: "sha256:fixture-typo-v1", path: gold/typo.jsonl}
-  - {repository: fixture-repo, metric: natural_language, version: 1, tasks: 4, fingerprint: "sha256:fixture-nl-v1", path: gold/natural_language.jsonl}
-  - {repository: fixture-repo, metric: explanation, version: 1, tasks: 4, fingerprint: "sha256:fixture-explanation-v1", path: gold/explanation.jsonl}
-  - {repository: fixture-repo, metric: concept, version: 1, tasks: 5, fingerprint: "sha256:fixture-concept-v1", path: gold/concept.jsonl}
+  - {repository: fixture-repo, metric: typo, version: 1, tasks: 5, fingerprint: "sha256:67ec379202d8eebfcebb689b0e7d05742c8fcf06a1bcb1cde10681145681aded", path: gold/typo.jsonl}
+  - {repository: fixture-repo, metric: natural_language, version: 1, tasks: 4, fingerprint: "sha256:dbdb526ab70d8553352b4a44256bc295dfdae9a8fa08a8841995bbfefeb924b9", path: gold/natural_language.jsonl}
+  - {repository: fixture-repo, metric: explanation, version: 1, tasks: 4, fingerprint: "sha256:e9de35dc1d92c0e7f0b2b0418716e2d0ef29915c49965377b839b9a9ff1d7fc4", path: gold/explanation.jsonl}
+  - {repository: fixture-repo, metric: concept, version: 1, tasks: 5, fingerprint: "sha256:13faa30317a28dbe35bad7168749af0362d64a71f7e1bd21c39b57161fadd257", path: gold/concept.jsonl}
+  - {repository: fixture-repo, metric: concept_equivalence, version: 1, tasks: 4, fingerprint: "sha256:e37e8f25e7b7eaf05935854eaae0e5e6d383a426d267d3375ecec755bc76d83a", path: gold/concept_equivalence.jsonl}
 cassettes:
-  results: {path: cassettes/results/results.jsonl, fingerprint: "sha256:fixture-results-v1"}
-  model: {path: cassettes/model/model.jsonl, fingerprint: "sha256:fixture-model-v1"}
+  results: {path: cassettes/results/results.jsonl, fingerprint: "sha256:128ddb8fb68090557cf48c5ee4483cb79db1813799b44e185251cd151f644426"}
+  model: {path: cassettes/model/model.jsonl, fingerprint: "sha256:7f63ef63751fae33df36d45a9a79d7b9a5786f7cbe74051706a73f6977d78d11"}
 index_deadlines:
   public_repository_seconds: 14400
   synthetic_seconds: 28800

@@ -114,10 +114,11 @@ Feature: Benchmark comparison
   Scenario: Report names each gold set's version, task count, and fingerprint
     Given the fixture benchmark inputs
     When the maintainer runs the benchmark in replay mode
-    Then the typo gold set is version 1 with 5 tasks and fingerprint "sha256:fixture-typo-v1"
-    And the natural-language gold set is version 1 with 4 tasks and fingerprint "sha256:fixture-nl-v1"
-    And the explanation gold set is version 1 with 4 tasks and fingerprint "sha256:fixture-explanation-v1"
-    And the concept gold set is version 1 with 5 tasks and fingerprint "sha256:fixture-concept-v1"
+    Then the typo gold set is version 1 with 5 tasks and fingerprint "sha256:67ec379202d8eebfcebb689b0e7d05742c8fcf06a1bcb1cde10681145681aded"
+    And the natural-language gold set is version 1 with 4 tasks and fingerprint "sha256:dbdb526ab70d8553352b4a44256bc295dfdae9a8fa08a8841995bbfefeb924b9"
+    And the explanation gold set is version 1 with 4 tasks and fingerprint "sha256:e9de35dc1d92c0e7f0b2b0418716e2d0ef29915c49965377b839b9a9ff1d7fc4"
+    And the concept gold set is version 1 with 5 tasks and fingerprint "sha256:13faa30317a28dbe35bad7168749af0362d64a71f7e1bd21c39b57161fadd257"
+    And the concept-equivalence gold set is version 1 with 4 tasks and fingerprint "sha256:e37e8f25e7b7eaf05935854eaae0e5e6d383a426d267d3375ecec755bc76d83a"
 
   @givn.added
   Scenario: Report states the exact command that reproduces the run
@@ -165,17 +166,19 @@ Feature: Benchmark comparison
 
   @givn.added
   Scenario: An uninstallable or unstartable candidate is recorded and the run continues
-    Given fixture-unstartable whose MCP handshake fails
+    Given fixture-uninstallable and fixture-unstartable as recorded fixture candidates
     When the maintainer runs the benchmark in replay mode
-    Then the report marks fixture-unstartable unavailable with the reason "candidate_unstartable"
+    Then the report marks fixture-uninstallable unavailable with the reason "candidate_uninstallable"
+    And the report marks fixture-unstartable unavailable with the reason "candidate_unstartable"
     And the run completes and reports measured values for fixture-ocbi and fixture-ckb
-    And the report lists fixture-unstartable in the capability gaps
+    And the report lists fixture-uninstallable and fixture-unstartable in the capability gaps
 
   @givn.added
   Scenario: A candidate that exceeds its index deadline is unavailable, not zero
     Given fixture-timeout with an index deadline of 1 second on fixture-repo
     When the maintainer runs the benchmark in replay mode
     Then the report marks fixture-timeout unavailable on fixture-repo with the reason "index_timeout"
+    And the report records the applied index deadline of 1 second
     And the report records the elapsed index time
     And every metric for fixture-timeout on fixture-repo is unavailable and never zero
     And the run continues with the other candidates
@@ -204,6 +207,39 @@ Feature: Benchmark comparison
     Then fixture-serena's natural-language cells are unavailable with the reason "no_natural_language_search"
     And the natural-language recall at rank five remains 0.50 with 2 of 4 tasks, excluding fixture-serena
     And a measured regex arm is labelled "regex_pattern_search_proxy" and excluded from natural-language recall and mean reciprocal rank
+
+  @givn.added
+  Scenario: Report states values for each repository
+    Given a fixture with a second repository and its own typo gold set
+    When the maintainer runs the benchmark in replay mode
+    Then the report names fixture-extra at revision "extra-1", commit "2222222222222222222222222222222222222222", and 40 code lines
+    And the typo recall at rank one for fixture-repo is 0.60 with 3 of 5 tasks
+    And the typo recall at rank one for fixture-extra is 0.40 with 2 of 5 tasks
+    And the typo recall at rank one is 0.50 with 5 of 10 tasks
+
+  @givn.added
+  Scenario: A gold fingerprint mismatch stops the run
+    Given a fixture gold file changed without updating its declared fingerprint
+    When the maintainer runs the benchmark in replay mode
+    Then the run exits with code 2
+    And the error names the typo gold set and the mismatched expected and actual fingerprints
+    And no report.json or report.md is published
+
+  @givn.added
+  Scenario: A cassette fingerprint mismatch stops the run
+    Given a fixture result cassette changed without updating its declared fingerprint
+    When the maintainer runs the benchmark in replay mode
+    Then the run exits with code 2
+    And the error names the result cassette and the mismatched expected and actual fingerprints
+    And no report.json or report.md is published
+
+  @givn.added
+  Scenario: Report states its limitations and rejects an invalid report
+    Given the fixture benchmark inputs
+    When the maintainer runs the benchmark in replay mode
+    Then the report states the explanation rubric's surface-form limitation
+    And the report lists the proposed target, the unavailable capability reasons, and the regex proxy arm as limitations
+    And an invalid report is rejected before it is written
 
   @givn.added @e2e
   Scenario: Maintainer runs the benchmark and reads the measured report

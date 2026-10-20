@@ -1751,6 +1751,7 @@ fn gold_set_identity(world: &mut BenchmarkWorld, captures: &[String]) -> Result<
         "natural-language" => "natural_language",
         "explanation" => "explanation",
         "concept" => "concept",
+        "concept-equivalence" => "concept_equivalence",
         other => return Err(format!("unknown gold set label {other}")),
     };
     let set = report(world)

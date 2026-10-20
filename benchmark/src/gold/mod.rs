@@ -15,6 +15,10 @@ pub struct GoldTask {
     #[serde(default)]
     pub query: String,
     pub expected: Vec<NormalizedLocation>,
+    /// Repository this task scores. The loader sets it from the gold set's
+    /// manifest entry; the committed file does not repeat it.
+    #[serde(default)]
+    pub repository: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -31,6 +35,9 @@ pub struct ExplanationTask {
     pub target: NormalizedLocation,
     pub required_facts: Vec<Vec<String>>,
     pub acceptable_evidence: Vec<LineRange>,
+    /// Repository this task scores; set by the loader from the gold set.
+    #[serde(default)]
+    pub repository: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -81,30 +88,44 @@ impl Gold {
             let label = format!("{} {}", repository.id, set.metric);
             match set.metric.as_str() {
                 "typo" => {
-                    let tasks: Vec<GoldTask> = read_tasks(&path)?;
+                    let mut tasks: Vec<GoldTask> = read_tasks(&path)?;
                     validate_task_locations(&root, &tasks, &label)?;
-                    gold.typo = tasks;
+                    for task in &mut tasks {
+                        task.repository.clone_from(&set.repository);
+                    }
+                    gold.typo.extend(tasks);
                 }
                 "natural_language" => {
-                    let tasks: Vec<GoldTask> = read_tasks(&path)?;
+                    let mut tasks: Vec<GoldTask> = read_tasks(&path)?;
                     validate_task_locations(&root, &tasks, &label)?;
-                    gold.natural_language = tasks;
+                    for task in &mut tasks {
+                        task.repository.clone_from(&set.repository);
+                    }
+                    gold.natural_language.extend(tasks);
                 }
                 "explanation" => {
-                    let tasks: Vec<ExplanationTask> = read_explanation(&path)?;
+                    let mut tasks: Vec<ExplanationTask> = read_explanation(&path)?;
                     validate_explanation_locations(&root, &tasks, &label)?;
-                    gold.explanation = tasks;
+                    for task in &mut tasks {
+                        task.repository.clone_from(&set.repository);
+                    }
+                    gold.explanation.extend(tasks);
                 }
-                "concept" => {
+                "concept" | "concept_equivalence" => {
+                    let equivalence = set.metric == "concept_equivalence";
                     let entries: Vec<ConceptEntry> = read_jsonl(&path)?;
                     for entry in &entries {
+                        if entry.equivalence != equivalence {
+                            continue;
+                        }
                         let task = GoldTask {
                             id: entry.id.clone(),
                             query: entry.query.clone(),
                             expected: entry.expected.clone(),
+                            repository: set.repository.clone(),
                         };
                         validate_task_locations(&root, std::slice::from_ref(&task), &label)?;
-                        if entry.equivalence {
+                        if equivalence {
                             gold.concept_equivalence.push(task);
                         } else {
                             gold.concept.push(task);
@@ -114,36 +135,38 @@ impl Gold {
                 other => anyhow::bail!("unsupported gold metric {other}"),
             }
         }
-        anyhow::ensure!(
-            gold.typo.len() as u64 == manifest.gold_set("typo").map(|set| set.tasks).unwrap_or(0),
-            "typo gold task count does not match the manifest"
-        );
-        anyhow::ensure!(
-            gold.natural_language.len() as u64
-                == manifest
-                    .gold_set("natural_language")
-                    .map(|set| set.tasks)
-                    .unwrap_or(0),
-            "natural-language gold task count does not match the manifest"
-        );
-        anyhow::ensure!(
-            gold.explanation.len() as u64
-                == manifest
-                    .gold_set("explanation")
-                    .map(|set| set.tasks)
-                    .unwrap_or(0),
-            "explanation gold task count does not match the manifest"
-        );
-        anyhow::ensure!(
-            gold.concept.len() as u64
-                == manifest
-                    .gold_set("concept")
-                    .map(|set| set.tasks)
-                    .unwrap_or(0),
-            "concept gold task count does not match the manifest"
-        );
+        ensure_declared_count(manifest, "typo", gold.typo.len())?;
+        ensure_declared_count(
+            manifest,
+            "natural_language",
+            gold.natural_language.len(),
+        )?;
+        ensure_declared_count(manifest, "explanation", gold.explanation.len())?;
+        ensure_declared_count(manifest, "concept", gold.concept.len())?;
+        ensure_declared_count(
+            manifest,
+            "concept_equivalence",
+            gold.concept_equivalence.len(),
+        )?;
         Ok(gold)
     }
+}
+
+/// The manifest declares each gold set's reviewed task count. A gold file
+/// that lost or gained a task fails the load instead of silently changing the
+/// measurement denominator.
+fn ensure_declared_count(manifest: &Manifest, metric: &str, actual: usize) -> Result<()> {
+    let declared: u64 = manifest
+        .gold
+        .iter()
+        .filter(|set| set.metric == metric)
+        .map(|set| set.tasks)
+        .sum();
+    anyhow::ensure!(
+        actual as u64 == declared,
+        "{metric} gold task count does not match the manifest: declared {declared}, loaded {actual}"
+    );
+    Ok(())
 }
 
 /// A gold task that cannot be checked against the fixed checkout. The

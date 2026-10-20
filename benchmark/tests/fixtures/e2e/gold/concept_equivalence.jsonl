@@ -1,0 +1,4 @@
+{"id":"ce-1","query":"addition helper","expected":[{"path":"src/math_utils.py","start_line":16,"end_line":16,"symbol":"helper_16"}],"equivalence":true}
+{"id":"ce-2","query":"to string helper","expected":[{"path":"src/text_utils.py","start_line":26,"end_line":26,"symbol":"text_helper_26"}],"equivalence":true}
+{"id":"ce-3","query":"multiply helper","expected":[{"path":"src/math_utils.py","start_line":36,"end_line":36,"symbol":"helper_36"}],"equivalence":true}
+{"id":"ce-4","query":"token helper","expected":[{"path":"src/text_utils.py","start_line":46,"end_line":46,"symbol":"text_helper_46"}],"equivalence":true}
