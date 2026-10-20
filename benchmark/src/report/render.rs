@@ -81,12 +81,20 @@ fn render_metrics(out: &mut String, report: &Report) {
         None => out.push_str("- Typo no-match rate: unavailable\n"),
     }
     out.push('\n');
+    coverage_line(out, "Typo", &metrics.typo.aggregate.coverage);
+    out.push('\n');
     out.push_str("## Natural-language retrieval\n\n");
     score_line(out, "NL recall @5", &metrics.natural_language.aggregate);
     out.push_str(&format!(
-        "- NL MRR @10: {:.2}\n\n",
+        "- NL MRR @10: {:.2}\n",
         metrics.natural_language.mrr_at_10.value
     ));
+    coverage_line(
+        out,
+        "Natural-language",
+        &metrics.natural_language.aggregate.coverage,
+    );
+    out.push('\n');
     out.push_str("## Explanation correctness\n\n");
     score_line(
         out,
@@ -94,15 +102,37 @@ fn render_metrics(out: &mut String, report: &Report) {
         &metrics.explanation.aggregate,
     );
     out.push_str(&format!(
-        "- Explanation evidence grounding: {:.2}\n\n",
+        "- Explanation evidence grounding: {:.2}\n",
         metrics.explanation.evidence_grounding.value
     ));
+    coverage_line(
+        out,
+        "Explanation",
+        &metrics.explanation.aggregate.coverage,
+    );
+    out.push('\n');
     out.push_str("## Concept recall\n\n");
     score_line(out, "Concept recall @5", &metrics.concept.aggregate);
+    coverage_line(out, "Concept", &metrics.concept.aggregate.coverage);
+    coverage_line(
+        out,
+        "Concept no-expansion arm",
+        &metrics.concept.arms.no_expansion.score.coverage,
+    );
     score_line(
         out,
         "Concept-equivalence recall @5",
         &metrics.concept_equivalence.aggregate,
+    );
+    coverage_line(
+        out,
+        "Concept-equivalence",
+        &metrics.concept_equivalence.aggregate.coverage,
+    );
+    coverage_line(
+        out,
+        "Concept-equivalence no-expansion arm",
+        &metrics.concept_equivalence.arms.no_expansion.score.coverage,
     );
     out.push('\n');
     out.push_str("## Measured gaps\n\n");
@@ -144,6 +174,19 @@ fn render_metrics(out: &mut String, report: &Report) {
 
 fn gap_status(status: super::model::CellStatus) -> &'static str {
     status_label(status)
+}
+
+fn coverage_line(out: &mut String, label: &str, coverage: &super::model::Coverage) {
+    match coverage.value {
+        Some(value) => out.push_str(&format!(
+            "- {label} coverage: {} of {} ({value:.2})\n",
+            coverage.numerator, coverage.denominator
+        )),
+        None => out.push_str(&format!(
+            "- {label} coverage: {} of {} (no applicable tasks)\n",
+            coverage.numerator, coverage.denominator
+        )),
+    }
 }
 
 fn score_line(out: &mut String, label: &str, score: &Score) {

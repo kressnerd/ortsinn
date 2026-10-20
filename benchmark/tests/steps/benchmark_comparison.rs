@@ -1080,6 +1080,192 @@ fn typo_recall_at_five_ranked(world: &mut BenchmarkWorld, captures: &[String]) -
     Ok(())
 }
 
+fn metric_coverage<'a>(
+    metrics: &'a benchmark::report::model::Metrics,
+    name: &str,
+) -> Option<&'a benchmark::report::model::Coverage> {
+    match name {
+        "typo" => Some(&metrics.typo.aggregate.coverage),
+        "natural-language" => Some(&metrics.natural_language.aggregate.coverage),
+        "explanation" => Some(&metrics.explanation.aggregate.coverage),
+        "concept" => Some(&metrics.concept.aggregate.coverage),
+        "concept-equivalence" => Some(&metrics.concept_equivalence.aggregate.coverage),
+        _ => None,
+    }
+}
+
+fn check_coverage(
+    label: &str,
+    coverage: &benchmark::report::model::Coverage,
+    numerator: &str,
+    denominator: &str,
+    value: &str,
+) -> Result<(), String> {
+    check_counts(
+        coverage.numerator,
+        coverage.denominator,
+        numerator,
+        denominator,
+        label,
+    )?;
+    check_value(
+        coverage
+            .value
+            .ok_or_else(|| format!("{label} coverage has no value"))?,
+        value,
+        label,
+    )
+}
+
+#[then(regex = r"^the (\S+) coverage is (\d+) of (\d+) with a value of ([\d.]+)$")]
+fn metric_coverage_step(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [metric, numerator, denominator, value] = captures else {
+        return Err("metric coverage step needs four captures".into());
+    };
+    let coverage = metric_coverage(&report(world).metrics, metric)
+        .ok_or_else(|| format!("report has no {metric} aggregate coverage"))?;
+    check_coverage(metric, coverage, numerator, denominator, value)
+}
+
+#[then(
+    regex = r"^(\S+)'s explanation coverage is (\d+) of (\d+) and (\S+)'s explanation coverage is (\d+) of (\d+)$"
+)]
+fn explanation_coverage_per_candidate(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [first_candidate, first_numerator, first_denominator, second_candidate, second_numerator, second_denominator] =
+        captures
+    else {
+        return Err("per-candidate explanation coverage step needs six captures".into());
+    };
+    let cells = &report(world).metrics.explanation.per_candidate;
+    for (candidate, numerator, denominator) in [
+        (first_candidate, first_numerator, first_denominator),
+        (second_candidate, second_numerator, second_denominator),
+    ] {
+        let cell = cells
+            .get(candidate)
+            .ok_or_else(|| format!("report has no explanation cell for {candidate}"))?;
+        check_counts(
+            cell.coverage.numerator,
+            cell.coverage.denominator,
+            numerator,
+            denominator,
+            "candidate explanation coverage",
+        )?;
+        let expected = cell.coverage.numerator as f64 / cell.coverage.denominator as f64;
+        let actual = cell
+            .coverage
+            .value
+            .ok_or_else(|| format!("{candidate} coverage has no value"))?;
+        if (actual - expected).abs() > 1e-9 {
+            return Err(format!(
+                "{candidate} coverage value {actual} is not {} / {}",
+                cell.coverage.numerator, cell.coverage.denominator
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("every coverage value is attempted divided by attempted plus unavailable, excluding not-applicable cells")]
+fn every_coverage_value_is_attempted_over_attempted_plus_unavailable(
+    world: &mut BenchmarkWorld,
+) -> Result<(), String> {
+    use benchmark::report::model::{CellStatus, Metrics, Score};
+
+    let metrics = &report(world).metrics;
+
+    fn collect<'a>(cells: &mut Vec<(String, &'a Score)>, metric: &'a Metrics) {
+        cells.push(("typo.aggregate".to_string(), &metric.typo.aggregate));
+        for (candidate, cell) in &metric.typo.per_candidate {
+            cells.push((format!("typo.{candidate}"), cell));
+        }
+        cells.push((
+            "natural_language.aggregate".to_string(),
+            &metric.natural_language.aggregate,
+        ));
+        for (candidate, cell) in &metric.natural_language.per_candidate {
+            cells.push((format!("natural_language.{candidate}"), cell));
+        }
+        cells.push((
+            "explanation.aggregate".to_string(),
+            &metric.explanation.aggregate,
+        ));
+        for (candidate, cell) in &metric.explanation.per_candidate {
+            cells.push((format!("explanation.{candidate}"), cell));
+        }
+        for (name, arm) in [
+            ("concept.default", &metric.concept.arms.default),
+            ("concept.no_expansion", &metric.concept.arms.no_expansion),
+            (
+                "concept_equivalence.default",
+                &metric.concept_equivalence.arms.default,
+            ),
+            (
+                "concept_equivalence.no_expansion",
+                &metric.concept_equivalence.arms.no_expansion,
+            ),
+        ] {
+            cells.push((format!("{name}.aggregate"), &arm.score));
+            for (candidate, cell) in &arm.per_candidate {
+                cells.push((format!("{name}.{candidate}"), cell));
+            }
+        }
+    }
+
+    let mut cells = Vec::new();
+    collect(&mut cells, metrics);
+    for (label, cell) in cells {
+        if cell.status == CellStatus::NotApplicable {
+            if cell.attempted != 0 || cell.unavailable != 0 {
+                return Err(format!(
+                    "{label} is not applicable but has {} attempted and {} unavailable tasks",
+                    cell.attempted, cell.unavailable
+                ));
+            }
+            if cell.coverage.numerator != 0 || cell.coverage.denominator != 0 {
+                return Err(format!(
+                    "{label} is not applicable but has coverage {} of {}",
+                    cell.coverage.numerator, cell.coverage.denominator
+                ));
+            }
+            continue;
+        }
+        let denominator = cell.attempted + cell.unavailable;
+        if denominator == 0 {
+            return Err(format!(
+                "{label} is {:?} but has no attempted or unavailable tasks",
+                cell.status
+            ));
+        }
+        if cell.coverage.numerator != cell.attempted {
+            return Err(format!(
+                "{label} coverage numerator {} is not attempted {}",
+                cell.coverage.numerator, cell.attempted
+            ));
+        }
+        if cell.coverage.denominator != denominator {
+            return Err(format!(
+                "{label} coverage denominator {} is not attempted + unavailable {denominator}",
+                cell.coverage.denominator
+            ));
+        }
+        let expected = cell.attempted as f64 / denominator as f64;
+        let actual = cell
+            .coverage
+            .value
+            .ok_or_else(|| format!("{label} coverage has no value"))?;
+        if (actual - expected).abs() > 1e-9 {
+            return Err(format!(
+                "{label} coverage value {actual} is not attempted/attempted+unavailable {expected}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[then("its gold sets name the same locations")]
 fn synthetic_gold_locations_match(world: &mut BenchmarkWorld) -> Result<(), String> {
     let first = world

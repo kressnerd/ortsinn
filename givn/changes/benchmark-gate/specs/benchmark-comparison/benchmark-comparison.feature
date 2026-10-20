@@ -98,7 +98,7 @@ Feature: Benchmark comparison
     And the typo no-match rate is 0.20 with 1 of 5 tasks
     And the typo recall at rank five is 0.80 because 4 of 5 tasks are ranked
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report states metric and task coverage with denominators
     Given the fixture benchmark inputs
     When the maintainer runs the benchmark in replay mode
