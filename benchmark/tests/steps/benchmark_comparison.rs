@@ -2776,6 +2776,16 @@ fn typo_recall_at_one_per_repository(
         denominator,
         "per-repository typo recall @1",
     )?;
+    let markdown = fs::read_to_string(world.out_dir.join("report.md"))
+        .map_err(|error| format!("read report.md: {error}"))?;
+    let expected_line = format!(
+        "Typo recall @1 for `{repository}`: {value} ({numerator} of {denominator})"
+    );
+    if !markdown.contains(&expected_line) {
+        return Err(format!(
+            "report.md does not state the per-repository value `{expected_line}`"
+        ));
+    }
     Ok(())
 }
 
