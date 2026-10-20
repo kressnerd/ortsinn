@@ -82,7 +82,7 @@ Feature: Benchmark comparison
     And the error names the missing input and the candidate that requested it
     And no report.json or report.md is published
 
-  @givn.added @wip
+  @givn.added
   Scenario: The synthetic monorepo is regenerated to the same content fingerprint
     Given the fixed synthetic seed and generator version
     When the maintainer regenerates the synthetic monorepo

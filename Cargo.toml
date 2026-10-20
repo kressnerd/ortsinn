@@ -1,3 +1,15 @@
 [workspace]
 members = ["benchmark"]
 resolver = "2"
+
+# The synthetic generator hashes ten million lines twice in the executable
+# spec. Optimize the digest dependency in dev/test builds so regeneration is a
+# reasonable test-time operation; the harness code stays unoptimized.
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.dev.package.digest]
+opt-level = 3
+
+[profile.dev.package.block-buffer]
+opt-level = 3

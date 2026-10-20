@@ -5,6 +5,7 @@
 
 pub mod adapters;
 pub mod cli;
+pub mod r#gen;
 pub mod gold;
 pub mod manifest;
 pub mod metrics;

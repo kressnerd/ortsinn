@@ -914,3 +914,115 @@ fn no_report_is_published(world: &mut BenchmarkWorld) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[given("the fixed synthetic seed and generator version")]
+fn the_fixed_synthetic_seed_and_generator_version(
+    world: &mut BenchmarkWorld,
+) -> Result<(), String> {
+    use benchmark::r#gen::synthetic_repo as synthetic;
+    assert_eq!(synthetic::SEED, 20261020, "synthetic seed");
+    assert_eq!(synthetic::GENERATOR_VERSION, 1, "generator version");
+    world.synthetic_first = Some(synthetic::generate());
+    Ok(())
+}
+
+#[when("the maintainer regenerates the synthetic monorepo")]
+fn the_maintainer_regenerates_the_synthetic_monorepo(
+    world: &mut BenchmarkWorld,
+) -> Result<(), String> {
+    world.synthetic_second = Some(benchmark::r#gen::synthetic_repo::generate());
+    Ok(())
+}
+
+fn synthetic_repo(
+    world: &BenchmarkWorld,
+) -> &benchmark::r#gen::synthetic_repo::SyntheticRepo {
+    world
+        .synthetic_second
+        .as_ref()
+        .expect("the synthetic monorepo must have been regenerated")
+}
+
+#[then(
+    "it contains ten million code lines across the TypeScript, Python, and Rust languages"
+)]
+fn synthetic_ten_million_lines(world: &mut BenchmarkWorld) -> Result<(), String> {
+    use benchmark::r#gen::synthetic_repo as synthetic;
+    let repo = synthetic_repo(world);
+    assert_eq!(repo.code_lines, synthetic::CODE_LINES, "synthetic code lines");
+    for language in ["typescript", "python", "rust"] {
+        let lines = repo
+            .lines_by_language
+            .get(language)
+            .ok_or_else(|| format!("synthetic repository has no {language} code lines"))?;
+        if *lines == 0 {
+            return Err(format!("synthetic repository has zero {language} code lines"));
+        }
+    }
+    let total: u64 = repo.lines_by_language.values().sum();
+    if total != synthetic::CODE_LINES {
+        return Err(format!(
+            "synthetic language totals sum to {total}, expected {}",
+            synthetic::CODE_LINES
+        ));
+    }
+    Ok(())
+}
+
+#[then(regex = r#"^its content fingerprint matches the recorded fixed input "([^"]+)"$"#)]
+fn synthetic_content_fingerprint(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [fingerprint] = captures else {
+        return Err("synthetic fingerprint step needs one capture".into());
+    };
+    let first = world
+        .synthetic_first
+        .as_ref()
+        .ok_or("the synthetic monorepo was not generated before regeneration")?;
+    let second = synthetic_repo(world);
+    assert_eq!(
+        &second.recorded_fingerprint, fingerprint,
+        "recorded synthetic fingerprint"
+    );
+    if first.content_digest != second.content_digest {
+        return Err(format!(
+            "regenerated content digest {} differs from {}",
+            second.content_digest, first.content_digest
+        ));
+    }
+    Ok(())
+}
+
+#[then("its gold sets name the same locations")]
+fn synthetic_gold_locations_match(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let first = world
+        .synthetic_first
+        .as_ref()
+        .ok_or("the synthetic monorepo was not generated before regeneration")?;
+    let second = synthetic_repo(world);
+    if first.gold != second.gold {
+        return Err("regenerated synthetic gold sets changed".into());
+    }
+    for task in &second.gold {
+        let file = second
+            .files
+            .iter()
+            .find(|file| file.path == task.expected.path)
+            .ok_or_else(|| format!("gold task {} names an unknown file", task.id))?;
+        if task.expected.start_line == 0 || u64::from(task.expected.start_line) > file.code_lines {
+            return Err(format!(
+                "gold task {} names line {} outside {}",
+                task.id, task.expected.start_line, file.path
+            ));
+        }
+        if !task.observed_line.contains(&task.expected.symbol) {
+            return Err(format!(
+                "gold task {} expected symbol {} but the line is {:?}",
+                task.id, task.expected.symbol, task.observed_line
+            ));
+        }
+    }
+    Ok(())
+}
