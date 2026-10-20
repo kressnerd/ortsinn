@@ -63,10 +63,40 @@ pub struct Candidate {
     pub capabilities: BTreeMap<String, Capability>,
     #[serde(default)]
     pub setup: CandidateSetup,
+    /// Index deadline for this candidate, in seconds; overrides the
+    /// manifest-wide public-repository deadline.
+    #[serde(default)]
+    pub index_deadline_seconds: Option<u64>,
     /// Present when the candidate cannot be started at all; every metric
     /// cell for it is then unavailable with the reason.
     #[serde(default)]
     pub unavailable: Option<Unavailable>,
+}
+
+impl Candidate {
+    /// The effective per-repository index deadline for this candidate.
+    pub fn index_deadline(&self, manifest: &Manifest) -> Option<u64> {
+        self.index_deadline_seconds.or_else(|| {
+            manifest
+                .index_deadlines
+                .get("public_repository_seconds")
+                .copied()
+        })
+    }
+
+    /// Index records that exceeded the effective deadline. A breach is
+    /// derived from the recorded elapsed time, so replay reaches the same
+    /// conclusion as the live run.
+    pub fn timed_out_indexes<'a>(&'a self, manifest: &Manifest) -> Vec<&'a IndexRecord> {
+        let Some(deadline) = self.index_deadline(manifest) else {
+            return Vec::new();
+        };
+        self.setup
+            .indexes
+            .iter()
+            .filter(|index| index.seconds > deadline as f64)
+            .collect()
+    }
 }
 
 /// Recorded candidate setup normalization. Each field is optional because the

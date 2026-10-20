@@ -770,9 +770,7 @@ fn no_external_request(world: &mut BenchmarkWorld) -> Result<(), String> {
     Ok(())
 }
 
-#[then(
-    regex = r#"^the report states the replay mode and the recording fingerprint "([^"]+)"$"#
-)]
+#[then(regex = r#"^the report states the replay mode and the recording fingerprint "([^"]+)"$"#)]
 fn replay_mode_and_recording_fingerprint(
     world: &mut BenchmarkWorld,
     captures: &[String],
@@ -938,29 +936,31 @@ fn the_maintainer_regenerates_the_synthetic_monorepo(
     Ok(())
 }
 
-fn synthetic_repo(
-    world: &BenchmarkWorld,
-) -> &benchmark::r#gen::synthetic_repo::SyntheticRepo {
+fn synthetic_repo(world: &BenchmarkWorld) -> &benchmark::r#gen::synthetic_repo::SyntheticRepo {
     world
         .synthetic_second
         .as_ref()
         .expect("the synthetic monorepo must have been regenerated")
 }
 
-#[then(
-    "it contains ten million code lines across the TypeScript, Python, and Rust languages"
-)]
+#[then("it contains ten million code lines across the TypeScript, Python, and Rust languages")]
 fn synthetic_ten_million_lines(world: &mut BenchmarkWorld) -> Result<(), String> {
     use benchmark::r#gen::synthetic_repo as synthetic;
     let repo = synthetic_repo(world);
-    assert_eq!(repo.code_lines, synthetic::CODE_LINES, "synthetic code lines");
+    assert_eq!(
+        repo.code_lines,
+        synthetic::CODE_LINES,
+        "synthetic code lines"
+    );
     for language in ["typescript", "python", "rust"] {
         let lines = repo
             .lines_by_language
             .get(language)
             .ok_or_else(|| format!("synthetic repository has no {language} code lines"))?;
         if *lines == 0 {
-            return Err(format!("synthetic repository has zero {language} code lines"));
+            return Err(format!(
+                "synthetic repository has zero {language} code lines"
+            ));
         }
     }
     let total: u64 = repo.lines_by_language.values().sum();
@@ -1039,7 +1039,8 @@ fn typo_no_match_rate(world: &mut BenchmarkWorld, captures: &[String]) -> Result
     };
     let rate = &report(world).metrics.typo.no_match_rate;
     check_value(
-        rate.value.ok_or("typo no-match rate has no measured value")?,
+        rate.value
+            .ok_or("typo no-match rate has no measured value")?,
         value,
         "typo no-match rate",
     )?;
@@ -1052,8 +1053,13 @@ fn typo_no_match_rate(world: &mut BenchmarkWorld, captures: &[String]) -> Result
     )
 }
 
-#[then(regex = r"^the typo recall at rank five is ([\d.]+) because (\d+) of (\d+) tasks are ranked$")]
-fn typo_recall_at_five_ranked(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+#[then(
+    regex = r"^the typo recall at rank five is ([\d.]+) because (\d+) of (\d+) tasks are ranked$"
+)]
+fn typo_recall_at_five_ranked(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
     let [value, numerator, denominator] = captures else {
         return Err("typo ranked recall step needs three captures".into());
     };
@@ -1138,8 +1144,14 @@ fn explanation_coverage_per_candidate(
     world: &mut BenchmarkWorld,
     captures: &[String],
 ) -> Result<(), String> {
-    let [first_candidate, first_numerator, first_denominator, second_candidate, second_numerator, second_denominator] =
-        captures
+    let [
+        first_candidate,
+        first_numerator,
+        first_denominator,
+        second_candidate,
+        second_numerator,
+        second_denominator,
+    ] = captures
     else {
         return Err("per-candidate explanation coverage step needs six captures".into());
     };
@@ -1173,7 +1185,9 @@ fn explanation_coverage_per_candidate(
     Ok(())
 }
 
-#[then("every coverage value is attempted divided by attempted plus unavailable, excluding not-applicable cells")]
+#[then(
+    "every coverage value is attempted divided by attempted plus unavailable, excluding not-applicable cells"
+)]
 fn every_coverage_value_is_attempted_over_attempted_plus_unavailable(
     world: &mut BenchmarkWorld,
 ) -> Result<(), String> {
@@ -1328,7 +1342,9 @@ fn ckb_rust_tier(world: &mut BenchmarkWorld) -> Result<(), String> {
         .get("rust")
         .ok_or("CKB does not record Rust language support")?;
     if !tier.eq_ignore_ascii_case("tier 3") {
-        return Err(format!("CKB records Rust support as {tier}, expected Tier 3"));
+        return Err(format!(
+            "CKB records Rust support as {tier}, expected Tier 3"
+        ));
     }
     Ok(())
 }
@@ -1355,10 +1371,7 @@ fn serena_environment(world: &mut BenchmarkWorld) -> Result<(), String> {
 #[then(
     regex = r#"^open-codebase-index records embeddingProvider "([^"]+)" and the recorder base URL$"#
 )]
-fn ocbi_embedding_provider(
-    world: &mut BenchmarkWorld,
-    captures: &[String],
-) -> Result<(), String> {
+fn ocbi_embedding_provider(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
     let [provider] = captures else {
         return Err("embedding provider step needs one capture".into());
     };
@@ -1378,10 +1391,7 @@ fn ocbi_embedding_provider(
 }
 
 #[then(regex = r#"^every candidate copy records git_metadata "([^"]+)"$"#)]
-fn candidate_git_metadata(
-    world: &mut BenchmarkWorld,
-    captures: &[String],
-) -> Result<(), String> {
+fn candidate_git_metadata(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
     let [metadata] = captures else {
         return Err("git metadata step needs one capture".into());
     };
@@ -1397,9 +1407,7 @@ fn candidate_git_metadata(
 
 const FIXED_REPOSITORY_COMMIT: &str = "1111111111111111111111111111111111111111";
 
-#[given(
-    regex = r#"^a fixture manifest whose fixture-repo commit is "([^"]+)"$"#
-)]
+#[given(regex = r#"^a fixture manifest whose fixture-repo commit is "([^"]+)"$"#)]
 fn a_fixture_manifest_with_commit(
     world: &mut BenchmarkWorld,
     captures: &[String],
@@ -1496,9 +1504,7 @@ fn fixture_unstartable(world: &mut BenchmarkWorld) -> Result<(), String> {
     load_fixture(world)
 }
 
-#[then(
-    regex = r#"^the report marks (\S+) unavailable with the reason "([^"]+)"$"#
-)]
+#[then(regex = r#"^the report marks (\S+) unavailable with the reason "([^"]+)"$"#)]
 fn candidate_unavailable_with_reason(
     world: &mut BenchmarkWorld,
     captures: &[String],
@@ -1541,9 +1547,7 @@ fn candidate_has_measured_cell(report: &Report, candidate: &str) -> bool {
             })
 }
 
-#[then(
-    "the run completes and reports measured values for fixture-ocbi and fixture-ckb"
-)]
+#[then("the run completes and reports measured values for fixture-ocbi and fixture-ckb")]
 fn run_completes_with_measured_candidates(world: &mut BenchmarkWorld) -> Result<(), String> {
     let report = world
         .report
@@ -1690,9 +1694,7 @@ fn reproduction_toolchain_prefix(world: &mut BenchmarkWorld) -> Result<(), Strin
     Ok(())
 }
 
-#[then(
-    "the report states the manifest, gold, model-cassette, and result-cassette fingerprints"
-)]
+#[then("the report states the manifest, gold, model-cassette, and result-cassette fingerprints")]
 fn reproduction_fingerprints(world: &mut BenchmarkWorld) -> Result<(), String> {
     let manifest = world
         .manifest
@@ -1734,10 +1736,7 @@ fn reproduction_fingerprints(world: &mut BenchmarkWorld) -> Result<(), String> {
 #[then(
     regex = r#"^the (\S+) gold set is version (\d+) with (\d+) tasks and fingerprint "([^"]+)"$"#
 )]
-fn gold_set_identity(
-    world: &mut BenchmarkWorld,
-    captures: &[String],
-) -> Result<(), String> {
+fn gold_set_identity(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
     let [label, version, tasks, fingerprint] = captures else {
         return Err("gold set identity step needs four captures".into());
     };
@@ -1793,6 +1792,243 @@ fn synthetic_gold_locations_match(world: &mut BenchmarkWorld) -> Result<(), Stri
                 "gold task {} expected symbol {} but the line is {:?}",
                 task.id, task.expected.symbol, task.observed_line
             ));
+        }
+    }
+    Ok(())
+}
+
+const TIMEOUT_CANDIDATE_TEMPLATE: &str = r#"
+id: fixture-timeout
+version: fixture-1
+commit: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+install: "fixture adapter"
+adapter: fixture
+adapter_version: 1
+index_deadline_seconds: DEADLINE_SECONDS
+capabilities:
+  typo: {status: measured}
+  natural_language: {status: measured}
+  explanation: {status: measured}
+  concept: {status: measured}
+  concept_equivalence: {status: measured}
+  expansion: {status: measured}
+setup:
+  git_metadata: present
+  indexes:
+    - {repository: REPOSITORY, status: indexed, seconds: 5.2}
+"#;
+
+fn variant_fixture_root(name: &str) -> Result<PathBuf, String> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("benchmark crate has no workspace root")?
+        .join("target")
+        .join(name);
+    if root.exists() {
+        fs::remove_dir_all(&root).map_err(|error| format!("clear {}: {error}", root.display()))?;
+    }
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/e2e");
+    copy_tree(&fixture.join("gold"), &root.join("gold"))?;
+    copy_tree(&fixture.join("cassettes"), &root.join("cassettes"))?;
+    Ok(root)
+}
+
+fn append_candidate(
+    manifest: &mut serde_yaml_ng::Value,
+    candidate: serde_yaml_ng::Value,
+) -> Result<(), String> {
+    manifest
+        .get_mut("candidates")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no candidates sequence")?
+        .push(candidate);
+    Ok(())
+}
+
+fn read_fixture_manifest() -> Result<serde_yaml_ng::Value, String> {
+    let fixture =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/e2e/manifest.yaml");
+    let text =
+        fs::read_to_string(&fixture).map_err(|error| format!("read fixture manifest: {error}"))?;
+    serde_yaml_ng::from_str(&text).map_err(|error| format!("parse fixture manifest: {error}"))
+}
+
+fn write_variant_manifest(root: &Path, manifest: &serde_yaml_ng::Value) -> Result<PathBuf, String> {
+    let path = root.join("manifest.yaml");
+    fs::write(
+        &path,
+        serde_yaml_ng::to_string(manifest)
+            .map_err(|error| format!("serialize variant manifest: {error}"))?,
+    )
+    .map_err(|error| format!("write variant manifest: {error}"))?;
+    Ok(path)
+}
+
+#[given(regex = r"^fixture-timeout with an index deadline of (\d+) seconds? on (\S+)$")]
+fn fixture_timeout(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [deadline, repository] = captures else {
+        return Err("index-deadline step needs two captures".into());
+    };
+    let root = variant_fixture_root("benchmark-index-timeout")?;
+    let mut manifest = read_fixture_manifest()?;
+    let candidate: serde_yaml_ng::Value = serde_yaml_ng::from_str(
+        &TIMEOUT_CANDIDATE_TEMPLATE
+            .replace("DEADLINE_SECONDS", deadline)
+            .replace("REPOSITORY", repository),
+    )
+    .map_err(|error| format!("parse fixture-timeout candidate: {error}"))?;
+    append_candidate(&mut manifest, candidate)?;
+    let path = write_variant_manifest(&root, &manifest)?;
+
+    world.manifest_path = path;
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then(regex = r#"^the report marks (\S+) unavailable on (\S+) with the reason "([^"]+)"$"#)]
+fn candidate_unavailable_on_repository(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [candidate, repository, reason] = captures else {
+        return Err("index unavailability step needs three captures".into());
+    };
+    let entry = candidate_report(world, candidate)?;
+    let index = entry
+        .setup
+        .indexes
+        .iter()
+        .find(|index| &index.repository == repository)
+        .ok_or_else(|| format!("{candidate} records no index for {repository}"))?;
+    assert_eq!(index.status, "timed_out", "{candidate} index status");
+    assert_eq!(
+        index.reason.as_deref(),
+        Some(reason.as_str()),
+        "{candidate} index reason"
+    );
+    Ok(())
+}
+
+#[then("the report records the elapsed index time")]
+fn report_records_elapsed_index_time(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let deadline = world
+        .manifest
+        .as_ref()
+        .and_then(|manifest| manifest.candidate("fixture-timeout"))
+        .and_then(|candidate| candidate.index_deadline_seconds)
+        .ok_or("fixture-timeout has no index deadline")?;
+    let index = candidate_report(world, "fixture-timeout")?
+        .setup
+        .indexes
+        .first()
+        .ok_or("fixture-timeout records no index outcome")?;
+    if index.seconds <= deadline as f64 {
+        return Err(format!(
+            "elapsed index time {} does not exceed the {deadline}s deadline",
+            index.seconds
+        ));
+    }
+    Ok(())
+}
+
+#[then(regex = r"^every metric for (\S+) on (\S+) is unavailable and never zero$")]
+fn every_metric_unavailable_for_candidate(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [candidate, repository] = captures else {
+        return Err("all-metrics unavailable step needs two captures".into());
+    };
+    let report = report(world);
+    let named = report
+        .candidates
+        .iter()
+        .find(|entry| &entry.id == candidate)
+        .ok_or_else(|| format!("report does not name {candidate}"))?;
+    let index = named
+        .setup
+        .indexes
+        .iter()
+        .find(|index| &index.repository == repository)
+        .ok_or_else(|| format!("{candidate} records no index for {repository}"))?;
+    if index.reason.as_deref() != Some("index_timeout") {
+        return Err(format!("{candidate} index is not timed out"));
+    }
+
+    use benchmark::report::model::{CellStatus, Score};
+    let metrics = &report.metrics;
+    let cells: Vec<(&str, Option<&Score>)> = vec![
+        ("typo @1", metrics.typo.per_candidate.get(candidate)),
+        (
+            "typo @5",
+            metrics.typo.recall_at_5_per_candidate.get(candidate),
+        ),
+        (
+            "natural-language",
+            metrics.natural_language.per_candidate.get(candidate),
+        ),
+        (
+            "explanation",
+            metrics.explanation.per_candidate.get(candidate),
+        ),
+        (
+            "concept default",
+            metrics.concept.arms.default.per_candidate.get(candidate),
+        ),
+        (
+            "concept no-expansion",
+            metrics
+                .concept
+                .arms
+                .no_expansion
+                .per_candidate
+                .get(candidate),
+        ),
+        (
+            "concept-equivalence default",
+            metrics
+                .concept_equivalence
+                .arms
+                .default
+                .per_candidate
+                .get(candidate),
+        ),
+        (
+            "concept-equivalence no-expansion",
+            metrics
+                .concept_equivalence
+                .arms
+                .no_expansion
+                .per_candidate
+                .get(candidate),
+        ),
+    ];
+    for (label, cell) in cells {
+        let cell = cell.ok_or_else(|| format!("{candidate} has no {label} cell"))?;
+        assert_eq!(
+            cell.status,
+            CellStatus::Unavailable,
+            "{candidate} {label} status"
+        );
+        assert_eq!(cell.value, None, "{candidate} {label} must not be zero");
+        assert_eq!(
+            cell.reason.as_deref(),
+            Some("index_timeout"),
+            "{candidate} {label} reason"
+        );
+    }
+    Ok(())
+}
+
+#[then("the run continues with the other candidates")]
+fn run_continues_with_other_candidates(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = world
+        .report
+        .as_ref()
+        .ok_or("the run did not complete with a report")?;
+    for candidate in ["fixture-ocbi", "fixture-ckb"] {
+        if !candidate_has_measured_cell(report, candidate) {
+            return Err(format!("the run reports no measured value for {candidate}"));
         }
     }
     Ok(())

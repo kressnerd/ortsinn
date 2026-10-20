@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 
 use super::common::{
-    aggregate, candidate_unavailable_cell, capability, hit_at, recorded_locations, target,
-    unmeasured_cell,
+    aggregate, candidate_unavailable_cell, capability, hit_at, index_unavailable_cell,
+    recorded_locations, target, unmeasured_cell,
 };
 use crate::gold::Gold;
 use crate::manifest::Manifest;
@@ -26,6 +26,12 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
 
     for candidate in &manifest.candidates {
         if let Some(cell) = candidate_unavailable_cell(candidate, tasks) {
+            per_candidate.insert(candidate.id.clone(), cell.clone());
+            recall_at_5_per_candidate.insert(candidate.id.clone(), cell.clone());
+            cells.push(cell);
+            continue;
+        }
+        if let Some(cell) = index_unavailable_cell(manifest, candidate, tasks) {
             per_candidate.insert(candidate.id.clone(), cell.clone());
             recall_at_5_per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
@@ -58,8 +64,10 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
         at_1 += candidate_at_1;
         at_5 += candidate_at_5;
         no_match += candidate_no_match;
-        no_match_rate_per_candidate
-            .insert(candidate.id.clone(), NoMatchRate::new(candidate_no_match, tasks));
+        no_match_rate_per_candidate.insert(
+            candidate.id.clone(),
+            NoMatchRate::new(candidate_no_match, tasks),
+        );
         let cell = Score::measured(candidate_at_1, tasks, tasks, 0);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         recall_at_5_per_candidate.insert(

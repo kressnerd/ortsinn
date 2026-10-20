@@ -155,7 +155,7 @@ Feature: Benchmark comparison
     And the run completes and reports measured values for fixture-ocbi and fixture-ckb
     And the report lists fixture-unstartable in the capability gaps
 
-  @givn.added @wip
+  @givn.added
   Scenario: A candidate that exceeds its index deadline is unavailable, not zero
     Given fixture-timeout with an index deadline of 1 second on fixture-repo
     When the maintainer runs the benchmark in replay mode

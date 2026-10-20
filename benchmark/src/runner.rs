@@ -7,12 +7,12 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::gold::Gold;
-use crate::manifest::{Manifest, RunMode};
+use crate::manifest::{Candidate, CandidateSetup, Manifest, RunMode};
 use crate::metrics;
 use crate::record::cassette::{ModelCassette, ResultCassette};
 use crate::report::model::{
     CandidateReport, CandidateStatus, GoldSetReport, Inputs, LineCountReport, PathDecision,
-    PathDecisionStatus, Report, Reproduction, RepositoryReport, RunReport, SCHEMA_VERSION,
+    PathDecisionStatus, Report, RepositoryReport, Reproduction, RunReport, SCHEMA_VERSION,
 };
 use crate::report::render;
 
@@ -135,7 +135,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
                 install: candidate.install.clone(),
                 adapter: candidate.adapter.clone(),
                 adapter_version: candidate.adapter_version,
-                setup: candidate.setup.clone(),
+                setup: recorded_setup(&manifest, candidate),
                 status: if candidate.unavailable.is_some() {
                     CandidateStatus::Unavailable
                 } else {
@@ -161,6 +161,23 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     render::write_reports(&report, out_dir)
         .with_context(|| format!("write report into {}", out_dir.display()))?;
     Ok(report)
+}
+
+/// Report the setup with deadline breaches applied: an index that exceeded
+/// its deadline is recorded as `timed_out` with the reason and keeps its
+/// measured elapsed time.
+fn recorded_setup(manifest: &Manifest, candidate: &Candidate) -> CandidateSetup {
+    let mut setup = candidate.setup.clone();
+    let Some(deadline) = candidate.index_deadline(manifest) else {
+        return setup;
+    };
+    for index in &mut setup.indexes {
+        if index.seconds > deadline as f64 {
+            index.status = "timed_out".to_string();
+            index.reason = Some("index_timeout".to_string());
+        }
+    }
+    setup
 }
 
 /// Every recorded result carries the commit it was recorded against. A
@@ -190,10 +207,7 @@ fn verify_fixed_inputs(manifest: &Manifest, results: &ResultCassette) -> Result<
 /// depends on a model response must find it in the model cassette; a missing
 /// key fails the run instead of falling back to a live call or a partial
 /// report.
-fn verify_recorded_model_responses(
-    results: &ResultCassette,
-    models: &ModelCassette,
-) -> Result<()> {
+fn verify_recorded_model_responses(results: &ResultCassette, models: &ModelCassette) -> Result<()> {
     for result in results.entries() {
         for dependency in &result.model_requests {
             if models.get(&dependency.key).is_some() {

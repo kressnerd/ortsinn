@@ -39,6 +39,22 @@ pub fn candidate_unavailable_cell(candidate: &Candidate, tasks: u64) -> Option<S
         .map(|unavailable| Score::unavailable(&unavailable.reason, tasks))
 }
 
+/// A candidate whose index exceeded its deadline is unavailable for every
+/// metric on that repository, with the reason and never as zero. The fixture
+/// has one repository per candidate, so the candidate's cells carry the
+/// reason.
+pub fn index_unavailable_cell(
+    manifest: &Manifest,
+    candidate: &Candidate,
+    tasks: u64,
+) -> Option<Score> {
+    if candidate.unavailable.is_some() {
+        return None;
+    }
+    (!candidate.timed_out_indexes(manifest).is_empty())
+        .then(|| Score::unavailable("index_timeout", tasks))
+}
+
 /// Build a per-candidate cell for a capability that is not measured.
 pub fn unmeasured_cell(capability: Option<&Capability>, tasks: u64) -> Option<Score> {
     let Some(capability) = capability else {

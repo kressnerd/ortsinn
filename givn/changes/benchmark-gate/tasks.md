@@ -729,11 +729,45 @@
 
 ## S16 — A candidate that exceeds its index deadline is unavailable, not zero
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: A candidate that exceeds its index deadline is unavailable, not zero
+     ✘  Given fixture-timeout with an index deadline of 1 second on fixture-repo
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/manifest.rs`,
+    `benchmark/src/metrics/common.rs`, `benchmark/src/metrics/typo.rs`,
+    `benchmark/src/metrics/natural_language.rs`,
+    `benchmark/src/metrics/explanation.rs`,
+    `benchmark/src/metrics/concept.rs`, `benchmark/src/runner.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    Scenario: A candidate that exceeds its index deadline is unavailable, not zero
+     ✔  Given fixture-timeout with an index deadline of 1 second on fixture-repo
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then the report marks fixture-timeout unavailable on fixture-repo with the reason "index_timeout"
+     ✔  And the report records the elapsed index time
+     ✔  And every metric for fixture-timeout on fixture-repo is unavailable and never zero
+     ✔  And the run continues with the other candidates
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
+    ```text
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
   - Commit:
 - Design constraints: `fixture-timeout`, 1 s deadline, `index_timeout`;
   elapsed time; metrics unavailable, never zero; run continues.

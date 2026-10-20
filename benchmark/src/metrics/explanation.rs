@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result};
 
 use super::common::{
-    aggregate, candidate_unavailable_cell, capability, recorded_locations, target,
-    unmeasured_cell,
+    aggregate, candidate_unavailable_cell, capability, index_unavailable_cell, recorded_locations,
+    target, unmeasured_cell,
 };
 use crate::adapters::Citation;
 use crate::gold::{ExplanationTask, Gold};
@@ -28,6 +28,11 @@ pub fn score(
 
     for candidate in &manifest.candidates {
         if let Some(cell) = candidate_unavailable_cell(candidate, tasks) {
+            per_candidate.insert(candidate.id.clone(), cell.clone());
+            cells.push(cell);
+            continue;
+        }
+        if let Some(cell) = index_unavailable_cell(manifest, candidate, tasks) {
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;

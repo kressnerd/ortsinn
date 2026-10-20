@@ -7,7 +7,7 @@ use anyhow::Result;
 
 use super::common::{
     aggregate, candidate_unavailable_cell, capability, capability_reason, hit_at,
-    recorded_locations, target, unmeasured_cell,
+    index_unavailable_cell, recorded_locations, target, unmeasured_cell,
 };
 use crate::gold::GoldTask;
 use crate::manifest::{CapabilityStatus, Manifest};
@@ -61,6 +61,11 @@ fn score_arm(
             cells.push(cell);
             continue;
         }
+        if let Some(cell) = index_unavailable_cell(manifest, candidate, task_count) {
+            per_candidate.insert(candidate.id.clone(), cell.clone());
+            cells.push(cell);
+            continue;
+        }
         let capability = capability(candidate, metric_name);
         if let Some(cell) = unmeasured_cell(capability, task_count) {
             per_candidate.insert(candidate.id.clone(), cell.clone());
@@ -108,6 +113,11 @@ fn score_no_expansion(
         let expansion = capability(candidate, "expansion");
         if expansion.map(|capability| capability.status) != Some(CapabilityStatus::Measured) {
             let cell = Score::not_applicable(capability_reason(expansion));
+            per_candidate.insert(candidate.id.clone(), cell.clone());
+            cells.push(cell);
+            continue;
+        }
+        if let Some(cell) = index_unavailable_cell(manifest, candidate, task_count) {
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
