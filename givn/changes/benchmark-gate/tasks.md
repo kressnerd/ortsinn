@@ -723,7 +723,7 @@
     96 steps (96 passed)
     EXIT=0
     ```
-- [x] COMMIT — hash: `PENDING_S15`
+- [x] COMMIT — hash: `8109028aee80e48f6ce5ff57b951597b7b27fe24`
 - Design constraints: `fixture-unstartable` MCP handshake fails;
   `candidate_unstartable`; other candidates measured; capability gap.
 
