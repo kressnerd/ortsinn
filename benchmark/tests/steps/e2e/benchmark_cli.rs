@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use benchmark::record::cassette::{self, ModelCassette, ResultCassette};
@@ -70,12 +70,38 @@ fn run_and_capture(world: &mut BenchmarkWorld, args: &[String]) -> Result<(), St
     let mut terminal = String::from_utf8_lossy(&output.stdout).to_string();
     terminal.push_str(&String::from_utf8_lossy(&output.stderr));
     world.e2e_exit = Some(exit);
-    world.e2e_terminal = terminal.clone();
+    let normalized_terminal = normalize_transcript(&terminal);
+    world.e2e_terminal = terminal;
     world.e2e_transcript.push_str(&format!(
-        "$ benchmark {}\n{terminal}[exit {exit}]\n\n",
-        args.join(" ")
+        "$ benchmark {}\n{normalized_terminal}[exit {exit}]\n\n",
+        normalize_transcript(&args.join(" "))
     ));
     Ok(())
+}
+
+/// Remove the run-specific loopback port and workspace root from committed
+/// evidence so an e2e rerun does not dirty the tracked transcript.
+fn normalize_transcript(text: &str) -> String {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root")
+        .display()
+        .to_string();
+    let with_root = text.replace(&root, "<repo>");
+    let mut out = String::new();
+    let mut rest = with_root.as_str();
+    const PREFIX: &str = "http://127.0.0.1:";
+    while let Some(pos) = rest.find(PREFIX) {
+        out.push_str(&rest[..pos]);
+        out.push_str("http://127.0.0.1:<port>/v1");
+        let after = &rest[pos + PREFIX.len()..];
+        rest = after
+            .find("/v1")
+            .map(|slash| &after[slash + "/v1".len()..])
+            .unwrap_or(after);
+    }
+    out.push_str(rest);
+    out
 }
 
 fn base_args(world: &BenchmarkWorld) -> Vec<String> {

@@ -1,4 +1,4 @@
-$ benchmark run --manifest /home/dan/dev/PRIVATE/ortsinn/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report
+$ benchmark run --manifest <repo>/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out <repo>/target/benchmark-e2e/s20-report
 Benchmark comparison
 Run: fixture-benchmark-v1 (replay)
 Candidates: fixture-ocbi, fixture-ckb, fixture-serena
@@ -27,10 +27,10 @@ Concept recall
   Concept-equivalence recall @5:                                   0.50 (2 of 4)
   Concept coverage:                                                5 of 5 (1.00)
   Concept no-expansion coverage:                                   5 of 5 (1.00)
-Report: /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report/report.json
+Report: <repo>/target/benchmark-e2e/s20-report/report.json
 [exit 0]
 
-$ benchmark run --manifest /home/dan/dev/PRIVATE/ortsinn/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report --width 80
+$ benchmark run --manifest <repo>/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out <repo>/target/benchmark-e2e/s20-report --width 80
 Benchmark comparison
 Run: fixture-benchmark-v1 (replay)
 Candidates: fixture-ocbi, fixture-ckb, fixture-serena
@@ -59,10 +59,10 @@ Concept recall
   Concept-equivalence recall @5:                                   0.50 (2 of 4)
   Concept coverage:                                                5 of 5 (1.00)
   Concept no-expansion coverage:                                   5 of 5 (1.00)
-Report: /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report/report.json
+Report: <repo>/target/benchmark-e2e/s20-report/report.json
 [exit 0]
 
-$ benchmark run --manifest /home/dan/dev/PRIVATE/ortsinn/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report --width 160
+$ benchmark run --manifest <repo>/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out <repo>/target/benchmark-e2e/s20-report --width 160
 Benchmark comparison
 Run: fixture-benchmark-v1 (replay)
 Candidates: fixture-ocbi, fixture-ckb, fixture-serena
@@ -90,6 +90,6 @@ Concept recall
   Concept-equivalence recall @5:                                                                                                                   0.50 (2 of 4)
   Concept coverage:                                                                                                                                5 of 5 (1.00)
   Concept no-expansion coverage:                                                                                                                   5 of 5 (1.00)
-Report: /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report/report.json
+Report: <repo>/target/benchmark-e2e/s20-report/report.json
 [exit 0]
 
