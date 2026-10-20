@@ -17,6 +17,10 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) manifest: Option<Manifest>,
     /// Report produced by the last replay run.
     pub(crate) report: Option<Report>,
+    /// Report from the completed run compared by the replay-rerun scenario.
+    pub(crate) first_report: Option<Report>,
+    /// Failure from a run that must not publish a report.
+    pub(crate) run_failure: Option<benchmark::runner::RunFailure>,
 }
 
 impl Default for BenchmarkWorld {
@@ -32,6 +36,8 @@ impl Default for BenchmarkWorld {
             out_dir,
             manifest: None,
             report: None,
+            first_report: None,
+            run_failure: None,
         }
     }
 }

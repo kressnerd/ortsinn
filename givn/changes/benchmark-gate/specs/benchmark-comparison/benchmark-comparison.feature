@@ -66,7 +66,7 @@ Feature: Benchmark comparison
     And the aggregate explanation correctness remains 0.50 with 2 of 4 tasks
     And the report lists the missing explanation capability as a capability gap for fixture-ocbi
 
-  @givn.added @wip
+  @givn.added
   Scenario: Replay rerun reproduces the report without an external model call
     Given a completed benchmark run with recorded model responses
     When the maintainer reruns the same fixed inputs in replay mode

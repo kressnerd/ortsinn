@@ -718,3 +718,63 @@ fn explanation_capability_gap(
     );
     Ok(())
 }
+
+#[given("a completed benchmark run with recorded model responses")]
+fn a_completed_benchmark_run(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_fixture(world)?;
+    let first = benchmark::runner::run_replay(&world.manifest_path, &world.out_dir)
+        .map_err(|error| format!("run the completed benchmark: {error}"))?;
+    world.first_report = Some(first);
+    Ok(())
+}
+
+#[when("the maintainer reruns the same fixed inputs in replay mode")]
+fn the_maintainer_reruns_in_replay_mode(world: &mut BenchmarkWorld) -> Result<(), String> {
+    run_replay(world)
+}
+
+#[then("the measurements and their order match the first run")]
+fn measurements_and_order_match(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let first = world
+        .first_report
+        .as_ref()
+        .ok_or("no completed run to compare against")?;
+    let second = report(world);
+    if format!("{:?}", first.metrics) != format!("{:?}", second.metrics) {
+        return Err("replay measurements or their order changed".into());
+    }
+    if format!("{:?}", first.gaps) != format!("{:?}", second.gaps) {
+        return Err("replay gaps or their order changed".into());
+    }
+    Ok(())
+}
+
+#[then("no request leaves the local recording boundary")]
+fn no_external_request(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let requests = report(world).run.external_requests;
+    if requests != 0 {
+        return Err(format!(
+            "replay attempted {requests} external model request(s)"
+        ));
+    }
+    Ok(())
+}
+
+#[then(
+    regex = r#"^the report states the replay mode and the recording fingerprint "([^"]+)"$"#
+)]
+fn replay_mode_and_recording_fingerprint(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [fingerprint] = captures else {
+        return Err("replay identity step needs one capture".into());
+    };
+    let run = &report(world).run;
+    assert_eq!(run.mode, benchmark::manifest::RunMode::Replay, "run mode");
+    assert_eq!(
+        &run.recording_fingerprint, fingerprint,
+        "recording fingerprint"
+    );
+    Ok(())
+}

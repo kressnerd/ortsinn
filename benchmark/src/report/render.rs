@@ -27,8 +27,16 @@ pub fn markdown(report: &Report) -> String {
     out.push_str(&format!("- Mode: `{:?}`\n", report.run.mode));
     out.push_str(&format!("- Command: `{}`\n", report.run.command));
     out.push_str(&format!(
-        "- Manifest fingerprint: `{}`\n\n",
+        "- Manifest fingerprint: `{}`\n",
         report.run.manifest_fingerprint
+    ));
+    out.push_str(&format!(
+        "- Recording fingerprint: `{}`\n",
+        report.run.recording_fingerprint
+    ));
+    out.push_str(&format!(
+        "- External model requests: {}\n\n",
+        report.run.external_requests
     ));
     out.push_str("## Fixed inputs\n\n");
     for repository in &report.inputs.repositories {

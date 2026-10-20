@@ -22,6 +22,18 @@ pub struct RecordedResult {
     pub explanation: Option<ExplanationResponse>,
     #[serde(default)]
     pub error: Option<String>,
+    /// Recorded model responses this normalized result depends on. Replay
+    /// must find every one of them in the model cassette.
+    #[serde(default)]
+    pub model_requests: Vec<ModelDependency>,
+}
+
+/// One model response a recorded result depends on.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModelDependency {
+    pub key: String,
+    #[serde(default)]
+    pub query: String,
 }
 
 /// Result cassettes indexed by `(candidate, metric, task, arm)`.
@@ -76,6 +88,64 @@ impl ResultCassette {
             task.to_string(),
             arm.to_string(),
         ))
+    }
+
+    pub fn entry_count(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = &RecordedResult> {
+        self.entries.values()
+    }
+}
+
+/// One recorded model response. The key is the canonical request key; the
+/// raw transport metadata is not part of the recording.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModelRecord {
+    pub key: String,
+    pub candidate: String,
+    pub task: String,
+    #[serde(default)]
+    pub query: String,
+    #[serde(default)]
+    pub layer: String,
+    #[serde(default)]
+    pub response: serde_json::Value,
+}
+
+/// Model cassettes indexed by canonical request key. Replay serves only
+/// these responses; it never calls a model endpoint.
+#[derive(Debug, Clone, Default)]
+pub struct ModelCassette {
+    entries: BTreeMap<String, ModelRecord>,
+}
+
+impl ModelCassette {
+    pub fn load(path: &Path) -> Result<Self> {
+        let text = fs::read_to_string(path)
+            .with_context(|| format!("read model cassette {}", path.display()))?;
+        let mut entries = BTreeMap::new();
+        for (index, line) in text.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let record: ModelRecord = serde_json::from_str(line).with_context(|| {
+                format!("parse model cassette {} line {}", path.display(), index + 1)
+            })?;
+            anyhow::ensure!(
+                entries.insert(record.key.clone(), record).is_none(),
+                "duplicate model cassette key in {} line {}",
+                path.display(),
+                index + 1
+            );
+        }
+        Ok(Self { entries })
+    }
+
+    pub fn get(&self, key: &str) -> Option<&ModelRecord> {
+        self.entries.get(key)
     }
 
     pub fn entry_count(&self) -> usize {

@@ -26,6 +26,11 @@ pub struct RunReport {
     pub mode: RunMode,
     pub command: String,
     pub manifest_fingerprint: String,
+    /// Fingerprint of the recorded responses served by the replay boundary.
+    pub recording_fingerprint: String,
+    /// External model requests attempted during the run. Replay reads only
+    /// local cassettes, so this is zero.
+    pub external_requests: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
