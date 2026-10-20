@@ -36,6 +36,18 @@ pub struct RunReport {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Inputs {
     pub repositories: Vec<RepositoryReport>,
+    pub gold: Vec<GoldSetReport>,
+}
+
+/// Identity of one fixed gold set: which metric it scores, its reviewed
+/// version, its task count, and its recorded fingerprint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoldSetReport {
+    pub repository: String,
+    pub metric: String,
+    pub version: u32,
+    pub tasks: u64,
+    pub fingerprint: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -11,8 +11,8 @@ use crate::manifest::{Manifest, RunMode};
 use crate::metrics;
 use crate::record::cassette::{ModelCassette, ResultCassette};
 use crate::report::model::{
-    CandidateReport, Inputs, LineCountReport, PathDecision, PathDecisionStatus, Report,
-    RepositoryReport, RunReport, SCHEMA_VERSION,
+    CandidateReport, GoldSetReport, Inputs, LineCountReport, PathDecision, PathDecisionStatus,
+    Report, RepositoryReport, RunReport, SCHEMA_VERSION,
 };
 use crate::report::render;
 
@@ -93,6 +93,17 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
                         command: repository.loc.command.clone(),
                         exclusions: repository.loc.exclusions.clone(),
                     },
+                })
+                .collect(),
+            gold: manifest
+                .gold
+                .iter()
+                .map(|set| GoldSetReport {
+                    repository: set.repository.clone(),
+                    metric: set.metric.clone(),
+                    version: set.version,
+                    tasks: set.tasks,
+                    fingerprint: set.fingerprint.clone(),
                 })
                 .collect(),
         },

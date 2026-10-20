@@ -49,6 +49,14 @@ pub fn markdown(report: &Report) -> String {
         ));
     }
     out.push('\n');
+    out.push_str("### Gold sets\n\n");
+    for set in &report.inputs.gold {
+        out.push_str(&format!(
+            "- `{}` v{}: {} tasks, fingerprint `{}`\n",
+            set.metric, set.version, set.tasks, set.fingerprint
+        ));
+    }
+    out.push('\n');
     out.push_str("## Candidates\n\n");
     for candidate in &report.candidates {
         out.push_str(&format!(

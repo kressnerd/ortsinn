@@ -1266,6 +1266,41 @@ fn every_coverage_value_is_attempted_over_attempted_plus_unavailable(
     Ok(())
 }
 
+#[then(
+    regex = r#"^the (\S+) gold set is version (\d+) with (\d+) tasks and fingerprint "([^"]+)"$"#
+)]
+fn gold_set_identity(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [label, version, tasks, fingerprint] = captures else {
+        return Err("gold set identity step needs four captures".into());
+    };
+    let metric = match label.as_str() {
+        "typo" => "typo",
+        "natural-language" => "natural_language",
+        "explanation" => "explanation",
+        "concept" => "concept",
+        other => return Err(format!("unknown gold set label {other}")),
+    };
+    let set = report(world)
+        .inputs
+        .gold
+        .iter()
+        .find(|set| set.metric == metric)
+        .ok_or_else(|| format!("report does not name the {metric} gold set"))?;
+    let expected_version: u32 = version
+        .parse()
+        .map_err(|error| format!("parse gold version: {error}"))?;
+    let expected_tasks: u64 = tasks
+        .parse()
+        .map_err(|error| format!("parse gold task count: {error}"))?;
+    assert_eq!(set.version, expected_version, "{metric} gold version");
+    assert_eq!(set.tasks, expected_tasks, "{metric} gold task count");
+    assert_eq!(&set.fingerprint, fingerprint, "{metric} gold fingerprint");
+    Ok(())
+}
+
 #[then("its gold sets name the same locations")]
 fn synthetic_gold_locations_match(world: &mut BenchmarkWorld) -> Result<(), String> {
     let first = world

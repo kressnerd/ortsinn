@@ -469,12 +469,49 @@
 
 ## S11 — Report names each gold set's version, task count, and fingerprint
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
-  - RED output:
-  - GREEN production files:
-  - GREEN output:
-  - REFACTOR output:
-  - Commit:
+- [x] RED — remove `@wip` from S11 only; run targeted; paste non-zero output.
+  - Output:
+    ```text
+    Scenario: Report names each gold set's version, task count, and fingerprint
+     ✔  Given the fixture benchmark inputs
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✘  Then the typo gold set is version 1 with 5 tasks and fingerprint "sha256:fixture-typo-v1"
+        Step panicked. Captured output: not implemented: benchmark-comparison: gold set identity
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    3 steps (2 passed, 1 failed)
+    EXIT=101
+    ```
+- [x] GREEN — add the gold-set identity record to the report model and runner;
+  implement the step; list production files; run targeted; paste zero output.
+  - Production files: `benchmark/src/report/model.rs`,
+    `benchmark/src/report/render.rs`, `benchmark/src/runner.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output:
+    ```text
+    Scenario: Report names each gold set's version, task count, and fingerprint
+     ✔  Given the fixture benchmark inputs
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then the typo gold set is version 1 with 5 tasks and fingerprint "sha256:fixture-typo-v1"
+     ✔  And the natural-language gold set is version 1 with 4 tasks and fingerprint "sha256:fixture-nl-v1"
+     ✔  And the explanation gold set is version 1 with 4 tasks and fingerprint "sha256:fixture-explanation-v1"
+     ✔  And the concept gold set is version 1 with 5 tasks and fingerprint "sha256:fixture-concept-v1"
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
+- [x] REFACTOR — run targeted; paste zero output.
+  - Output:
+    ```text
+    1 feature
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
+- [x] COMMIT — hash: `PENDING_S11`
 - Design constraints: typo v1 5 tasks `sha256:fixture-typo-v1`; NL v1 4
   `fixture-nl-v1`; explanation v1 4 `fixture-explanation-v1`; concept v1 5
   `fixture-concept-v1`.

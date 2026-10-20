@@ -110,7 +110,7 @@ Feature: Benchmark comparison
     And fixture-ckb's explanation coverage is 4 of 4 and fixture-ocbi's explanation coverage is 0 of 4
     And every coverage value is attempted divided by attempted plus unavailable, excluding not-applicable cells
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report names each gold set's version, task count, and fingerprint
     Given the fixture benchmark inputs
     When the maintainer runs the benchmark in replay mode
