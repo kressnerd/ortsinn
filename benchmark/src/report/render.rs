@@ -32,8 +32,12 @@ pub fn markdown(report: &Report) -> String {
     out.push_str("## Reproduction\n\n");
     let reproduction = &report.reproduction;
     out.push_str(&format!(
-        "- Command: `{} {}`\n",
-        reproduction.toolchain_prefix, reproduction.command
+        "- Command: `. ./env.sh && {}`\n",
+        reproduction.command
+    ));
+    out.push_str(&format!(
+        "- Toolchain prefix: `{}`\n",
+        reproduction.toolchain_prefix
     ));
     out.push_str(&format!(
         "- Candidate install required: {}\n",
@@ -211,6 +215,11 @@ fn render_metrics(out: &mut String, report: &Report) {
     out.push_str("## Concept recall\n\n");
     score_line(out, "Concept recall @5", &metrics.concept.aggregate);
     coverage_line(out, "Concept", &metrics.concept.aggregate.coverage);
+    score_line(
+        out,
+        "Concept no-expansion arm",
+        &metrics.concept.arms.no_expansion.score,
+    );
     coverage_line(
         out,
         "Concept no-expansion arm",
@@ -226,6 +235,11 @@ fn render_metrics(out: &mut String, report: &Report) {
         "Concept-equivalence",
         &metrics.concept_equivalence.aggregate.coverage,
     );
+    score_line(
+        out,
+        "Concept-equivalence no-expansion arm",
+        &metrics.concept_equivalence.arms.no_expansion.score,
+    );
     coverage_line(
         out,
         "Concept-equivalence no-expansion arm",
@@ -234,10 +248,17 @@ fn render_metrics(out: &mut String, report: &Report) {
     out.push('\n');
     out.push_str("## Measured gaps\n\n");
     for (name, gap) in &report.gaps.to_target {
+        let label = if gap.target_status == Some(crate::manifest::TargetStatus::Proposed) {
+            "to proposed target"
+        } else {
+            "to target"
+        };
         match gap.value {
-            Some(value) => out.push_str(&format!("- {name} to target: {value:+.2}\n")),
+            Some(value) => {
+                out.push_str(&format!("- {name} {label}: {value:+.2}\n"));
+            }
             None => out.push_str(&format!(
-                "- {name} to target: {} ({})\n",
+                "- {name} {label}: {} ({})\n",
                 gap_status(gap.status),
                 gap.reason.as_deref().unwrap_or("no reason")
             )),

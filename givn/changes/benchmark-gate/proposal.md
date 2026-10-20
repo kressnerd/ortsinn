@@ -2,14 +2,24 @@
 
 ## Release note
 
-> Adds a reproducible benchmark that measures open-codebase-index, CKB, and Serena against typo, natural-language, explanation, and concept-recall criteria on fixed repositories and publishes the measured gaps for the product-path decision.
+> Adds the reproducible benchmark harness and report contract for the
+> code-knowledge comparison: a Rust CLI that verifies fixed inputs, replays
+> recorded candidate results, scores typo, natural-language, explanation, and
+> concept recall with coverage and measured gaps, and publishes
+> `report.json`/`report.md`. The harness is proven on a committed fixture;
+> the real candidate measurement on the fixed reference repositories is
+> delivered by the follow-up change `benchmark-run`.
 
 ## Use-Case Context
 
-- Use-case ID: `benchmark-comparison` — a new project-gate use case. It is not part
-  of the product's runtime cut; the seed records no product use-case ID.
+- Use-case ID: `benchmark-comparison` — a new project-gate use case. It is not
+  part of the product's runtime cut; the seed records no product use-case ID.
+  This change delivers the harness and report contract; `benchmark-run`
+  extends the same capability with the real-candidate measurement.
 - Ideation topic: `repository-orientation`
-- Seed path: `givn/ideation/repository-orientation/changes/benchmark-gate.md`
+- Seed paths: `givn/ideation/repository-orientation/changes/benchmark-gate.md`
+  and the split seed
+  `givn/ideation/repository-orientation/changes/benchmark-run.md`
 - Confirmed Personas: `maintainer--ortsinn`; `upstream--maintainer` is
   conditional on the benchmark leading to a contribution and is not exercised
   by this change.
@@ -23,52 +33,57 @@ product actually exists: open-codebase-index already combines a Rust core,
 Tree-sitter, SQLite, usearch, BM25, a watcher, and a call graph; CKB
 orchestrates SCIP, LSP, and Git; Serena is LSP-based. Their README claims do
 not establish typo tolerance, meaning-level retrieval, explanation grounding,
-or concept recall on real repositories. One behavior is explicitly untested:
-open-codebase-index's fuzzy symbol search.
+or concept recall on real repositories.
 
-Without a comparison, the build/contribute/compose choice rests on impression.
-A build could duplicate an existing tool; a contribution could add work to a
-project that already covers the gap; a composition could be chosen before the
-separable gaps are known. The maintainer needs one reproducible measurement
-that names the candidates, the fixed inputs, the observed values, and the
-remaining gaps, so the product-path decision can be made with the data in
-hand rather than pre-registered.
+A measurement is only usable if it is reproducible, free to rerun, and honest
+about unavailable capabilities. Building that machinery is the prerequisite
+for any comparison: fixed inputs and gold sets must be verifiable, recorded
+model responses must replay without an external call, a missing measurement
+must never become a zero score, and the report must state its coverage and
+gaps. This change builds and proves that harness. The real candidate adapters,
+fixed repositories, gold sets, and record run are delivered by
+`benchmark-run`; until then the harness is proven against a committed fixture
+whose every expected value is asserted.
 
 ## Proposed Solution
 
-The maintainer runs one benchmark command on fixed inputs and receives a
-published report.
+The maintainer runs one benchmark command and receives a report that follows
+one contract for every input and candidate:
 
-The fixed inputs are three public reference repositories — one TypeScript, one
-Python, and one Rust, each at least 200,000 lines of code and pinned to a
-recorded revision — plus one synthetic monorepo of 10 million code lines
-regenerated from a fixed seed. The candidates are open-codebase-index, CKB,
-and Serena, each pinned to a recorded version and commit. A fourth candidate
-is added only if the three leave a named language or capability coverage gap.
+- The fixed-input manifest names each repository and revision, each
+  candidate's version and commit, each gold set's version and fingerprint, and
+  the cassette fingerprints. A mismatch stops the run with exit code 2 and
+  publishes no report.
+- Candidate results are normalized to ranked locations and recorded in result
+  cassettes; model requests and responses are recorded in model cassettes.
+  Replay reads the cassettes, starts no candidate, and makes no external call,
+  so the same manifest reproduces the same measurements and order.
+- The harness scores typo recall at ranks one and five with a separate
+  no-match rate, natural-language recall at five and mean reciprocal rank at
+  ten, explanation correctness with evidence grounding, and concept and
+  concept-equivalence recall with default and no-expansion arms.
+- Every metric cell is `measured`, `unavailable` with a reason, or
+  `not_applicable` with a reason. Metric/task coverage carries its numerator
+  and denominator. A missing capability is never a zero score, and a metric
+  with no measured candidate reports an unavailable gap.
+- The report names the fixed inputs, candidate setup, index status and
+  deadlines, measured values, coverage, capability gaps, and measured gaps.
+  It states the recording mode, the fingerprints, and the exact replay
+  command. It pre-registers no build threshold and records the product-path
+  decision as deferred to `maintainer--ortsinn` and
+  `docs/decisions/benchmark-path.md`.
+- The harness is proven on a committed fixture: `fixture-repo` at revision
+  `fixture-1` with three fixture candidate identities, fixed gold task counts,
+  fixed cassette fingerprints, and exact expected metric values. The regular
+  scenarios and two `@e2e` CLI scenarios assert those values.
 
-The benchmark measures the four acceptance families the ideation records name:
+`benchmark-run` then adds the real adapters, the pinned candidate installs,
+the fixed reference repositories and their gold sets, the record run, and the
+published measured report. This change fixes the contract those steps must
+satisfy.
 
-- typo recall (AC-01), including the first-rank and top-five results and the
-  share of typo queries that return no match at all;
-- natural-language retrieval (AC-03), with recall and rank of the first
-  expected target;
-- explanation correctness (AC-12), including whether the explanation is
-  grounded in a valid citation inside the target;
-- concept recall (AC-21 and AC-22), including a comparison with query
-  expansion disabled where the candidate supports that comparison.
-
-The report names every candidate and its pinned identity, every repository and
-its fixed revision and measured size, the value and coverage of every metric,
-the capability matrix (a missing explanation capability is not a zero score),
-the measured gaps, the recording mode and fingerprint, and the exact command
-that reproduces the run. Replaying recorded model responses reproduces the
-measurements without an external model call and without cost.
-
-The report does not choose the product path and does not pre-register a build
-threshold. It publishes the measured gaps; the maintainer records the
-build/contribute/compose decision afterwards in the named post-report decision
-record. The benchmark is a project gate, not a runtime capability of the
-product, and the product remains MCP-only.
+The benchmark is a project gate, not a runtime capability of the product, and
+the product remains MCP-only.
 
 ## Capability Routing
 
@@ -76,18 +91,26 @@ product, and the product remains MCP-only.
 lexical, token, or command overlap with an existing capability. The decision
 is recorded directly.
 
-| Proposed capability | Decision | Rationale |
+| Capability | Decision | Rationale |
 |---|---|---|
-| `benchmark-comparison` | `NEW in benchmark-comparison` | No permanent capability covers a maintainer-run comparison of external tools. The benchmark has its own goal, inputs, and report; it is a project gate, not a product runtime use case. |
+| `benchmark-comparison` | `NEW in benchmark-comparison` | No permanent capability covers a maintainer-run comparison of external tools. This change adds the harness and report contract; `benchmark-run` extends the same capability with the real-candidate measurement. It is a project gate, not a product runtime use case. |
 
 ## Out of Scope
 
+- Real candidate adapters: open-codebase-index, CKB, and Serena, the `rmcp`
+  stdio client, and candidate setup/indexer probes. `benchmark-run` owns them.
+- The real fixed inputs: `benchmark/manifest.yaml`, `benchmark/targets.yaml`,
+  `benchmark/fetch-repos.sh`, the public reference repositories, the real
+  gold sets, and the synthetic-monorepo production run. `benchmark-run` owns
+  them.
+- The real record run and the published real measured report.
+  `benchmark-run` owns them.
 - Product runtime behavior: the MCP query surface, workspace configuration,
   indexing, concept vocabulary, summaries, and impact are not designed or
   changed here.
-- The build/contribute/compose decision itself. The benchmark reports the
-  measured gaps; the decision is carried to the maintainer and the post-report
-  decision record named below.
+- The build/contribute/compose decision itself. The report publishes the
+  measured gaps; the decision is carried to the maintainer and
+  `docs/decisions/benchmark-path.md`.
 - Any contribution plan or upstream change.
 - Q6 (owner visibility into external model calls and resource consumption) for
   the product. The benchmark's recorded model responses are a project-tool
@@ -155,11 +178,10 @@ is recorded directly.
      model or a human in each run; gain: no gold-set build; cost: the rerun is
      not deterministic, not free, and not comparable across runs; in practice:
      the same candidate output could score differently on two runs.
-- Disposition: answered — option 1. The fixed inputs are recorded in the
-  design's manifest. The maintainer owns the gold sets; a deterministic
-  helper proposes candidates and the maintainer reviews and commits them.
-  The synthetic monorepo's gold sets are generated with the repository from
-  the same seed. Every gold set carries a version and content fingerprint.
+- Disposition: carried — owned by `benchmark-run`, owner
+  `maintainer--ortsinn`. This change fixes the manifest/gold shape and the
+  path/line validation the real inputs must satisfy; it does not author the
+  real gold sets.
 
 ### D3 — Competitor versions and setup normalization (seed open item)
 
@@ -182,12 +204,9 @@ is recorded directly.
      not auditable and cannot be normalized transparently; in practice: a
      vendor image's internal configuration cannot be compared with the
      documented setup.
-- Disposition: answered — option 2. Candidate releases and commits are pinned
-  and looked up against the registry/GitHub on 2026-10-20. The report records
-  install commands, configuration differences, indexing status, timeouts, and
-  any unattempted capability. A candidate that cannot index a repository or
-  cannot perform an operation is reported as unavailable with a reason, never
-  scored as zero.
+- Disposition: carried — owned by `benchmark-run`, owner
+  `maintainer--ortsinn`. This change fixes the candidate/setup fields and the
+  unavailable-never-zero rule the real candidates must populate.
 
 ### D4 — Fuzzy behavior of open-codebase-index (seed open item)
 
@@ -208,7 +227,7 @@ is recorded directly.
      tasks and an adapter that can submit the queries; in practice: a typo
      query such as `getUserProfle` is scored at rank one and rank five, and a
      no-result is counted separately.
-- Disposition: answered — option 3. The typo metric tests the behavior for
-  every candidate, and the report separates "ranked below the target" from
-  "returned no match". No candidate's fuzzy behavior is inferred from its
-  documentation.
+- Disposition: carried — owned by `benchmark-run`, owner
+  `maintainer--ortsinn`. This change implements the typo metric (rank-one,
+  top-five, and no-match rate) and proves it on the fixture; the real
+  open-codebase-index measurement runs in `benchmark-run`.

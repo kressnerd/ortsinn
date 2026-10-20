@@ -2,12 +2,23 @@
 
 ## Recording boundary and replay
 
-All model traffic crosses one loopback OpenAI-compatible proxy. In record mode
-it forwards to the configured local endpoint and writes raw request/response
-pairs; in replay it serves only recorded responses. Candidate result cassettes
-are a second layer, so a rerun does not depend on candidate process behavior.
-Replay starts no candidate and makes no external call. A missing key is a hard
-failure (exit 2), never a live fallback or a partial report.
+All model traffic crosses one loopback OpenAI-compatible proxy. This change's
+record scenario points it at a deterministic fake endpoint and writes raw
+request/response pairs; replay serves only recorded responses. Normalized
+result cassettes are a second layer, so a rerun does not depend on a candidate
+process. `benchmark-run` records real candidate results into the same shape.
+Replay starts no candidate and makes no external call. A missing key is a
+typed `MissingRecordedResponse` and a hard failure (exit 2), never a live
+fallback or a partial report.
+
+## Gold validation against the fixed checkout
+
+`Gold::load` requires each repository's `checkout` and validates every expected
+location before scoring: the path is relative and stays inside the checkout,
+the file exists, the range is ordered, and the end line is inside the file.
+Each explanation target and acceptable-evidence range is validated the same
+way. A failed check stops the run; no score is computed against a stale or
+missing expected answer.
 
 ## Canonical keys and fingerprints
 
@@ -72,8 +83,21 @@ report derives no build threshold and contains no path choice.
 
 ## Observability and evidence
 
-The run records candidate versions and install commands, `ckb doctor` output,
-indexer and language-server versions, embedding-provider configuration,
-`git_metadata` presence, per-repository index status and duration, and every
-setup deviation. Coverage proves both the runner and the CLI production paths;
-visual transcripts are committed as review evidence.
+The run records each candidate identity, install command, adapter version,
+setup fields (indexers, doctor output, language-support tiers, environment
+versions, embedding-provider configuration, `git_metadata` presence),
+per-repository index status and duration, and every recorded deviation. The
+fixture records fixture values for those fields; `benchmark-run` records the
+real values. Code coverage proves both the runner production paths and the CLI
+child path through two separate instrumented scopes and a merged Cobertura
+report; visual transcripts are committed as review evidence.
+
+## Fixture candidate versus candidate
+
+A **candidate** is an external code-knowledge tool measured through its own
+documented interface at a pinned version and commit. A **fixture candidate** is
+a committed test double with a pinned identity that records normalized results
+in the same shape. The report's `candidates` list contains whatever the
+manifest declares; in this change those are fixture candidates, and the report
+and specs never present them as external tools. Code coverage is a third,
+separate concept from metric/task coverage.

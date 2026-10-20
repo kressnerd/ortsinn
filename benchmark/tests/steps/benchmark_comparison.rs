@@ -2307,7 +2307,7 @@ fn gaps_not_rendered_as_zero(world: &mut BenchmarkWorld) -> Result<(), String> {
     let markdown = fs::read_to_string(world.out_dir.join("report.md"))
         .map_err(|error| format!("read report.md: {error}"))?;
     for expected in [
-        "typo_recall_at_1 to target: unavailable (no_measured_candidate)",
+        "typo_recall_at_1 to proposed target: unavailable (no_measured_candidate)",
         "typo_recall_at_1 best measured: unavailable (no_measured_candidate)",
     ] {
         if !markdown.contains(expected) {

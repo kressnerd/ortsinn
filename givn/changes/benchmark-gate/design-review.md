@@ -64,3 +64,29 @@ scaffold, and no ASCII-art diagram exists.
   promise; it is named in the design, risks, and use-case success evidence.
 
 DESIGN-REVIEW: PASS
+
+## Post-split re-review (2026-10-20)
+
+The design was re-grilled in a fresh context after the split and after the
+implementation audit. The following findings were raised and resolved in the
+artifacts; no finding remains open.
+
+| # | Finding | Resolution |
+|---|---|---|
+| R1 | The report-contract prose promised Run metadata, harness/dependency/hardware fields, capability sets, per-repository metrics, synthetic inputs, a Limitations section, and write validation that the implemented model does not carry. | `design.md` "Report contract" now describes the implemented model: `run{id, mode, external_requests}`, inputs repositories/gold, candidate setup/status, per-candidate metrics, gaps, path decision, reproduction. The Data model section already matches. |
+| R2 | `report.md` omitted the concept and concept-equivalence no-expansion values and the "proposed target" label. | `render.rs` now prints both no-expansion metric rows; a proposed target renders as "to proposed target"; the S18 step asserts the rendered unavailable line. |
+| R3 | Cassette keys were described as SHA-256 request keys; the implementation indexes results by `(candidate, metric, task, arm)` and model records by deterministic keys. | `design.md` "Recording and replay" now names the tuple index and the model key shape; the SHA-256 is the file fingerprint. |
+| R4 | Durable `benchmark/evidence/visual` transcripts were gitignored. | `benchmark/.gitignore` no longer ignores `evidence/`; both transcripts are committed. |
+| R5 | `benchmark/setup.sh` did not verify `cargo-llvm-cov` or the LLVM 23 tools. | `setup.sh` now fails when `cargo-llvm-cov`, `LLVM_COV`, or `LLVM_PROFDATA` is missing and prints the resolved LLVM version. |
+| R6 | The E2E section claimed a `BENCHMARK_HOME`, every-row width checks, and terminal-size detection. | `design.md` now says the child writes under `target/benchmark-e2e/`, the width step checks the metric label/value rows, and `COLUMNS` is the fallback. |
+| R7 | The reproduction command was not runnable as printed. | The recorded command is `cargo run -p benchmark -- run ...`; the renderer prints `. ./env.sh && <command>` plus the toolchain prefix field. |
+| R8 | Arc42 claims overstated the generator subprocess, manifest validation, and the ADR README. | Chapters 01, 03, 05, and 09 now state the in-process generator scenario, manifest-vs-gold validation split, and that `docs/arc42/adr/` holds only the template. |
+| R9 | The design traceability/black-box tables lacked the index-deadline and gold-validation scenarios; review counts mixed 23 total with 21 non-e2e. | Rows added for S16/S22/S23; the review states "23 via `run-tests.sh` (21 non-e2e + 2 e2e)". |
+| R10 | `benchmark-run` reuses D1–D3 without mapping the gate's carried D2–D4. | `benchmark-run/proposal.md` records the crosswalk: gate D2→run D2, gate D3→run D1, gate D4→run D1/D3. |
+
+Design checks: `givn check design --change benchmark-gate` and
+`givn check design-review --change benchmark-gate` pass; the scenario/step,
+gold-validation, coverage, and split checks in `review.md` are the
+implementation evidence.
+
+DESIGN-REVIEW: PASS

@@ -8,30 +8,32 @@ tool. It deploys no product service and uses no container runtime.
 ```mermaid
 flowchart TB
     subgraph WS[Maintainer workstation - Linux x86_64]
-        TC[gnu Rust toolchain 1.99.1<br/>RUSTUP_TOOLCHAIN + Nix zlib]
-        PFX[benchmark/.tools<br/>Node 24, Go 1.26.8, uv/Python 3.13,<br/>SCIP indexers, language servers]
-        WORK[benchmark/.work<br/>repos, per-candidate runs, synthetic]
-        CASS[benchmark/cassettes<br/>committed result and model recordings]
-        REC[Loopback recorder<br/>127.0.0.1 ephemeral port]
+        TC[gnu Rust toolchain 1.99.1<br/>RUSTUP_TOOLCHAIN + Nix zlib + LLVM 23]
+        FX[benchmark/tests/fixtures/e2e<br/>manifest, repo, gold, cassettes]
         BIN[target/debug/benchmark]
+        COV[target/coverage/non-e2e + e2e<br/>separate instrumentation runs]
+        REC[Loopback fake endpoint<br/>127.0.0.1 ephemeral port]
         BIN --> TC
-        BIN --> PFX
-        BIN --> WORK
-        BIN --> CASS
+        BIN --> FX
         BIN --> REC
+        COV --> BIN
     end
-    REC -->|record mode only| MODEL[Local OpenAI-compatible model endpoint]
-    BIN -->|git clone at fixed commits| GH[Public Git hosting / local mirror]
+    REC -->|record mode| MODEL[Deterministic fake model endpoint]
+    FX -->|read-only| REPO[(Fixture repository at fixture-1)]
 ```
 
 | Node / Environment | Description |
 |---|---|
-| Workstation | Linux x86_64 with `rustup`, Cargo, Node, Go, `uv`, and optionally Nix for zlib. |
-| Toolchain | `stable-x86_64-unknown-linux-gnu`; the default musl toolchain is unusable here. |
-| Tool prefixes | `benchmark/.tools/node`, `benchmark/.tools/go/bin`, `benchmark/.tools/serena`, plus pinned SCIP indexers and language servers; generated and gitignored. |
-| Work area | `benchmark/.work/repos` fixed checkouts, `benchmark/.work/runs/<candidate>/<repo>` writable copies including `.git`, `benchmark/.work/synthetic/<digest>` generated monorepo. |
-| Recordings | `benchmark/cassettes/model` and `benchmark/cassettes/results`, committed; replay needs only these. |
-| Model endpoint | A local OpenAI-compatible endpoint (Ollama if installed) on loopback/localhost; used in record mode only. |
+| Workstation | Linux x86_64 with `rustup`, Cargo, Nix for zlib and LLVM, and Python 3 for the Cobertura helper. |
+| Toolchain | `stable-x86_64-unknown-linux-gnu`; the default musl toolchain is unusable here. `env.sh` also resolves `LLVM_COV`/`LLVM_PROFDATA` from `nixpkgs#llvmPackages_23.llvm`. |
+| Fixture | `benchmark/tests/fixtures/e2e/manifest.yaml`, `repo/`, `gold/`, and `cassettes/`; committed and fixed. |
+| Report output | The caller's `--out` directory (default `reports/benchmark`), not committed. |
+| Recordings | The returned-temporary record scenario writes model and result cassettes under its output directory; the committed fixture cassettes are read-only input. |
+| Model endpoint | The `@e2e` scenario's fake OpenAI-compatible endpoint on an ephemeral loopback port; used in record mode only. |
+
+The real candidate installs and tool prefixes (`benchmark/.tools/`), the
+public repository work area (`benchmark/.work/`), and the committed public
+cassettes are `benchmark-run`'s deployment, not this change's.
 
 ## Infrastructure level 2
 
@@ -40,29 +42,27 @@ flowchart TB
 | Property | Value |
 |---|---|
 | Hardware / VM | The maintainer's development machine; no dedicated benchmark host. |
-| OS | Linux x86_64 (kernel 6.18 on the design host). |
-| Middleware / Runtime | Cargo/rustc 1.99.1 (gnu), Node.js 24 LTS, Go 1.26.8, Python 3.13 via `uv`, `cargo-llvm-cov`. |
-| Key software deployed | The `benchmark` binary, candidate tools in isolated prefixes, the loopback recorder, and the coverage scripts. |
+| OS | Linux x86_64 (kernel 6.18 on the development host). |
+| Middleware / Runtime | Cargo/rustc 1.99.1 (gnu), `cargo-llvm-cov` 0.9.0, LLVM 23.1.3, Python 3 for the Cobertura helper. |
+| Key software deployed | The `benchmark` binary, the fixture inputs, the loopback fake endpoint, and the coverage scripts. |
 
-### Candidate tool prefixes
+### Fixture and recordings
 
-| Prefix | Content | Pin |
+| Path | Content | Pin / identity |
 |---|---|---|
-| `benchmark/.tools/node` | Node.js runtime and `open-codebase-index` | Node 24 LTS; ocbi v0.37.0, commit `573b71c3…` |
-| `benchmark/.tools/go/bin` | `ckb` | v9.3.1, commit `5ff375db…` |
-| `benchmark/.tools/serena` | Serena agent environment and language servers | v2.1.0, commit `5e4f5cd1…`; Python 3.13; pinned pyright, typescript-language-server, rust-analyzer |
-| CKB indexers | `scip-typescript`, `scip-python`, `rust-analyzer scip` | Versions recorded in the manifest |
-
-Setup probes every candidate with its documented help/doctor command. An
-installation that is impossible on the host is recorded as a deviation and its
-affected measurement cells are marked unavailable; it is never silently
-degraded.
+| `benchmark/tests/fixtures/e2e/repo` | Tiny Python checkout | `fixture-repo`, revision `fixture-1`, commit `1111…`, 120 code lines |
+| `benchmark/tests/fixtures/e2e/gold` | Four JSONL gold files | Versions 1; fingerprints `sha256:fixture-typo-v1`, `sha256:fixture-nl-v1`, `sha256:fixture-explanation-v1`, `sha256:fixture-concept-v1` |
+| `benchmark/tests/fixtures/e2e/cassettes` | Result and model cassettes | `sha256:fixture-results-v1`, `sha256:fixture-model-v1` |
+| `benchmark/evidence/visual` | Committed terminal transcripts | Two `@e2e` scenario transcripts |
+| `target/coverage/{non-e2e,e2e}` | Per-scope cargo-llvm-cov targets | Distinct instrumentation runs |
 
 ### Coverage and evidence
 
-`env.sh` supplies the toolchain and zlib environment to `run-tests.sh`,
-`setup.sh`, `measure-coverage.sh`, and `merge-coverages.sh`. Coverage profiles
-are written to `coverage/non-e2e-%p.profraw` and `coverage/e2e-%p.profraw`,
-merged with `llvm-profdata`, and rendered as Cobertura reports. Visual
+`env.sh` supplies the toolchain, zlib, and LLVM 23 environment to
+`run-tests.sh`, `setup.sh`, `measure-coverage.sh`, and `merge-coverages.sh`.
+`measure-coverage.sh` runs the regular and e2e scopes with separate
+`CARGO_TARGET_DIR`s and writes `GIVN_COVERAGE_NON_E2E_PATH` and
+`GIVN_COVERAGE_E2E_PATH`; `merge-coverages.sh` merges the two Cobertura files
+into `GIVN_COVERAGE_OUTPUT_PATH` and probes production files. Visual
 transcripts are written to `${GIVN_EVIDENCE_DIR:-benchmark/evidence/visual}` so
 they survive change archival.

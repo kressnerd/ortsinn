@@ -7,10 +7,16 @@
 - Toolchain: `RUSTUP_TOOLCHAIN=stable-x86_64-unknown-linux-gnu`; `env.sh`
   resolves `LD_LIBRARY_PATH` for `libz.so.1` (system or Nix).
 - Runner: `benchmark/tests/benchmark_features.rs`; `[[test]] name =
-  "benchmark_features" harness = false`; `filter_run_and_exit()` or
-  `run_and_exit()`; `.fail_on_skipped()`.
-- Feature paths: `GIVN_FEATURES` newline-separated; stage or iterate the
-  files; fail if empty. `run-tests.sh` supplies the paths.
+  "benchmark_features" harness = false`; `filter_run_and_exit()` with
+  `.fail_on_skipped()`; CLI `--name`/`--tags` win over the `not @wip`
+  environment default.
+- Feature paths: `GIVN_FEATURES` newline-separated; `env.sh`'s
+  `givn_resolve_features` supplies the absolute list from `GIVN_FEATURES` or
+  from `givn/specs` plus every active `givn/changes/*/specs`; stage into
+  `target/givn-features`; fail if empty.
+- Gold: the manifest records each repository's `checkout`; every expected
+  path, line range, explanation target, and evidence range is validated before
+  scoring.
 - Single scenario: `GIVN_FEATURES=<file> cargo test --test benchmark_features
   -- --name "<title>"`.
 - E2E: `./run-tests.sh --e2e` → `cargo test --test benchmark_features --
@@ -49,8 +55,11 @@
     `merge-coverages.sh`, `benchmark/setup.sh`, `benchmark/.gitignore`.
 - [x] Create the cucumber runner and step skeleton.
   - `benchmark/tests/benchmark_features.rs` reads `GIVN_FEATURES`, stages the
-    feature files, builds `cucumber::Cucumber`, calls `.fail_on_skipped()`,
-    and uses `run_and_exit()` with the cucumber CLI filter.
+    feature files into `target/givn-features`, builds `cucumber::Cucumber`,
+    calls `.fail_on_skipped()`, and uses
+    `filter_run_and_exit(&staged, |_, _, _| true)`; `filter_run` applies the
+    CLI `--name`/`--tags` filter, and the runner sets
+    `CUCUMBER_FILTER_TAGS=not @wip` only when no CLI filter is supplied.
   - Step files: `benchmark/tests/steps/benchmark_comparison.rs`,
     `benchmark/tests/steps/e2e/benchmark_cli.rs`,
     `benchmark/tests/steps/mod.rs`, `benchmark/tests/steps/e2e/mod.rs`.
@@ -123,7 +132,7 @@
     6 steps (6 passed)
     EXIT=0
     ```
-- [x] COMMIT — hash: `ec41183052166945f88513092b723f1877c9d9bc`
+- [x] COMMIT: `ec41183052166945f88513092b723f1877c9d9bc`
 - Design constraints: manifest/report identity fields; fixture values from the
   shared block; no product code.
 
@@ -246,6 +255,16 @@
 - Design constraints: default concept 0.40 (2/5), no-expansion 0.20 (1/5);
   concept-equivalence 0.50 (2/4) and 0.25 (1/4); fixture-serena no-expansion
   `not_applicable` reason `no_expansion_switch`.
+- [x] Follow-up production change (review hardening): the no-expansion arm is
+  now decided by `no_expansion_arm_cell`. Candidate or index unavailability
+  takes precedence over the expansion switch, and a missing switch is
+  `no_expansion_switch` instead of a generic reason.
+  - Production files: `benchmark/src/metrics/common.rs`,
+    `benchmark/src/metrics/concept.rs`.
+  - Targeted run: `GIVN_FEATURES=<feature> cargo test --test
+    benchmark_features -- --name "^Report compares concept recall with and
+    without query expansion$"` → 1 scenario (1 passed), 7 steps (7 passed).
+  - Commit: `de400364a1d87f9fc51e687ce8dbd57577f268f9`.
 
 ## S5 — Report distinguishes an unavailable capability from a zero score
 
@@ -352,6 +371,14 @@
   - Commit: `08f7b8d5f53cde6777f7083a8d4f24305588ba63`
 - Design constraints: exit code 2; error names the missing input and candidate;
   no `report.json`/`report.md`.
+- [x] Follow-up production change (review hardening): the replay miss is a
+  typed `MissingRecordedResponse` (key, candidate, repository, task, query,
+  layer), and `RunFailure::from_error` preserves it as exit code 2.
+  - Production files: `benchmark/src/runner.rs`.
+  - Targeted run: `GIVN_FEATURES=<feature> cargo test --test
+    benchmark_features -- --name "^A missing recorded response stops the
+    run$"` → 1 scenario (1 passed), 5 steps (5 passed).
+  - Commit: `948fdf7de715c629317b4dfbb8ca0e7741430ddf`.
 
 ## S8 — The synthetic monorepo is regenerated to the same content fingerprint
 
@@ -854,6 +881,17 @@
   - Commit: `b10d24201af038465c880aab0dce6e78eacaaf6d`
 - Design constraints: typo `to_best` and `to_target` status `unavailable`,
   reason `no_measured_candidate`; no zero; report complete.
+- [x] Follow-up production change (review hardening): `Gap::unavailable` and
+  `Gap::not_applicable` are closed constructors; a stated target with no
+  measured value maps to `unavailable`/`no_measured_candidate` or
+  `not_applicable`/`no_applicable_task`, and `report.md` renders an unavailable
+  to-best gap instead of omitting it. The scenario asserts both rendered lines.
+  - Production files: `benchmark/src/metrics/gaps.rs`,
+    `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`.
+  - Targeted run: `GIVN_FEATURES=<feature> cargo test --test
+    benchmark_features -- --name "^A metric with no measured candidate reports
+    an unavailable gap$"` → 1 scenario (1 passed), 6 steps (6 passed).
+  - Commit: `2d367568b54c02c7f77bb34d3cb2c5276388090d`.
 
 ## S19 — Report does not score a regex interface mismatch as natural-language recall
 
@@ -909,9 +947,9 @@
 
 ## E2E setup — local environment and e2e runner
 
-- [x] Bring up the local environment: `benchmark/setup.sh` installs Rust
-  toolchain env, zlib, candidates, CKB indexers, Serena 3.13 + language
-  servers, and the fake OpenAI-compatible endpoint fixture.
+- [x] Bring up the local environment: `benchmark/setup.sh` verifies the Rust
+  toolchain env, zlib, `cargo-llvm-cov`, the LLVM 23 tools, and the committed
+  fixture (manifest, checkout, gold, cassettes).
   - The fixture candidates are pinned identities in
     `benchmark/tests/fixtures/e2e/manifest.yaml`; the E2E run starts no
     candidate binary and no container runtime. The local endpoint is the
@@ -921,20 +959,19 @@
     ```text
     benchmark setup: toolchain rustc 1.99.1 (58cf8f9c6 2026-10-13)
     benchmark setup: zlib available from /nix/store/…-zlib-1.3.2/lib
-    benchmark setup: candidate installs land under benchmark/.tools/
-    benchmark setup: worktrees and cassettes land under benchmark/.work/
+    benchmark setup: no candidate installs in this change; benchmark-run owns them
     benchmark setup: fixture manifest, gold sets, cassettes, and repository present
     benchmark setup: fake OpenAI-compatible endpoint fixture is ready (loopback, ephemeral port)
     ```
 - [x] Configure and prove `verify.e2e_command` strict subset.
-  - `verify.command` count: 1 feature, 21 scenarios, 132 steps.
+  - `verify.command` count: 1 feature, 23 scenarios, 142 steps.
   - `verify.e2e_command` count: 1 feature, 2 scenarios, 14 steps.
   - Strict proof output:
     ```text
     $ ./run-tests.sh
     1 feature
-    21 scenarios (21 passed)
-    132 steps (132 passed)
+    23 scenarios (23 passed)
+    142 steps (142 passed)
     EXIT=0
 
     $ ./run-tests.sh --e2e
@@ -943,21 +980,14 @@
     14 steps (14 passed)
     EXIT=0
     ```
-  - The E2E filter selects 2 of 21 scenarios, so `verify.e2e_command` is a
+  - The E2E filter selects 2 of 23 scenarios, so `verify.e2e_command` is a
     strict subset of `verify.command`.
-- [x] Prove the e2e runner reaches the local fixture endpoint.
-  - Command: `cargo test --test e2e_fixture`
-  - Output:
-    ```text
-    running 1 test
-    test the_e2e_runner_reaches_the_local_fixture_endpoint ... ok
-    test result: ok. 1 passed; 0 failed; 0 ignored
-    EXIT=0
-    ```
-  - The test starts the same `axum` server, posts one chat-completion and one
-    embedding request to its loopback base URL, and asserts both requests were
-    logged from a loopback peer.
-  - Commit: `32f32da2dd51eed964964284ec727214a5b2bb11`
+- [x] Fold the loopback endpoint proof into the S21 `@e2e` scenario.
+  - `benchmark/tests/e2e_fixture.rs` was removed as duplicate infrastructure
+    coverage. S21 asserts the endpoint base URL is loopback, every recorded
+    request has a loopback peer, the record run writes both cassettes, and
+    replay leaves the endpoint request count unchanged.
+  - Commit: `d7e04e11c9400d7be2403b65e763f79a91e92762`.
 
 ## S20 — Maintainer runs the benchmark and reads the measured report
 
@@ -1075,12 +1105,112 @@
   model and result cassettes; replay matches measurements and order; no
   external request; model cassette fingerprint written.
 
-- Combined active set (S1–S21):
+## S22 — A gold task whose path is absent stops the run
+
+- [x] RED — with the typo gold validation temporarily skipped, the run
+  produced a report instead of failing:
+  ```text
+  Scenario: A gold task whose path is absent stops the run
+   ✘  Then the run exits with code 2
+      Step panicked. Captured output: the run did not fail; a report was produced
+  [Summary]
+  1 feature
+  1 scenario (1 failed)
+  3 steps (2 passed, 1 failed)
+  EXIT=101
+  ```
+- [x] GREEN — `Gold::load` canonicalizes the expected path inside the
+  repository's `checkout`, fails when it is absent, and names the task and
+  path. Production files: `benchmark/src/gold/mod.rs`,
+  `benchmark/src/manifest.rs`, `benchmark/tests/fixtures/e2e/manifest.yaml`.
+  - Output:
+    ```text
+    Scenario: A gold task whose path is absent stops the run
+     ✔  Given a fixture gold task whose path is absent from the fixed checkout
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then the run exits with code 2
+     ✔  And the error names the gold task "typo-1" and the missing path "src/absent.py"
+     ✔  And no report.json or report.md is published
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+- [x] REFACTOR — targeted run still 1 scenario (1 passed), 5 steps (5 passed).
+- [x] COMMIT: production `35fd2b0218c99df257ae0501289cc77cfd0aece8`;
+  scenario/steps `e90db47d1322251e98de9373d777e0223e32d4db`.
+
+## S23 — A gold line range outside the file stops the run
+
+- [x] RED — with the typo gold validation temporarily skipped:
+  ```text
+  Scenario: A gold line range outside the file stops the run
+   ✘  Then the run exits with code 2
+      Step panicked. Captured output: the run did not fail; a report was produced
+  [Summary]
+  1 feature
+  1 scenario (1 failed)
+  3 steps (2 passed, 1 failed)
+  EXIT=101
+  ```
+- [x] GREEN — `Gold::load` counts the target file's lines and rejects an end
+  line beyond them. Production files: `benchmark/src/gold/mod.rs`.
+  - Output:
+    ```text
+    Scenario: A gold line range outside the file stops the run
+     ✔  Given a fixture gold task whose line range exceeds the file
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then the run exits with code 2
+     ✔  And the error names the gold task "typo-1" and the out-of-range end line
+     ✔  And no report.json or report.md is published
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+- [x] REFACTOR — targeted run still 1 scenario (1 passed), 5 steps (5 passed).
+- [x] Follow-up production commit: `GoldValidationError` types the failure
+  (task/path/range detail) while preserving the validation messages.
+  Commit: `9203c40fb8263bec6b443ba7ed9d2f9f717d3c32`.
+- [x] COMMIT: scenario/steps
+  `e90db47d1322251e98de9373d777e0223e32d4db`.
+
+## Coverage gate
+
+- [x] `./measure-coverage.sh` writes both Cobertura reports from distinct
+  target directories:
+  - regular scope: `benchmark/src/metrics/typo.rs` covered_lines=70
+    hits=2005; `benchmark/src/report/render.rs` covered_lines=259 hits=8609.
+  - e2e scope: `benchmark/src/cli.rs` covered_lines=26 hits=101.
+- [x] `./merge-coverages.sh` merges them into
+  `coverage/cobertura-coverage.xml` (line-rate 0.939898, 2033 of 2163 lines;
+  the regular scope alone is 0.7184). Probes in the merged report:
+  `typo.rs` 70 covered / 2610 hits, `render.rs` 405 / 12538, `cli.rs` 26 / 101.
+  The script exits 2 on a missing or byte-identical input.
+- [x] Production files: `env.sh`, `measure-coverage.sh`, `merge-coverages.sh`,
+  `benchmark/tools/cobertura.py`.
+- [x] Commit: `d7e04e11c9400d7be2403b65e763f79a91e92762`.
+
+## Split and operator decision
+
+- [x] The real-candidate measurement is split into `benchmark-run`. This
+  change delivers the fixture harness; `benchmark-run/proposal.md` owns the
+  real adapters, public fixed inputs, real gold sets, candidate installs, and
+  the real record run.
+- [x] Operator decision: 2026-10-20 — the user chose the split. `review.md`
+  records the exact `OPERATOR-DECISION:` line and the `DEFERRAL` for the real
+  record run, pointing at `benchmark-run`.
+- [x] The manual real record-run gate is not checked off in this change; it is
+  deferred by that operator decision and is `benchmark-run`'s task.
+
+- Combined active set (S1–S23):
   ```text
   $ ./run-tests.sh
   1 feature
-  21 scenarios (21 passed)
-  132 steps (132 passed)
+  23 scenarios (23 passed)
+  142 steps (142 passed)
   EXIT=0
 
   $ ./run-tests.sh --e2e
@@ -1097,10 +1227,7 @@
 - [x] `verify.command` and `verify.e2e_command` both exit 0 on the full suite.
 - [x] The e2e scenario count is strictly less than the full count, or every
   in-scope scenario is `@e2e` (not the case here).
-- [x] The manual record-run gate evidence is committed or the task names the
-  exact condition for it. Condition: the manual gate needs a host with at
-  least one real candidate installed (open-codebase-index, CKB, or Serena) and
-  that candidate's reference repository checked out at its fixed commit. This
-  change runs the committed fixture environment, starts no real candidate, and
-  proves the recorder→replay contract against the loopback fake endpoint; the
-  real-candidate record run is therefore not available in this environment.
+- [x] The manual real record-run gate is dispositioned by the recorded
+  operator decision: `benchmark-run` owns the committed record-run evidence
+  and replay probe for the real candidates, and `review.md` carries the
+  `DEFERRAL` line. This change does not claim a real measurement.

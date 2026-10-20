@@ -138,7 +138,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     let gaps = metrics::gaps::compute(&manifest, &metrics);
 
     let command = format!(
-        "benchmark run --manifest {} --mode replay --out {}",
+        "cargo run -p benchmark -- run --manifest {} --mode replay --out {}",
         manifest_path.display(),
         out_dir.display()
     );
@@ -220,7 +220,7 @@ fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) 
     let gaps = metrics::gaps::compute(&manifest, &metrics);
 
     let command = format!(
-        "benchmark run --manifest {} --mode record --model-endpoint {} --out {}",
+        "cargo run -p benchmark -- run --manifest {} --mode record --model-endpoint {} --out {}",
         manifest_path.display(),
         model_endpoint,
         out_dir.display()

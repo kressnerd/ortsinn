@@ -13,9 +13,18 @@ else
   exit 1
 fi
 
-mkdir -p benchmark/.tools benchmark/.work
-echo "benchmark setup: candidate installs land under benchmark/.tools/"
-echo "benchmark setup: worktrees and cassettes land under benchmark/.work/"
+if ! command -v cargo-llvm-cov >/dev/null 2>&1 && ! cargo llvm-cov --version >/dev/null 2>&1; then
+  echo "benchmark setup: cargo-llvm-cov is missing" >&2
+  exit 1
+fi
+if [ -z "${LLVM_COV:-}" ] || [ ! -x "${LLVM_COV:-}" ] \
+  || [ -z "${LLVM_PROFDATA:-}" ] || [ ! -x "${LLVM_PROFDATA:-}" ]; then
+  echo "benchmark setup: LLVM_COV/LLVM_PROFDATA are missing or not executable" >&2
+  exit 1
+fi
+echo "benchmark setup: coverage tools cargo-llvm-cov + $("$LLVM_COV" --version | head -1)"
+
+echo "benchmark setup: no candidate installs in this change; benchmark-run owns them"
 
 # The change runs the fixture environment only. Candidate toolchains are
 # pinned in the manifest; this setup verifies the fixture inputs are present

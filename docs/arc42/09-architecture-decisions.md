@@ -44,10 +44,10 @@ target_adr: null
 replacement_adr: null
 ```
 
-Existing-ADR check: the register above and `docs/arc42/adr/README.md` were
-searched; neither holds an ADR that covers the benchmark harness, its language,
-workspace, recorder, or isolation. There is no duplicate or refinement to
-amend and no record to supersede.
+Existing-ADR check: the register above was searched, and `docs/arc42/adr/`
+contains only the ADR template; neither holds an ADR that covers the benchmark
+harness, its language, workspace, recorder, or isolation. There is no duplicate
+or refinement to amend and no record to supersede.
 
 The decision is not a product-behavior decision owned by a use case either: the
 benchmark is a project gate outside product runtime, and its observable
