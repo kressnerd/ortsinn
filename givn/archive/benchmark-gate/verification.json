@@ -1,11 +1,33 @@
 {
   "schema": 1,
   "change": "benchmark-gate",
-  "status": "pending",
-  "candidate_revision": null,
-  "tested_revision": null,
-  "scopes": {},
-  "coverage": null,
-  "started_at_unix": 1792484263,
-  "finished_at_unix": null
+  "status": "proven",
+  "candidate_revision": "44c72f2e3b785a6ed70b06917c3c8326409237f8",
+  "tested_revision": "44c72f2e3b785a6ed70b06917c3c8326409237f8",
+  "scopes": {
+    "e2e": {
+      "status": "passed",
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 0.490512074
+    },
+    "regular": {
+      "status": "passed",
+      "total": 28,
+      "passed": 28,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 20.485964459
+    }
+  },
+  "coverage": {
+    "status": "passed",
+    "line_covered": 2575,
+    "line_valid": 2754,
+    "line_percent": 93
+  },
+  "started_at_unix": 1792484542,
+  "finished_at_unix": 1792484606
 }

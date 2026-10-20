@@ -1,0 +1,121 @@
+{
+  "scope": "regular",
+  "scenarios": [
+    {
+      "name": "Report identifies every candidate and fixed repository revision",
+      "status": "passed"
+    },
+    {
+      "name": "Report contains the four acceptance measurements",
+      "status": "passed"
+    },
+    {
+      "name": "Report states measured gaps without a pre-registered build threshold",
+      "status": "passed"
+    },
+    {
+      "name": "Report compares concept recall with and without query expansion",
+      "status": "passed"
+    },
+    {
+      "name": "Report distinguishes an unavailable capability from a zero score",
+      "status": "passed"
+    },
+    {
+      "name": "Replay rerun reproduces the report without an external model call",
+      "status": "passed"
+    },
+    {
+      "name": "A missing recorded response stops the run",
+      "status": "passed"
+    },
+    {
+      "name": "The synthetic monorepo is regenerated to the same content fingerprint",
+      "status": "passed"
+    },
+    {
+      "name": "Report separates wrong rank from no match in typo recall",
+      "status": "passed"
+    },
+    {
+      "name": "Report states metric and task coverage with denominators",
+      "status": "passed"
+    },
+    {
+      "name": "Report names each gold set's version, task count, and fingerprint",
+      "status": "passed"
+    },
+    {
+      "name": "Report states the exact command that reproduces the run",
+      "status": "passed"
+    },
+    {
+      "name": "Report records candidate setup, index status, and timeouts",
+      "status": "passed"
+    },
+    {
+      "name": "A fixed-input mismatch stops the run",
+      "status": "passed"
+    },
+    {
+      "name": "A gold task whose path is absent stops the run",
+      "status": "passed"
+    },
+    {
+      "name": "A gold line range outside the file stops the run",
+      "status": "passed"
+    },
+    {
+      "name": "An uninstallable or unstartable candidate is recorded and the run continues",
+      "status": "passed"
+    },
+    {
+      "name": "A candidate that exceeds its index deadline is unavailable, not zero",
+      "status": "passed"
+    },
+    {
+      "name": "A query error counts as a miss and is reported separately",
+      "status": "passed"
+    },
+    {
+      "name": "A metric with no measured candidate reports an unavailable gap",
+      "status": "passed"
+    },
+    {
+      "name": "Report does not score a regex interface mismatch as natural-language recall",
+      "status": "passed"
+    },
+    {
+      "name": "Report states values for each repository",
+      "status": "passed"
+    },
+    {
+      "name": "A gold fingerprint mismatch stops the run",
+      "status": "passed"
+    },
+    {
+      "name": "A cassette fingerprint mismatch stops the run",
+      "status": "passed"
+    },
+    {
+      "name": "Report states its limitations and rejects an invalid report",
+      "status": "passed"
+    },
+    {
+      "name": "A candidate identity mismatch stops the run",
+      "status": "passed"
+    },
+    {
+      "name": "Maintainer runs the benchmark and reads the measured report",
+      "status": "passed"
+    },
+    {
+      "name": "Maintainer records a run and replays it without an external call",
+      "status": "passed"
+    }
+  ],
+  "passed": 28,
+  "failed": 0,
+  "skipped": 0,
+  "total": 28
+}

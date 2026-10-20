@@ -1,49 +1,55 @@
 # ortsinn
+
+<!-- givn:begin:coverage-badge -->
+[![Line Coverage: 94%](https://img.shields.io/badge/line%20coverage-94%25-brightgreen)](coverage/cobertura-coverage.xml)
+[![Branch Coverage: n/a](https://img.shields.io/badge/branch%20coverage-n--a-brightgreen)](coverage/cobertura-coverage.xml)
+<!-- givn:end:coverage-badge -->
+
 A sense of place for code agents.
 
 <!-- givn:begin:development -->
-## Quick start
+## Development
 
-Prerequisites: Rust with the pinned GNU toolchain and `libz.so.1`; `env.sh`
-resolves both. Run the executable specification from the repository root:
+Run the project-owned scripts configured in `givn/commands.yaml`:
 
 ```sh
 ./run-tests.sh
 ./run-tests.sh --e2e
 ```
+
+`./measure-coverage.sh` writes the non-E2E and E2E Cobertura reports.
+`./merge-coverages.sh` combines them into the merged report linked by the
+badges above.
+
+Add lint, build, and other project commands alongside these scripts.
+
 <!-- givn:end:development -->
 
-<!-- givn:begin:run -->
-## Usage
 
-The benchmark harness reads a fixed manifest and writes `report.json` and
-`report.md`:
+<!-- givn:begin:run -->
+## Run
+
+Run the tool:
 
 ```sh
-. ./env.sh
-cargo run -p benchmark -- run \
-  --manifest benchmark/tests/fixtures/e2e/manifest.yaml \
-  --mode replay \
-  --out reports/benchmark
+. ./env.sh && cargo run -p benchmark -- run --manifest benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out reports/benchmark
 ```
 
-`--mode record --model-endpoint <url>` records model responses against a local
-OpenAI-compatible endpoint. `--width` sets the terminal summary width.
-
-The committed fixture is the input set available in this change; real
-reference repositories and candidate adapters are delivered by the follow-up
-change `benchmark-run`.
 <!-- givn:end:run -->
 
+
 <!-- givn:begin:coverage -->
-Coverage measures the regular and e2e scopes separately (the e2e scope
-includes the CLI child) and merges the two Cobertura reports:
+## Coverage
+
+Merged report: [coverage/cobertura-coverage.xml](coverage/cobertura-coverage.xml)
+
+Line coverage: 94% (2575/2754)
+Branch coverage: n/a (0/0)
+
+Reproduce the result:
 
 ```sh
 ./measure-coverage.sh
 ./merge-coverages.sh
 ```
-
-`env.sh` resolves the LLVM 23 tools that match rustc; the 21.1.8 package
-cannot read rustc's raw profile format.
 <!-- givn:end:coverage -->

@@ -1,0 +1,17 @@
+{
+  "scope": "e2e",
+  "scenarios": [
+    {
+      "name": "Maintainer runs the benchmark and reads the measured report",
+      "status": "passed"
+    },
+    {
+      "name": "Maintainer records a run and replays it without an external call",
+      "status": "passed"
+    }
+  ],
+  "passed": 2,
+  "failed": 0,
+  "skipped": 0,
+  "total": 2
+}
