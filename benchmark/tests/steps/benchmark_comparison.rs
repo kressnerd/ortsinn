@@ -995,6 +995,91 @@ fn synthetic_content_fingerprint(
     Ok(())
 }
 
+#[given("the fixture typo gold set of five tasks")]
+fn the_fixture_typo_gold_set(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_fixture(world)?;
+    let tasks = world
+        .manifest
+        .as_ref()
+        .and_then(|manifest| manifest.gold_set("typo"))
+        .map(|set| set.tasks)
+        .ok_or("fixture manifest has no typo gold set")?;
+    assert_eq!(tasks, 5, "fixture typo gold task count");
+    Ok(())
+}
+
+#[then(regex = r"^(\S+) returns no result for (\d+) of the (\d+) typo tasks$")]
+fn candidate_typo_no_match(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [candidate, numerator, denominator] = captures else {
+        return Err("typo no-match step needs three captures".into());
+    };
+    let rate = report(world)
+        .metrics
+        .typo
+        .no_match_rate_per_candidate
+        .get(candidate)
+        .ok_or_else(|| format!("report has no typo no-match cell for {candidate}"))?;
+    check_counts(
+        rate.numerator,
+        rate.denominator,
+        numerator,
+        denominator,
+        "typo no-match rate",
+    )
+}
+
+#[then(regex = r"^the typo no-match rate is ([\d.]+) with (\d+) of (\d+) tasks$")]
+fn typo_no_match_rate(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [value, numerator, denominator] = captures else {
+        return Err("typo no-match aggregate step needs three captures".into());
+    };
+    let rate = &report(world).metrics.typo.no_match_rate;
+    check_value(
+        rate.value.ok_or("typo no-match rate has no measured value")?,
+        value,
+        "typo no-match rate",
+    )?;
+    check_counts(
+        rate.numerator,
+        rate.denominator,
+        numerator,
+        denominator,
+        "typo no-match rate",
+    )
+}
+
+#[then(regex = r"^the typo recall at rank five is ([\d.]+) because (\d+) of (\d+) tasks are ranked$")]
+fn typo_recall_at_five_ranked(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [value, numerator, denominator] = captures else {
+        return Err("typo ranked recall step needs three captures".into());
+    };
+    let typo = &report(world).metrics.typo;
+    check_value(
+        typo.recall_at_5
+            .value
+            .ok_or("typo @5 has no measured value")?,
+        value,
+        "typo recall @5",
+    )?;
+    check_counts(
+        typo.recall_at_5.numerator,
+        typo.recall_at_5.denominator,
+        numerator,
+        denominator,
+        "typo recall @5",
+    )?;
+    let numerator: u64 = numerator
+        .parse()
+        .map_err(|error| format!("parse typo ranked numerator: {error}"))?;
+    if typo.no_match_rate.numerator + numerator != typo.recall_at_5.denominator {
+        return Err(format!(
+            "ranked {} plus no-match {} does not equal the {} typo tasks",
+            numerator, typo.no_match_rate.numerator, typo.recall_at_5.denominator
+        ));
+    }
+    Ok(())
+}
+
 #[then("its gold sets name the same locations")]
 fn synthetic_gold_locations_match(world: &mut BenchmarkWorld) -> Result<(), String> {
     let first = world

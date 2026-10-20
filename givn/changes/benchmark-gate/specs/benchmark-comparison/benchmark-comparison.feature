@@ -90,7 +90,7 @@ Feature: Benchmark comparison
     And its content fingerprint matches the recorded fixed input "sha256:synthetic-demo-v1"
     And its gold sets name the same locations
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report separates wrong rank from no match in typo recall
     Given the fixture typo gold set of five tasks
     When the maintainer runs the benchmark in replay mode

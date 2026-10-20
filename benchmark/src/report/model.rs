@@ -95,6 +95,25 @@ impl Coverage {
     }
 }
 
+/// Fraction of attempted typo tasks for which a candidate returned no result
+/// at all. Its denominator always carries the attempted task count.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoMatchRate {
+    pub value: Option<f64>,
+    pub numerator: u64,
+    pub denominator: u64,
+}
+
+impl NoMatchRate {
+    pub fn new(numerator: u64, denominator: u64) -> Self {
+        Self {
+            value: (denominator > 0).then(|| numerator as f64 / denominator as f64),
+            numerator,
+            denominator,
+        }
+    }
+}
+
 /// One measured, unavailable, or not-applicable metric cell.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Score {
@@ -180,6 +199,8 @@ pub struct TypoMetric {
     pub recall_at_5: Score,
     pub per_candidate: BTreeMap<String, Score>,
     pub recall_at_5_per_candidate: BTreeMap<String, Score>,
+    pub no_match_rate: NoMatchRate,
+    pub no_match_rate_per_candidate: BTreeMap<String, NoMatchRate>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

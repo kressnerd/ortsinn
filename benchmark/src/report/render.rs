@@ -73,6 +73,13 @@ fn render_metrics(out: &mut String, report: &Report) {
         out.push_str("- Typo recall @1 target is the proposed target 0.90 (not confirmed)\n");
     }
     score_line(out, "Typo recall @5", &metrics.typo.recall_at_5);
+    match metrics.typo.no_match_rate.value {
+        Some(value) => out.push_str(&format!(
+            "- Typo no-match rate: {value:.2} ({} of {} tasks)\n",
+            metrics.typo.no_match_rate.numerator, metrics.typo.no_match_rate.denominator
+        )),
+        None => out.push_str("- Typo no-match rate: unavailable\n"),
+    }
     out.push('\n');
     out.push_str("## Natural-language retrieval\n\n");
     score_line(out, "NL recall @5", &metrics.natural_language.aggregate);

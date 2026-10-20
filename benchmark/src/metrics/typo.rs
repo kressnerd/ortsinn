@@ -8,16 +8,18 @@ use super::common::{aggregate, capability, hit_at, recorded_locations, target, u
 use crate::gold::Gold;
 use crate::manifest::Manifest;
 use crate::record::cassette::ResultCassette;
-use crate::report::model::{Score, TypoMetric};
+use crate::report::model::{NoMatchRate, Score, TypoMetric};
 
 pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Result<TypoMetric> {
     let tasks = gold.typo.len() as u64;
     let mut per_candidate = BTreeMap::new();
     let mut recall_at_5_per_candidate = BTreeMap::new();
+    let mut no_match_rate_per_candidate = BTreeMap::new();
     let mut cells = Vec::new();
     let mut at_1 = 0u64;
     let mut at_5 = 0u64;
     let mut attempted = 0u64;
+    let mut no_match = 0u64;
 
     for candidate in &manifest.candidates {
         let capability = capability(candidate, "typo");
@@ -29,9 +31,13 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
         }
         let mut candidate_at_1 = 0u64;
         let mut candidate_at_5 = 0u64;
+        let mut candidate_no_match = 0u64;
         for task in &gold.typo {
             let results = recorded_locations(cassette, &candidate.id, "typo", &task.id, "default")?;
             attempted += 1;
+            if results.is_empty() {
+                candidate_no_match += 1;
+            }
             let expected = &task.expected;
             if hit_at(1, &results, expected) {
                 candidate_at_1 += 1;
@@ -42,6 +48,9 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
         }
         at_1 += candidate_at_1;
         at_5 += candidate_at_5;
+        no_match += candidate_no_match;
+        no_match_rate_per_candidate
+            .insert(candidate.id.clone(), NoMatchRate::new(candidate_no_match, tasks));
         let cell = Score::measured(candidate_at_1, tasks, tasks, 0);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         recall_at_5_per_candidate.insert(
@@ -59,5 +68,7 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
         recall_at_5,
         per_candidate,
         recall_at_5_per_candidate,
+        no_match_rate: NoMatchRate::new(no_match, attempted),
+        no_match_rate_per_candidate,
     })
 }
