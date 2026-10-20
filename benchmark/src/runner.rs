@@ -11,8 +11,8 @@ use crate::manifest::{Manifest, RunMode};
 use crate::metrics;
 use crate::record::cassette::{ModelCassette, ResultCassette};
 use crate::report::model::{
-    CandidateReport, GoldSetReport, Inputs, LineCountReport, PathDecision, PathDecisionStatus,
-    Report, Reproduction, RepositoryReport, RunReport, SCHEMA_VERSION,
+    CandidateReport, CandidateStatus, GoldSetReport, Inputs, LineCountReport, PathDecision,
+    PathDecisionStatus, Report, Reproduction, RepositoryReport, RunReport, SCHEMA_VERSION,
 };
 use crate::report::render;
 
@@ -136,6 +136,15 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
                 adapter: candidate.adapter.clone(),
                 adapter_version: candidate.adapter_version,
                 setup: candidate.setup.clone(),
+                status: if candidate.unavailable.is_some() {
+                    CandidateStatus::Unavailable
+                } else {
+                    CandidateStatus::Available
+                },
+                unavailable_reason: candidate
+                    .unavailable
+                    .as_ref()
+                    .map(|unavailable| unavailable.reason.clone()),
             })
             .collect(),
         metrics,

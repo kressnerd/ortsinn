@@ -4,7 +4,10 @@ use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
 
-use super::common::{aggregate, capability, recorded_locations, target, unmeasured_cell};
+use super::common::{
+    aggregate, candidate_unavailable_cell, capability, recorded_locations, target,
+    unmeasured_cell,
+};
 use crate::adapters::Citation;
 use crate::gold::{ExplanationTask, Gold};
 use crate::manifest::Manifest;
@@ -24,6 +27,11 @@ pub fn score(
     let mut attempted = 0u64;
 
     for candidate in &manifest.candidates {
+        if let Some(cell) = candidate_unavailable_cell(candidate, tasks) {
+            per_candidate.insert(candidate.id.clone(), cell.clone());
+            cells.push(cell);
+            continue;
+        }
         let capability = capability(candidate, "explanation");
         if let Some(cell) = unmeasured_cell(capability, tasks) {
             per_candidate.insert(candidate.id.clone(), cell.clone());

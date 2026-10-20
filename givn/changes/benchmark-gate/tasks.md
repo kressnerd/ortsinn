@@ -671,12 +671,59 @@
 
 ## S15 — An uninstallable or unstartable candidate is recorded and the run continues
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
-  - RED output:
-  - GREEN production files:
-  - GREEN output:
-  - REFACTOR output:
-  - Commit:
+- [x] RED — remove `@wip` from S15 only; run targeted; paste non-zero output.
+  - Output:
+    ```text
+    Scenario: An uninstallable or unstartable candidate is recorded and the run continues
+     ✘  Given fixture-unstartable whose MCP handshake fails
+        Step panicked. Captured output: not implemented: benchmark-comparison: fixture-unstartable handshake
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+- [x] GREEN — record candidate-level unavailability in the report, make every
+  metric cell for such a candidate `unavailable` with the reason, list it as a
+  capability gap, and continue with the other candidates; implement the steps;
+  list production files; run targeted; paste zero output.
+  - Production files: `benchmark/src/metrics/common.rs`,
+    `benchmark/src/metrics/typo.rs`,
+    `benchmark/src/metrics/natural_language.rs`,
+    `benchmark/src/metrics/explanation.rs`,
+    `benchmark/src/metrics/concept.rs`, `benchmark/src/metrics/gaps.rs`,
+    `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`,
+    `benchmark/src/runner.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output:
+    ```text
+    Scenario: An uninstallable or unstartable candidate is recorded and the run continues
+     ✔  Given fixture-unstartable whose MCP handshake fails
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then the report marks fixture-unstartable unavailable with the reason "candidate_unstartable"
+     ✔  And the run completes and reports measured values for fixture-ocbi and fixture-ckb
+     ✔  And the report lists fixture-unstartable in the capability gaps
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+- [x] REFACTOR — run targeted; paste zero output.
+  - Output:
+    ```text
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+  - Combined active set (S1–S15):
+    ```text
+    1 feature
+    15 scenarios (15 passed)
+    96 steps (96 passed)
+    EXIT=0
+    ```
+- [x] COMMIT — hash: `PENDING_S15`
 - Design constraints: `fixture-unstartable` MCP handshake fails;
   `candidate_unstartable`; other candidates measured; capability gap.
 

@@ -1440,6 +1440,137 @@ fn a_fixture_manifest_with_commit(
     load_fixture(world)
 }
 
+const UNSTARTABLE_CANDIDATE: &str = r#"
+id: fixture-unstartable
+version: fixture-1
+commit: "dddddddddddddddddddddddddddddddddddddddd"
+install: "fixture adapter"
+adapter: fixture
+adapter_version: 1
+unavailable:
+  reason: candidate_unstartable
+  detail: "MCP initialize handshake did not complete"
+setup:
+  git_metadata: present
+  indexes:
+    - {repository: fixture-repo, status: not_started, seconds: 0.0, reason: candidate_unstartable}
+"#;
+
+#[given("fixture-unstartable whose MCP handshake fails")]
+fn fixture_unstartable(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("benchmark crate has no workspace root")?
+        .join("benchmark/tests/fixtures/e2e");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("benchmark crate has no workspace root")?
+        .join("target")
+        .join("benchmark-unstartable-variant");
+    if root.exists() {
+        fs::remove_dir_all(&root).map_err(|error| format!("clear {}: {error}", root.display()))?;
+    }
+    copy_tree(&fixture.join("gold"), &root.join("gold"))?;
+    copy_tree(&fixture.join("cassettes"), &root.join("cassettes"))?;
+
+    let text = fs::read_to_string(fixture.join("manifest.yaml"))
+        .map_err(|error| format!("read fixture manifest: {error}"))?;
+    let mut manifest: serde_yaml_ng::Value = serde_yaml_ng::from_str(&text)
+        .map_err(|error| format!("parse fixture manifest: {error}"))?;
+    let candidate: serde_yaml_ng::Value = serde_yaml_ng::from_str(UNSTARTABLE_CANDIDATE)
+        .map_err(|error| format!("parse fixture-unstartable candidate: {error}"))?;
+    manifest
+        .get_mut("candidates")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no candidates sequence")?
+        .push(candidate);
+    fs::write(
+        root.join("manifest.yaml"),
+        serde_yaml_ng::to_string(&manifest)
+            .map_err(|error| format!("serialize unstartable manifest: {error}"))?,
+    )
+    .map_err(|error| format!("write unstartable manifest: {error}"))?;
+
+    world.manifest_path = root.join("manifest.yaml");
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then(
+    regex = r#"^the report marks (\S+) unavailable with the reason "([^"]+)"$"#
+)]
+fn candidate_unavailable_with_reason(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [candidate, reason] = captures else {
+        return Err("candidate unavailability step needs two captures".into());
+    };
+    let entry = candidate_report(world, candidate)?;
+    assert_eq!(
+        entry.status,
+        benchmark::report::model::CandidateStatus::Unavailable,
+        "{candidate} status"
+    );
+    assert_eq!(
+        entry.unavailable_reason.as_deref(),
+        Some(reason.as_str()),
+        "{candidate} unavailable reason"
+    );
+    Ok(())
+}
+
+fn candidate_has_measured_cell(report: &Report, candidate: &str) -> bool {
+    use benchmark::report::model::{CellStatus, Score};
+
+    fn measured(cell: Option<&Score>) -> bool {
+        cell.is_some_and(|cell| cell.status == CellStatus::Measured)
+    }
+
+    let metrics = &report.metrics;
+    measured(metrics.typo.per_candidate.get(candidate))
+        || measured(metrics.typo.recall_at_5_per_candidate.get(candidate))
+        || measured(metrics.natural_language.per_candidate.get(candidate))
+        || measured(metrics.explanation.per_candidate.get(candidate))
+        || [&metrics.concept, &metrics.concept_equivalence]
+            .iter()
+            .any(|metric| {
+                [&metric.arms.default, &metric.arms.no_expansion]
+                    .iter()
+                    .any(|arm| measured(arm.per_candidate.get(candidate)))
+            })
+}
+
+#[then(
+    "the run completes and reports measured values for fixture-ocbi and fixture-ckb"
+)]
+fn run_completes_with_measured_candidates(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = world
+        .report
+        .as_ref()
+        .ok_or("the run did not complete with a report")?;
+    for candidate in ["fixture-ocbi", "fixture-ckb"] {
+        if !candidate_has_measured_cell(report, candidate) {
+            return Err(format!(
+                "the completed run reports no measured value for {candidate}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("the report lists fixture-unstartable in the capability gaps")]
+fn unstartable_capability_gap(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let gap = report(world)
+        .gaps
+        .capability_gaps
+        .iter()
+        .find(|gap| gap.candidate == "fixture-unstartable")
+        .ok_or("report does not list fixture-unstartable in its capability gaps")?;
+    assert_eq!(gap.reason, "candidate_unstartable", "capability gap reason");
+    Ok(())
+}
+
 #[then("the error names fixture-repo and the mismatched expected and actual commits")]
 fn the_error_names_mismatched_commits(world: &mut BenchmarkWorld) -> Result<(), String> {
     let failure = world

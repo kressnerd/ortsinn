@@ -4,7 +4,10 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 
-use super::common::{aggregate, capability, hit_at, recorded_locations, target, unmeasured_cell};
+use super::common::{
+    aggregate, candidate_unavailable_cell, capability, hit_at, recorded_locations, target,
+    unmeasured_cell,
+};
 use crate::gold::Gold;
 use crate::manifest::Manifest;
 use crate::record::cassette::ResultCassette;
@@ -22,6 +25,12 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
     let mut no_match = 0u64;
 
     for candidate in &manifest.candidates {
+        if let Some(cell) = candidate_unavailable_cell(candidate, tasks) {
+            per_candidate.insert(candidate.id.clone(), cell.clone());
+            recall_at_5_per_candidate.insert(candidate.id.clone(), cell.clone());
+            cells.push(cell);
+            continue;
+        }
         let capability = capability(candidate, "typo");
         if let Some(cell) = unmeasured_cell(capability, tasks) {
             per_candidate.insert(candidate.id.clone(), cell.clone());

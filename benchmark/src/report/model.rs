@@ -93,6 +93,17 @@ pub struct CandidateReport {
     /// Pinned indexers, environment versions, embedding boundary, the
     /// `.git` presence, and the per-repository index outcome.
     pub setup: CandidateSetup,
+    pub status: CandidateStatus,
+    /// Set exactly when the candidate could not be installed or started.
+    pub unavailable_reason: Option<String>,
+}
+
+/// Whether the candidate could be driven at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateStatus {
+    Available,
+    Unavailable,
 }
 
 /// Measurement status of one metric cell.

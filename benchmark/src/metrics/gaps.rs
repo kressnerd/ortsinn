@@ -12,6 +12,13 @@ pub fn compute(manifest: &Manifest, metrics: &Metrics) -> Gaps {
     let mut capability_gaps = Vec::new();
 
     for candidate in &manifest.candidates {
+        if let Some(unavailable) = &candidate.unavailable {
+            capability_gaps.push(CapabilityGap {
+                candidate: candidate.id.clone(),
+                capability: "candidate".to_string(),
+                reason: unavailable.reason.clone(),
+            });
+        }
         for (capability, status) in &candidate.capabilities {
             if status.status == CapabilityStatus::Unavailable {
                 capability_gaps.push(CapabilityGap {

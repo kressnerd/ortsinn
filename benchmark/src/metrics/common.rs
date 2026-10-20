@@ -30,6 +30,15 @@ pub fn capability_reason(capability: Option<&Capability>) -> &str {
         .unwrap_or("capability_not_declared")
 }
 
+/// A candidate that could not be installed or started is unavailable for
+/// every metric cell with its reason; it is never scored as zero.
+pub fn candidate_unavailable_cell(candidate: &Candidate, tasks: u64) -> Option<Score> {
+    candidate
+        .unavailable
+        .as_ref()
+        .map(|unavailable| Score::unavailable(&unavailable.reason, tasks))
+}
+
 /// Build a per-candidate cell for a capability that is not measured.
 pub fn unmeasured_cell(capability: Option<&Capability>, tasks: u64) -> Option<Score> {
     let Some(capability) = capability else {

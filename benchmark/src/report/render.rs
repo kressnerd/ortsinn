@@ -96,6 +96,15 @@ pub fn markdown(report: &Report) -> String {
             candidate.adapter_version
         ));
         out.push_str(&format!("  - Install: `{}`\n", candidate.install));
+        if candidate.status == super::model::CandidateStatus::Unavailable {
+            out.push_str(&format!(
+                "  - Candidate unavailable: {}\n",
+                candidate
+                    .unavailable_reason
+                    .as_deref()
+                    .unwrap_or("no reason recorded")
+            ));
+        }
         out.push_str(&format!(
             "  - Git metadata: `{}`\n",
             candidate.setup.git_metadata

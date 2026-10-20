@@ -147,7 +147,7 @@ Feature: Benchmark comparison
     And the error names fixture-repo and the mismatched expected and actual commits
     And no report.json or report.md is published
 
-  @givn.added @wip
+  @givn.added
   Scenario: An uninstallable or unstartable candidate is recorded and the run continues
     Given fixture-unstartable whose MCP handshake fails
     When the maintainer runs the benchmark in replay mode
