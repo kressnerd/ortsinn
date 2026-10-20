@@ -43,18 +43,28 @@ fi
 # naming a change id. After archive the change directory is gone, so the
 # permanent corpus is the only input. GIVN_FEATURES overrides the resolution.
 givn_resolve_features() {
+  local resolved=""
   if [ -n "${GIVN_FEATURES:-}" ]; then
-    printf '%s\n' "$GIVN_FEATURES"
-    return 0
-  fi
-  {
-    if [ -d givn/specs ]; then
-      find givn/specs -name '*.feature' -exec realpath {} +
-    fi
-    for specs in givn/changes/*/specs; do
-      if [ -d "$specs" ]; then
-        find "$specs" -name '*.feature' -exec realpath {} +
+    resolved="$(printf '%s\n' "$GIVN_FEATURES" | while IFS= read -r feature; do
+      [ -z "$feature" ] && continue
+      if [ -f "$feature" ]; then
+        realpath "$feature"
+      elif [ -d "$feature" ]; then
+        find "$feature" -name '*.feature' -exec realpath {} +
       fi
-    done
-  } | sort -u
+    done | sort -u)"
+  fi
+  if [ -z "$resolved" ]; then
+    resolved="$({
+      if [ -d givn/specs ]; then
+        find givn/specs -name '*.feature' -exec realpath {} +
+      fi
+      for specs in givn/changes/*/specs; do
+        if [ -d "$specs" ]; then
+          find "$specs" -name '*.feature' -exec realpath {} +
+        fi
+      done
+    } | sort -u)"
+  fi
+  printf '%s\n' "$resolved"
 }
