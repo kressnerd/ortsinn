@@ -56,6 +56,33 @@ pub fn index_unavailable_cell(
         .then(|| Score::unavailable("index_timeout", tasks))
 }
 
+/// The no-expansion arm is available only when the candidate started, its
+/// index stayed inside the deadline, and the manifest declares a measured
+/// expansion switch. Precedence is deliberate: an unavailable candidate or a
+/// timed-out index makes the arm unavailable, never not-applicable, and a
+/// missing switch is `no_expansion_switch`, never zero.
+pub fn no_expansion_arm_cell(
+    manifest: &Manifest,
+    candidate: &Candidate,
+    tasks: u64,
+) -> Option<Score> {
+    if let Some(cell) = candidate_unavailable_cell(candidate, tasks) {
+        return Some(cell);
+    }
+    if let Some(cell) = index_unavailable_cell(manifest, candidate, tasks) {
+        return Some(cell);
+    }
+    let expansion = capability(candidate, "expansion");
+    if expansion.map(|capability| capability.status) == Some(CapabilityStatus::Measured) {
+        return None;
+    }
+    Some(Score::not_applicable(
+        expansion
+            .and_then(|capability| capability.reason.as_deref())
+            .unwrap_or("no_expansion_switch"),
+    ))
+}
+
 /// Build a per-candidate cell for a capability that is not measured.
 pub fn unmeasured_cell(capability: Option<&Capability>, tasks: u64) -> Option<Score> {
     let Some(capability) = capability else {
