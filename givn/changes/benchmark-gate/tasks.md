@@ -398,12 +398,34 @@
 
 ## S9 — Report separates wrong rank from no match in typo recall
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Report separates wrong rank from no match in typo recall
+     ✘  Given the fixture typo gold set of five tasks
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/report/model.rs`,
+    `benchmark/src/metrics/typo.rs`, `benchmark/src/report/render.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
-  - Commit:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+  - Commit: `e874ddf93f3ddb9413129ee3de538551ffaacf45`
 - Design constraints: no-match 1/5 = 0.20; @5 0.80 (4/5); no-match rate
   denominator is the typo task count.
 
