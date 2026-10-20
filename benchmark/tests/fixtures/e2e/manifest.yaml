@@ -1,0 +1,73 @@
+schema_version: 1
+run_id: fixture-benchmark-v1
+mode: replay
+repositories:
+  - id: fixture-repo
+    url: "fixture://fixture-repo"
+    revision: fixture-1
+    commit: "1111111111111111111111111111111111111111"
+    language: python
+    loc:
+      language_code_lines: 120
+      total_code_lines: 120
+      tool: fixture
+      command: "wc -l benchmark/tests/fixtures/e2e/repo/src/*.py"
+      exclusions: []
+candidates:
+  - id: fixture-ocbi
+    version: fixture-1
+    commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    install: "fixture adapter"
+    adapter: fixture
+    adapter_version: 1
+    capabilities:
+      typo: {status: measured}
+      natural_language: {status: measured}
+      explanation: {status: unavailable, reason: no_explanation_operation}
+      concept: {status: measured}
+      concept_equivalence: {status: measured}
+      expansion: {status: measured}
+  - id: fixture-ckb
+    version: fixture-1
+    commit: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    install: "fixture adapter"
+    adapter: fixture
+    adapter_version: 1
+    capabilities:
+      typo: {status: not_applicable, reason: fixture_family_not_measured}
+      natural_language: {status: not_applicable, reason: fixture_family_not_measured}
+      explanation: {status: measured}
+      concept: {status: not_applicable, reason: fixture_family_not_measured}
+      concept_equivalence: {status: not_applicable, reason: fixture_family_not_measured}
+      expansion: {status: not_applicable, reason: no_expansion_switch}
+  - id: fixture-serena
+    version: fixture-1
+    commit: "cccccccccccccccccccccccccccccccccccccccc"
+    install: "fixture adapter"
+    adapter: fixture
+    adapter_version: 1
+    capabilities:
+      typo: {status: not_applicable, reason: fixture_family_not_measured}
+      natural_language: {status: unavailable, reason: no_natural_language_search}
+      explanation: {status: not_applicable, reason: fixture_family_not_measured}
+      concept: {status: not_applicable, reason: fixture_family_not_measured}
+      concept_equivalence: {status: not_applicable, reason: fixture_family_not_measured}
+      expansion: {status: not_applicable, reason: no_expansion_switch}
+targets:
+  typo_recall_at_1: {value: 0.90, status: proposed, source: "proposal attachments 1/7 (AC-01); not confirmed"}
+  typo_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
+  natural_language_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
+  explanation_correctness: {value: null, status: unstated, source: "unstated in confirmed records"}
+  concept_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
+  concept_equivalence_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
+gold:
+  - {repository: fixture-repo, metric: typo, version: 1, tasks: 5, fingerprint: "sha256:fixture-typo-v1", path: gold/typo.jsonl}
+  - {repository: fixture-repo, metric: natural_language, version: 1, tasks: 4, fingerprint: "sha256:fixture-nl-v1", path: gold/natural_language.jsonl}
+  - {repository: fixture-repo, metric: explanation, version: 1, tasks: 4, fingerprint: "sha256:fixture-explanation-v1", path: gold/explanation.jsonl}
+  - {repository: fixture-repo, metric: concept, version: 1, tasks: 5, fingerprint: "sha256:fixture-concept-v1", path: gold/concept.jsonl}
+cassettes:
+  results: {path: cassettes/results/results.jsonl, fingerprint: "sha256:fixture-results-v1"}
+  model: {path: cassettes/model/model.jsonl, fingerprint: "sha256:fixture-model-v1"}
+index_deadlines:
+  public_repository_seconds: 14400
+  synthetic_seconds: 28800

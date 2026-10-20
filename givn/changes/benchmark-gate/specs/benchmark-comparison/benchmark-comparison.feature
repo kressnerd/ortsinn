@@ -14,7 +14,7 @@ Feature: Benchmark comparison
   Every Then-step asserts the expected fixture value, not the presence of a
   report section.
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report identifies every candidate and fixed repository revision
     Given the fixture benchmark inputs
     When the maintainer runs the benchmark in replay mode

@@ -1,0 +1,72 @@
+//! Replay runner: reads the fixed manifest and assembles the report.
+
+use std::path::Path;
+
+use anyhow::{Context, Result};
+
+use crate::manifest::{Manifest, RunMode};
+use crate::report::model::{
+    CandidateReport, Inputs, LineCountReport, Report, RepositoryReport, RunReport, SCHEMA_VERSION,
+};
+use crate::report::render;
+
+/// Build the identity portion of the report from fixed inputs and write
+/// `report.json`/`report.md` into `out_dir`.
+pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
+    let manifest = Manifest::load(manifest_path)?;
+    anyhow::ensure!(
+        manifest.mode == RunMode::Replay,
+        "the fixture manifest must declare replay mode"
+    );
+
+    let command = format!(
+        "benchmark run --manifest {} --mode replay --out {}",
+        manifest_path.display(),
+        out_dir.display()
+    );
+    let report = Report {
+        schema_version: SCHEMA_VERSION,
+        run: RunReport {
+            id: manifest.run_id.clone(),
+            mode: manifest.mode,
+            command,
+            manifest_fingerprint: manifest.fingerprint()?,
+        },
+        inputs: Inputs {
+            repositories: manifest
+                .repositories
+                .iter()
+                .map(|repository| RepositoryReport {
+                    id: repository.id.clone(),
+                    url: repository.url.clone(),
+                    revision: repository.revision.clone(),
+                    commit: repository.commit.clone(),
+                    language: repository.language.clone(),
+                    loc: LineCountReport {
+                        language_code_lines: repository.loc.language_code_lines,
+                        total_code_lines: repository.loc.total_code_lines,
+                        tool: repository.loc.tool.clone(),
+                        command: repository.loc.command.clone(),
+                        exclusions: repository.loc.exclusions.clone(),
+                    },
+                })
+                .collect(),
+        },
+        candidates: manifest
+            .candidates
+            .iter()
+            .map(|candidate| CandidateReport {
+                id: candidate.id.clone(),
+                version: candidate.version.clone(),
+                commit: candidate.commit.clone(),
+                install: candidate.install.clone(),
+                adapter: candidate.adapter.clone(),
+                adapter_version: candidate.adapter_version,
+            })
+            .collect(),
+    };
+
+    render::write_reports(&report, out_dir)
+        .with_context(|| format!("write report into {}", out_dir.display()))?;
+    Ok(report)
+}

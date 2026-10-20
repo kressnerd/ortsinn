@@ -70,15 +70,57 @@
 
 ## S1 — Report identifies every candidate and fixed repository revision
 
-- [ ] RED — remove `@wip` from S1 only; run targeted; paste non-zero output.
-  - Command:
+- [x] RED — remove `@wip` from S1 only; run targeted; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-gate/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^Report identifies every candidate and fixed repository revision$"`
   - Output:
-- [ ] GREEN — implement manifest identity and report identity; list production
+    ```text
+    Running tests/benchmark_features.rs (target/debug/deps/benchmark_features-fdb44a46bc060f2b)
+    Feature: Benchmark comparison
+      Scenario: Report identifies every candidate and fixed repository revision
+       ✘  Given the fixture benchmark inputs
+          Step panicked. Captured output: not implemented
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — implement manifest identity and report identity; list production
   files; run targeted; paste zero output.
-  - Production files:
+  - Production files: `benchmark/src/manifest.rs`,
+    `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`,
+    `benchmark/src/report/mod.rs`, `benchmark/src/runner.rs`,
+    `benchmark/src/cli.rs`, `benchmark/src/lib.rs`, `benchmark/src/main.rs`,
+    `benchmark/tests/benchmark_features.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`,
+    `benchmark/tests/fixtures/e2e/manifest.yaml`,
+    `benchmark/tests/fixtures/e2e/repo/src/math_utils.py`,
+    `benchmark/tests/fixtures/e2e/repo/src/text_utils.py`.
   - Output:
-- [ ] REFACTOR — run targeted; paste zero output.
+    ```text
+    Feature: Benchmark comparison
+      Scenario: Report identifies every candidate and fixed repository revision
+       ✔  Given the fixture benchmark inputs
+       ✔  When the maintainer runs the benchmark in replay mode
+       ✔  Then the report names fixture-ocbi at version "fixture-1" and commit "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+       ✔  And the report names fixture-ckb at version "fixture-1" and commit "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+       ✔  And the report names fixture-serena at version "fixture-1" and commit "cccccccccccccccccccccccccccccccccccccccc"
+       ✔  And the report names fixture-repo at revision "fixture-1", commit "1111111111111111111111111111111111111111", and 120 code lines
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
+- [x] REFACTOR — run targeted; paste zero output.
   - Output:
+    ```text
+    1 feature
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
 - [ ] COMMIT — hash:
 - Design constraints: manifest/report identity fields; fixture values from the
   shared block; no product code.

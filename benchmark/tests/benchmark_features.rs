@@ -1,13 +1,39 @@
 use std::path::{Path, PathBuf};
 
+use benchmark::manifest::Manifest;
+use benchmark::report::model::Report;
 use cucumber::{World, cli::Opts};
 
 #[path = "steps/mod.rs"]
 mod steps;
 
-#[derive(Debug, Default, World)]
+#[derive(Debug, World)]
 pub(crate) struct BenchmarkWorld {
-    _private: (),
+    /// Path to the committed fixture manifest.
+    pub(crate) manifest_path: PathBuf,
+    /// Report output directory for the current scenario.
+    pub(crate) out_dir: PathBuf,
+    /// Loaded fixture manifest.
+    pub(crate) manifest: Option<Manifest>,
+    /// Report produced by the last replay run.
+    pub(crate) report: Option<Report>,
+}
+
+impl Default for BenchmarkWorld {
+    fn default() -> Self {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let out_dir = root
+            .parent()
+            .expect("workspace root")
+            .join("target")
+            .join("benchmark-fixture-report");
+        Self {
+            manifest_path: root.join("tests/fixtures/e2e/manifest.yaml"),
+            out_dir,
+            manifest: None,
+            report: None,
+        }
+    }
 }
 
 fn feature_paths() -> Vec<PathBuf> {
@@ -67,9 +93,9 @@ fn walkdir(root: &Path) -> anyhow::Result<Vec<PathBuf>> {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let targeted = args.iter().any(|arg| {
-        arg == "--name" || arg == "-n" || arg == "--tags" || arg == "-t"
-    });
+    let targeted = args
+        .iter()
+        .any(|arg| arg == "--name" || arg == "-n" || arg == "--tags" || arg == "-t");
     if !targeted {
         // The real scenarios stay @wip until their RED task starts; a
         // baseline run must not execute them.

@@ -1,3 +1,6 @@
 fn main() {
-    println!("benchmark {}", benchmark::HARNESS_VERSION);
+    if let Err(error) = benchmark::cli::run() {
+        eprintln!("error: {error:#}");
+        std::process::exit(2);
+    }
 }
