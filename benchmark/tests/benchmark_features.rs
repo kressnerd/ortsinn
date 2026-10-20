@@ -30,6 +30,22 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) synthetic_first: Option<benchmark::r#gen::synthetic_repo::SyntheticRepo>,
     /// Second synthetic generation (the regeneration).
     pub(crate) synthetic_second: Option<benchmark::r#gen::synthetic_repo::SyntheticRepo>,
+    /// Report output directory for an E2E CLI scenario.
+    pub(crate) e2e_out: PathBuf,
+    /// Captured terminal output of the E2E replay run.
+    pub(crate) e2e_terminal: String,
+    /// Exit code of the last E2E CLI invocation.
+    pub(crate) e2e_exit: Option<i32>,
+    /// Report path printed by the CLI.
+    pub(crate) e2e_report_path: Option<PathBuf>,
+    /// Text accumulated for the committed transcript.
+    pub(crate) e2e_transcript: String,
+    /// Loopback fake OpenAI-compatible endpoint used by the record scenario.
+    pub(crate) e2e_endpoint: Option<benchmark::record::proxy::FakeOpenAiEndpoint>,
+    /// Report parsed after the record run, before the replay overwrites it.
+    pub(crate) e2e_record_report: Option<serde_json::Value>,
+    /// Endpoint request count observed before the replay.
+    pub(crate) e2e_record_requests: usize,
 }
 
 impl Default for BenchmarkWorld {
@@ -51,6 +67,14 @@ impl Default for BenchmarkWorld {
             mismatch: None,
             synthetic_first: None,
             synthetic_second: None,
+            e2e_out: PathBuf::new(),
+            e2e_terminal: String::new(),
+            e2e_exit: None,
+            e2e_report_path: None,
+            e2e_transcript: String::new(),
+            e2e_endpoint: None,
+            e2e_record_report: None,
+            e2e_record_requests: 0,
         }
     }
 }

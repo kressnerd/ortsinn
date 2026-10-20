@@ -189,7 +189,7 @@ Feature: Benchmark comparison
     And the natural-language recall at rank five remains 0.50 with 2 of 4 tasks, excluding fixture-serena
     And a measured regex arm is labelled "regex_pattern_search_proxy" and excluded from natural-language recall and mean reciprocal rank
 
-  @givn.added @e2e @wip
+  @givn.added @e2e
   Scenario: Maintainer runs the benchmark and reads the measured report
     Given a benchmark fixture with fixed repository revisions, pinned candidate identities, and recorded model responses
     When the maintainer runs "benchmark run" in the terminal

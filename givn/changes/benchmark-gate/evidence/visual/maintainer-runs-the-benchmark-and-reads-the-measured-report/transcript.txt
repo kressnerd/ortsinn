@@ -1,0 +1,95 @@
+$ benchmark run --manifest /home/dan/dev/PRIVATE/ortsinn/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report
+Benchmark comparison
+Run: fixture-benchmark-v1 (replay)
+Candidates: fixture-ocbi, fixture-ckb, fixture-serena
+Path decision: deferred to maintainer--ortsinn
+(docs/decisions/benchmark-path.md)
+
+Typo recall
+  Typo recall @1:                                                  0.60 (3 of 5)
+  Typo recall @5:                                                  0.80 (4 of 5)
+  Typo no-match rate:                                              0.20 (1 of 5)
+  Typo coverage:                                                   5 of 5 (1.00)
+
+Natural-language retrieval
+  NL recall @5:                                                    0.50 (2 of 4)
+  NL MRR @10:                                                               0.30
+  NL query errors:                                                             0
+  NL coverage:                                                     4 of 8 (0.50)
+
+Explanation correctness
+  Explanation correctness:                                         0.50 (2 of 4)
+  Explanation grounding:                                                    1.00
+  Explanation coverage:                                            4 of 8 (0.50)
+
+Concept recall
+  Concept recall @5:                                               0.40 (2 of 5)
+  Concept-equivalence recall @5:                                   0.50 (2 of 4)
+  Concept coverage:                                                5 of 5 (1.00)
+  Concept no-expansion coverage:                                   5 of 5 (1.00)
+Report: /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report/report.json
+[exit 0]
+
+$ benchmark run --manifest /home/dan/dev/PRIVATE/ortsinn/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report --width 80
+Benchmark comparison
+Run: fixture-benchmark-v1 (replay)
+Candidates: fixture-ocbi, fixture-ckb, fixture-serena
+Path decision: deferred to maintainer--ortsinn
+(docs/decisions/benchmark-path.md)
+
+Typo recall
+  Typo recall @1:                                                  0.60 (3 of 5)
+  Typo recall @5:                                                  0.80 (4 of 5)
+  Typo no-match rate:                                              0.20 (1 of 5)
+  Typo coverage:                                                   5 of 5 (1.00)
+
+Natural-language retrieval
+  NL recall @5:                                                    0.50 (2 of 4)
+  NL MRR @10:                                                               0.30
+  NL query errors:                                                             0
+  NL coverage:                                                     4 of 8 (0.50)
+
+Explanation correctness
+  Explanation correctness:                                         0.50 (2 of 4)
+  Explanation grounding:                                                    1.00
+  Explanation coverage:                                            4 of 8 (0.50)
+
+Concept recall
+  Concept recall @5:                                               0.40 (2 of 5)
+  Concept-equivalence recall @5:                                   0.50 (2 of 4)
+  Concept coverage:                                                5 of 5 (1.00)
+  Concept no-expansion coverage:                                   5 of 5 (1.00)
+Report: /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report/report.json
+[exit 0]
+
+$ benchmark run --manifest /home/dan/dev/PRIVATE/ortsinn/benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report --width 160
+Benchmark comparison
+Run: fixture-benchmark-v1 (replay)
+Candidates: fixture-ocbi, fixture-ckb, fixture-serena
+Path decision: deferred to maintainer--ortsinn (docs/decisions/benchmark-path.md)
+
+Typo recall
+  Typo recall @1:                                                                                                                                  0.60 (3 of 5)
+  Typo recall @5:                                                                                                                                  0.80 (4 of 5)
+  Typo no-match rate:                                                                                                                              0.20 (1 of 5)
+  Typo coverage:                                                                                                                                   5 of 5 (1.00)
+
+Natural-language retrieval
+  NL recall @5:                                                                                                                                    0.50 (2 of 4)
+  NL MRR @10:                                                                                                                                               0.30
+  NL query errors:                                                                                                                                             0
+  NL coverage:                                                                                                                                     4 of 8 (0.50)
+
+Explanation correctness
+  Explanation correctness:                                                                                                                         0.50 (2 of 4)
+  Explanation grounding:                                                                                                                                    1.00
+  Explanation coverage:                                                                                                                            4 of 8 (0.50)
+
+Concept recall
+  Concept recall @5:                                                                                                                               0.40 (2 of 5)
+  Concept-equivalence recall @5:                                                                                                                   0.50 (2 of 4)
+  Concept coverage:                                                                                                                                5 of 5 (1.00)
+  Concept no-expansion coverage:                                                                                                                   5 of 5 (1.00)
+Report: /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s20-report/report.json
+[exit 0]
+

@@ -269,6 +269,215 @@ fn render_metrics(out: &mut String, report: &Report) {
     ));
 }
 
+/// Default terminal width when `--width` is absent and `COLUMNS` is unset.
+pub const DEFAULT_TERMINAL_WIDTH: usize = 80;
+
+/// Terminal width requested by the environment. The CLI's `--width` option
+/// is the explicit mechanism; `COLUMNS` is only a fallback for interactive
+/// use, so a pipe never supplies a width.
+pub fn terminal_width() -> usize {
+    std::env::var("COLUMNS")
+        .ok()
+        .and_then(|columns| columns.parse().ok())
+        .filter(|columns| *columns >= 20)
+        .unwrap_or(DEFAULT_TERMINAL_WIDTH)
+}
+
+/// Render the concise run summary the CLI prints. Every metric row is a
+/// single line regardless of width: the value is right-aligned to the
+/// requested width instead of wrapped. Prose is wrapped.
+pub fn terminal_summary(report: &Report, width: usize) -> String {
+    let width = width.max(20);
+    let metrics = &report.metrics;
+    let mut out = String::new();
+    out.push_str("Benchmark comparison\n");
+    out.push_str(&format!(
+        "Run: {} ({})\n",
+        report.run.id,
+        match report.run.mode {
+            crate::manifest::RunMode::Replay => "replay",
+            crate::manifest::RunMode::Record => "record",
+        }
+    ));
+    out.push_str(&format!(
+        "Candidates: {}\n",
+        report
+            .candidates
+            .iter()
+            .map(|candidate| candidate.id.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    ));
+    push_wrapped(
+        &mut out,
+        &format!(
+            "Path decision: deferred to {} ({})",
+            report.path_decision.owner, report.path_decision.artifact
+        ),
+        width,
+    );
+    out.push('\n');
+
+    out.push_str("Typo recall\n");
+    metric_row(&mut out, "Typo recall @1", &value_text(&metrics.typo.aggregate), width);
+    metric_row(
+        &mut out,
+        "Typo recall @5",
+        &value_text(&metrics.typo.recall_at_5),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "Typo no-match rate",
+        &match metrics.typo.no_match_rate.value {
+            Some(value) => format!(
+                "{value:.2} ({} of {})",
+                metrics.typo.no_match_rate.numerator, metrics.typo.no_match_rate.denominator
+            ),
+            None => "unavailable".to_string(),
+        },
+        width,
+    );
+    metric_row(
+        &mut out,
+        "Typo coverage",
+        &coverage_text(&metrics.typo.aggregate.coverage),
+        width,
+    );
+    out.push('\n');
+
+    out.push_str("Natural-language retrieval\n");
+    metric_row(
+        &mut out,
+        "NL recall @5",
+        &value_text(&metrics.natural_language.aggregate),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "NL MRR @10",
+        &format!("{:.2}", metrics.natural_language.mrr_at_10.value),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "NL query errors",
+        &metrics.natural_language.query_errors.to_string(),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "NL coverage",
+        &coverage_text(&metrics.natural_language.aggregate.coverage),
+        width,
+    );
+    out.push('\n');
+
+    out.push_str("Explanation correctness\n");
+    metric_row(
+        &mut out,
+        "Explanation correctness",
+        &value_text(&metrics.explanation.aggregate),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "Explanation grounding",
+        &format!("{:.2}", metrics.explanation.evidence_grounding.value),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "Explanation coverage",
+        &coverage_text(&metrics.explanation.aggregate.coverage),
+        width,
+    );
+    out.push('\n');
+
+    out.push_str("Concept recall\n");
+    metric_row(
+        &mut out,
+        "Concept recall @5",
+        &value_text(&metrics.concept.aggregate),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "Concept-equivalence recall @5",
+        &value_text(&metrics.concept_equivalence.aggregate),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "Concept coverage",
+        &coverage_text(&metrics.concept.aggregate.coverage),
+        width,
+    );
+    metric_row(
+        &mut out,
+        "Concept no-expansion coverage",
+        &coverage_text(&metrics.concept.arms.no_expansion.score.coverage),
+        width,
+    );
+    out
+}
+
+fn value_text(score: &Score) -> String {
+    match score.value {
+        Some(value) => format!(
+            "{value:.2} ({} of {})",
+            score.numerator, score.denominator
+        ),
+        None => format!(
+            "{} ({})",
+            status(score),
+            score.reason.as_deref().unwrap_or("no reason")
+        ),
+    }
+}
+
+fn coverage_text(coverage: &super::model::Coverage) -> String {
+    match coverage.value {
+        Some(value) => format!(
+            "{} of {} ({value:.2})",
+            coverage.numerator, coverage.denominator
+        ),
+        None => format!("{} of {} (no applicable tasks)", coverage.numerator, coverage.denominator),
+    }
+}
+
+/// One metric row. The value is right-aligned to `width`; it is never
+/// wrapped, so a label and its value always stay on the same line.
+fn metric_row(out: &mut String, label: &str, value: &str, width: usize) {
+    let content = 2 + label.chars().count() + 1 + value.chars().count();
+    let gap = width.saturating_sub(content).max(1);
+    out.push_str(&format!("  {label}:{}{value}\n", " ".repeat(gap)));
+}
+
+fn push_wrapped(out: &mut String, text: &str, width: usize) {
+    let mut line = String::new();
+    for word in text.split_whitespace() {
+        let projected = if line.is_empty() {
+            word.chars().count()
+        } else {
+            line.chars().count() + 1 + word.chars().count()
+        };
+        if projected > width && !line.is_empty() {
+            out.push_str(&line);
+            out.push('\n');
+            line.clear();
+        }
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(word);
+    }
+    if !line.is_empty() {
+        out.push_str(&line);
+        out.push('\n');
+    }
+}
+
 fn gap_status(status: super::model::CellStatus) -> &'static str {
     status_label(status)
 }

@@ -27,7 +27,10 @@ pub enum Command {
         mode: ModeArg,
         /// Report output directory.
         #[arg(long)]
-        out: PathBuf,
+        out: Option<PathBuf>,
+        /// Terminal width used for the summary. Defaults to `COLUMNS` or 80.
+        #[arg(long)]
+        width: Option<usize>,
     },
 }
 
@@ -53,18 +56,19 @@ pub fn run() -> Result<()> {
             manifest,
             mode,
             out,
-        } => match RunMode::from(mode) {
-            RunMode::Replay => {
-                let report = runner::run_replay(&manifest, &out)?;
-                println!(
-                    "benchmark {} completed: {} candidates, report at {}",
-                    report.run.id,
-                    report.candidates.len(),
-                    out.join("report.json").display()
-                );
-                Ok(())
+            width,
+        } => {
+            let out = out.unwrap_or_else(|| PathBuf::from("reports/benchmark"));
+            let width = width.unwrap_or_else(crate::report::render::terminal_width);
+            match RunMode::from(mode) {
+                RunMode::Replay => {
+                    let report = runner::run_replay(&manifest, &out)?;
+                    print!("{}", crate::report::render::terminal_summary(&report, width));
+                    println!("Report: {}", out.join("report.json").display());
+                    Ok(())
+                }
+                RunMode::Record => bail!("record mode is not available in this scenario"),
             }
-            RunMode::Record => bail!("record mode is not available in this scenario"),
-        },
+        }
     }
 }
