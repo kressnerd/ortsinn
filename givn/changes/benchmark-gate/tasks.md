@@ -275,7 +275,7 @@
     6 steps (6 passed)
     EXIT=0
     ```
-  - Commit:
+  - Commit: `a0b0ef6884e09b5da0f47397c2a101127dbc4852`
 - Design constraints: fixture-ocbi explanation `unavailable` reason
   `no_explanation_operation`; coverage 0/4 with value 0.0; aggregate remains
   0.50 (2/4); capability gap listed.
