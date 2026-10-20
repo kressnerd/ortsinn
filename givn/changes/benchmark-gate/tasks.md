@@ -809,7 +809,7 @@
     5 steps (5 passed)
     EXIT=0
     ```
-  - Commit:
+  - Commit: `bdd41251ba442433d8e70e7e3e8a9eb891944734`
 - Design constraints: NL recall 0.50 (2/4); query error total 1 separate;
   errored query is a miss, not unavailable.
 
