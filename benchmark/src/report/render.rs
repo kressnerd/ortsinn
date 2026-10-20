@@ -8,6 +8,9 @@ use anyhow::{Context, Result};
 use super::model::{Report, Score};
 
 pub fn write_reports(report: &Report, out_dir: &Path) -> Result<()> {
+    report
+        .validate()
+        .context("validate report before writing it")?;
     fs::create_dir_all(out_dir)
         .with_context(|| format!("create report directory {}", out_dir.display()))?;
     let json = serde_json::to_string_pretty(report).context("serialize report.json")?;
@@ -172,6 +175,7 @@ fn render_metrics(out: &mut String, report: &Report) {
     }
     out.push('\n');
     coverage_line(out, "Typo", &metrics.typo.aggregate.coverage);
+    repository_lines(out, "Typo recall @1", &metrics.typo.per_repository);
     out.push('\n');
     out.push_str("## Natural-language retrieval\n\n");
     score_line(out, "NL recall @5", &metrics.natural_language.aggregate);
@@ -200,6 +204,11 @@ fn render_metrics(out: &mut String, report: &Report) {
         "Natural-language",
         &metrics.natural_language.aggregate.coverage,
     );
+    repository_lines(
+        out,
+        "NL recall @5",
+        &metrics.natural_language.per_repository,
+    );
     out.push('\n');
     out.push_str("## Explanation correctness\n\n");
     score_line(
@@ -215,6 +224,11 @@ fn render_metrics(out: &mut String, report: &Report) {
         out,
         "Explanation",
         &metrics.explanation.aggregate.coverage,
+    );
+    repository_lines(
+        out,
+        "Explanation correctness",
+        &metrics.explanation.per_repository,
     );
     out.push('\n');
     out.push_str("## Concept recall\n\n");
@@ -249,6 +263,12 @@ fn render_metrics(out: &mut String, report: &Report) {
         out,
         "Concept-equivalence no-expansion arm",
         &metrics.concept_equivalence.arms.no_expansion.score.coverage,
+    );
+    repository_lines(out, "Concept recall @5", &metrics.concept.per_repository);
+    repository_lines(
+        out,
+        "Concept-equivalence recall @5",
+        &metrics.concept_equivalence.per_repository,
     );
     out.push('\n');
     out.push_str("## Measured gaps\n\n");
@@ -288,6 +308,11 @@ fn render_metrics(out: &mut String, report: &Report) {
             "- Capability gap: {} {} ({})\n",
             gap.candidate, gap.capability, gap.reason
         ));
+    }
+    out.push('\n');
+    out.push_str("## Limitations\n\n");
+    for limitation in &report.limitations {
+        out.push_str(&format!("- {limitation}\n"));
     }
     out.push('\n');
     out.push_str("## Path decision\n\n");
@@ -523,6 +548,12 @@ fn coverage_line(out: &mut String, label: &str, coverage: &super::model::Coverag
             "- {label} coverage: {} of {} (no applicable tasks)\n",
             coverage.numerator, coverage.denominator
         )),
+    }
+}
+
+fn repository_lines(out: &mut String, label: &str, values: &std::collections::BTreeMap<String, Score>) {
+    for (repository, score) in values {
+        score_line(out, &format!("{label} for `{repository}`"), score);
     }
 }
 

@@ -6,13 +6,18 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 
 use super::common::{
-    aggregate, candidate_unavailable_cell, capability, hit_at, index_unavailable_cell,
+    candidate_unavailable_cell, capability, combine_scores, hit_at, index_unavailable_cell_for,
     no_expansion_arm_cell, recorded_locations, target, unmeasured_cell,
 };
 use crate::gold::GoldTask;
 use crate::manifest::Manifest;
 use crate::record::cassette::ResultCassette;
 use crate::report::model::{Arm, Arms, ConceptMetric, Score};
+
+struct ArmCells {
+    arm: Arm,
+    cells: Vec<Score>,
+}
 
 pub fn score(
     manifest: &Manifest,
@@ -21,16 +26,67 @@ pub fn score(
     target_key: &str,
     cassette: &ResultCassette,
 ) -> Result<ConceptMetric> {
-    let task_count = tasks.len() as u64;
-    let default = score_arm(
-        manifest,
-        tasks,
-        metric_name,
-        "default",
-        task_count,
-        cassette,
-    )?;
-    let no_expansion = score_no_expansion(manifest, tasks, metric_name, task_count, cassette)?;
+    let mut per_repository = BTreeMap::new();
+    let mut default_parts: BTreeMap<String, Vec<Score>> = BTreeMap::new();
+    let mut no_expansion_parts: BTreeMap<String, Vec<Score>> = BTreeMap::new();
+    let mut default_cells = Vec::new();
+    let mut no_expansion_cells = Vec::new();
+
+    for repository in &manifest.repositories {
+        let repository_tasks: Vec<&GoldTask> = tasks
+            .iter()
+            .filter(|task| task.repository == repository.id)
+            .collect();
+        if repository_tasks.is_empty() {
+            per_repository.insert(
+                repository.id.clone(),
+                Score::not_applicable("no_gold_tasks"),
+            );
+            continue;
+        }
+        let task_count = repository_tasks.len() as u64;
+        let default = score_arm(
+            manifest,
+            &repository_tasks,
+            &repository.id,
+            metric_name,
+            "default",
+            task_count,
+            cassette,
+        )?;
+        let no_expansion = score_no_expansion(
+            manifest,
+            &repository_tasks,
+            &repository.id,
+            metric_name,
+            task_count,
+            cassette,
+        )?;
+        per_repository.insert(
+            repository.id.clone(),
+            combine_scores(&default.cells),
+        );
+        default_cells.extend(default.cells);
+        no_expansion_cells.extend(no_expansion.cells);
+        for (candidate, cell) in default.arm.per_candidate {
+            default_parts.entry(candidate).or_default().push(cell);
+        }
+        for (candidate, cell) in no_expansion.arm.per_candidate {
+            no_expansion_parts
+                .entry(candidate)
+                .or_default()
+                .push(cell);
+        }
+    }
+
+    let default = Arm {
+        score: combine_scores(&default_cells),
+        per_candidate: combine_parts(default_parts),
+    };
+    let no_expansion = Arm {
+        score: combine_scores(&no_expansion_cells),
+        per_candidate: combine_parts(no_expansion_parts),
+    };
     Ok(ConceptMetric {
         target: target(manifest, target_key),
         aggregate: default.score.clone(),
@@ -39,73 +95,87 @@ pub fn score(
             default,
             no_expansion,
         },
+        per_repository,
     })
+}
+
+fn combine_parts(parts: BTreeMap<String, Vec<Score>>) -> BTreeMap<String, Score> {
+    parts
+        .into_iter()
+        .map(|(candidate, cells)| (candidate, combine_scores(&cells)))
+        .collect()
 }
 
 fn score_arm(
     manifest: &Manifest,
-    tasks: &[GoldTask],
+    tasks: &[&GoldTask],
+    repository: &str,
     metric_name: &str,
     arm: &str,
     task_count: u64,
     cassette: &ResultCassette,
-) -> Result<Arm> {
+) -> Result<ArmCells> {
     let mut per_candidate = BTreeMap::new();
     let mut cells = Vec::new();
-    let mut hits = 0u64;
-    let mut attempted = 0u64;
 
     for candidate in &manifest.candidates {
-        if let Some(cell) = candidate_unavailable_cell(candidate, task_count) {
+        let unavailable = candidate_unavailable_cell(candidate, task_count).or_else(|| {
+            index_unavailable_cell_for(manifest, candidate, repository, task_count)
+        });
+        let unsupported = unavailable
+            .is_none()
+            .then(|| {
+                let capability = capability(candidate, metric_name);
+                unmeasured_cell(capability, task_count)
+            })
+            .flatten();
+        if let Some(cell) = unavailable.or(unsupported) {
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
         }
-        if let Some(cell) = index_unavailable_cell(manifest, candidate, task_count) {
-            per_candidate.insert(candidate.id.clone(), cell.clone());
-            cells.push(cell);
-            continue;
-        }
-        let capability = capability(candidate, metric_name);
-        if let Some(cell) = unmeasured_cell(capability, task_count) {
-            per_candidate.insert(candidate.id.clone(), cell.clone());
-            cells.push(cell);
-            continue;
-        }
+
         let mut candidate_hits = 0u64;
         for task in tasks {
-            let results = recorded_locations(cassette, &candidate.id, metric_name, &task.id, arm)?;
-            attempted += 1;
+            let results = recorded_locations(
+                cassette,
+                &candidate.id,
+                repository,
+                metric_name,
+                &task.id,
+                arm,
+            )?;
             if hit_at(5, &results, &task.expected) {
                 candidate_hits += 1;
             }
         }
-        hits += candidate_hits;
         let cell = Score::measured(candidate_hits, task_count, task_count, 0);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         cells.push(cell);
     }
 
-    Ok(Arm {
-        score: aggregate(&cells, hits, attempted),
-        per_candidate,
+    Ok(ArmCells {
+        arm: Arm {
+            score: combine_scores(&cells),
+            per_candidate,
+        },
+        cells,
     })
 }
 
 fn score_no_expansion(
     manifest: &Manifest,
-    tasks: &[GoldTask],
+    tasks: &[&GoldTask],
+    repository: &str,
     metric_name: &str,
     task_count: u64,
     cassette: &ResultCassette,
-) -> Result<Arm> {
+) -> Result<ArmCells> {
     let mut per_candidate = BTreeMap::new();
     let mut cells = Vec::new();
-    let mut hits = 0u64;
-    let mut attempted = 0u64;
 
     for candidate in &manifest.candidates {
-        if let Some(cell) = no_expansion_arm_cell(manifest, candidate, task_count) {
+        if let Some(cell) = no_expansion_arm_cell(manifest, candidate, repository, task_count) {
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
@@ -121,23 +191,25 @@ fn score_no_expansion(
             let results = recorded_locations(
                 cassette,
                 &candidate.id,
+                repository,
                 metric_name,
                 &task.id,
                 "no_expansion",
             )?;
-            attempted += 1;
             if hit_at(5, &results, &task.expected) {
                 candidate_hits += 1;
             }
         }
-        hits += candidate_hits;
         let cell = Score::measured(candidate_hits, task_count, task_count, 0);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         cells.push(cell);
     }
 
-    Ok(Arm {
-        score: aggregate(&cells, hits, attempted),
-        per_candidate,
+    Ok(ArmCells {
+        arm: Arm {
+            score: combine_scores(&cells),
+            per_candidate,
+        },
+        cells,
     })
 }

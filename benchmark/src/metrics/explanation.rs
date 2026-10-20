@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result};
 
 use super::common::{
-    aggregate, candidate_unavailable_cell, capability, index_unavailable_cell, recorded_locations,
-    target, unmeasured_cell,
+    candidate_unavailable_cell, capability, combine_scores, index_unavailable_cell_for,
+    recorded_locations, target, unmeasured_cell,
 };
 use crate::adapters::Citation;
 use crate::gold::{ExplanationTask, Gold};
@@ -14,40 +14,113 @@ use crate::manifest::Manifest;
 use crate::record::cassette::ResultCassette;
 use crate::report::model::{ExplanationMetric, GroundingScore, Score};
 
+struct RepositoryScores {
+    per_candidate: BTreeMap<String, Score>,
+    cells: Vec<Score>,
+    grounded: u64,
+    attempted: u64,
+}
+
 pub fn score(
     manifest: &Manifest,
     gold: &Gold,
     cassette: &ResultCassette,
 ) -> Result<ExplanationMetric> {
-    let tasks = gold.explanation.len() as u64;
-    let mut per_candidate = BTreeMap::new();
+    let mut per_repository = BTreeMap::new();
+    let mut per_candidate_parts: BTreeMap<String, Vec<Score>> = BTreeMap::new();
     let mut cells = Vec::new();
-    let mut correct_total = 0u64;
     let mut grounded_total = 0u64;
     let mut attempted = 0u64;
 
+    for repository in &manifest.repositories {
+        let tasks: Vec<&ExplanationTask> = gold
+            .explanation
+            .iter()
+            .filter(|task| task.repository == repository.id)
+            .collect();
+        if tasks.is_empty() {
+            per_repository.insert(
+                repository.id.clone(),
+                Score::not_applicable("no_gold_tasks"),
+            );
+            continue;
+        }
+        let outcome = score_repository(manifest, &tasks, &repository.id, cassette)?;
+        per_repository.insert(
+            repository.id.clone(),
+            combine_scores(&outcome.cells),
+        );
+        cells.extend(outcome.cells);
+        for (candidate, cell) in outcome.per_candidate {
+            per_candidate_parts
+                .entry(candidate)
+                .or_default()
+                .push(cell);
+        }
+        grounded_total += outcome.grounded;
+        attempted += outcome.attempted;
+    }
+
+    Ok(ExplanationMetric {
+        target: target(manifest, "explanation_correctness"),
+        aggregate: combine_scores(&cells),
+        per_candidate: per_candidate_parts
+            .into_iter()
+            .map(|(candidate, cells)| (candidate, combine_scores(&cells)))
+            .collect(),
+        evidence_grounding: GroundingScore {
+            value: if attempted == 0 {
+                0.0
+            } else {
+                grounded_total as f64 / attempted as f64
+            },
+            attempted,
+        },
+        per_repository,
+    })
+}
+
+fn score_repository(
+    manifest: &Manifest,
+    tasks: &[&ExplanationTask],
+    repository: &str,
+    cassette: &ResultCassette,
+) -> Result<RepositoryScores> {
+    let task_count = tasks.len() as u64;
+    let mut per_candidate = BTreeMap::new();
+    let mut cells = Vec::new();
+    let mut grounded_total = 0u64;
+
+    let mut attempted = 0u64;
+
     for candidate in &manifest.candidates {
-        if let Some(cell) = candidate_unavailable_cell(candidate, tasks) {
+        let unavailable = candidate_unavailable_cell(candidate, task_count).or_else(|| {
+            index_unavailable_cell_for(manifest, candidate, repository, task_count)
+        });
+        let unsupported = unavailable
+            .is_none()
+            .then(|| {
+                let capability = capability(candidate, "explanation");
+                unmeasured_cell(capability, task_count)
+            })
+            .flatten();
+        if let Some(cell) = unavailable.or(unsupported) {
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
         }
-        if let Some(cell) = index_unavailable_cell(manifest, candidate, tasks) {
-            per_candidate.insert(candidate.id.clone(), cell.clone());
-            cells.push(cell);
-            continue;
-        }
-        let capability = capability(candidate, "explanation");
-        if let Some(cell) = unmeasured_cell(capability, tasks) {
-            per_candidate.insert(candidate.id.clone(), cell.clone());
-            cells.push(cell);
-            continue;
-        }
+
         let mut correct = 0u64;
         let mut grounded = 0u64;
-        for task in &gold.explanation {
-            let locations =
-                recorded_locations(cassette, &candidate.id, "explanation", &task.id, "default")?;
+        for task in tasks {
+            let locations = recorded_locations(
+                cassette,
+                &candidate.id,
+                repository,
+                "explanation",
+                &task.id,
+                "default",
+            )?;
             anyhow::ensure!(
                 locations.is_empty(),
                 "explanation responses carry citations, not locations"
@@ -74,25 +147,17 @@ pub fn score(
                 correct += 1;
             }
         }
-        correct_total += correct;
         grounded_total += grounded;
-        let cell = Score::measured(correct, tasks, tasks, 0);
+        let cell = Score::measured(correct, task_count, task_count, 0);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         cells.push(cell);
     }
 
-    Ok(ExplanationMetric {
-        target: target(manifest, "explanation_correctness"),
-        aggregate: aggregate(&cells, correct_total, attempted),
+    Ok(RepositoryScores {
         per_candidate,
-        evidence_grounding: GroundingScore {
-            value: if attempted == 0 {
-                0.0
-            } else {
-                grounded_total as f64 / attempted as f64
-            },
-            attempted,
-        },
+        cells,
+        grounded: grounded_total,
+        attempted,
     })
 }
 

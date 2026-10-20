@@ -17,8 +17,216 @@ pub struct Report {
     pub candidates: Vec<CandidateReport>,
     pub metrics: Metrics,
     pub gaps: Gaps,
+    /// Closed, rendered limitation labels: the proposed target, every
+    /// unavailable capability reason, setup deviations, labelled proxy arms,
+    /// and the explanation rubric's surface-form rule.
+    pub limitations: Vec<String>,
     pub path_decision: PathDecision,
     pub reproduction: Reproduction,
+}
+
+impl Report {
+    /// Validate the closed status and coverage invariants before write. A
+    /// production report with an inconsistent coverage count, a measured
+    /// status without a value, or a missing fingerprint is never published.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.schema_version == SCHEMA_VERSION,
+            "report schema version {} is not {}",
+            self.schema_version,
+            SCHEMA_VERSION
+        );
+        anyhow::ensure!(
+            !self.limitations.is_empty(),
+            "report has no limitations"
+        );
+        anyhow::ensure!(
+            !self.reproduction.command.trim().is_empty(),
+            "report has no reproduction command"
+        );
+        for (label, fingerprint) in [
+            ("manifest", &self.reproduction.manifest_fingerprint),
+            (
+                "model cassette",
+                &self.reproduction.model_cassette_fingerprint,
+            ),
+            (
+                "result cassette",
+                &self.reproduction.result_cassette_fingerprint,
+            ),
+        ] {
+            anyhow::ensure!(
+                fingerprint.starts_with("sha256:"),
+                "{label} fingerprint is not a sha256 value: {fingerprint}"
+            );
+        }
+        for metric in [
+            "typo",
+            "natural_language",
+            "explanation",
+            "concept",
+            "concept_equivalence",
+        ] {
+            anyhow::ensure!(
+                self.reproduction.gold_fingerprints.contains_key(metric),
+                "report has no {metric} gold fingerprint"
+            );
+        }
+        for (label, score) in self.scores() {
+            validate_score(&label, score)?;
+        }
+        for (name, gap) in &self.gaps.to_target {
+            validate_gap(name, gap)?;
+        }
+        for (name, gap) in &self.gaps.to_best {
+            validate_gap(name, gap)?;
+        }
+        Ok(())
+    }
+
+    fn scores(&self) -> Vec<(String, &Score)> {
+        let metrics = &self.metrics;
+        let mut scores: Vec<(String, &Score)> = Vec::new();
+        macro_rules! add {
+            ($label:expr, $score:expr $(,)?) => {
+                scores.push(($label, $score))
+            };
+        }
+        add!("typo aggregate".into(), &metrics.typo.aggregate);
+        add!("typo recall @5".into(), &metrics.typo.recall_at_5);
+        for (candidate, cell) in &metrics.typo.per_candidate {
+            add!(format!("typo {candidate}"), cell);
+        }
+        for (repository, cell) in &metrics.typo.per_repository {
+            add!(format!("typo repository {repository}"), cell);
+        }
+        add!(
+            "natural-language aggregate".into(),
+            &metrics.natural_language.aggregate,
+        );
+        for (repository, cell) in &metrics.natural_language.per_repository {
+            add!(format!("natural-language repository {repository}"), cell);
+        }
+        for (candidate, cell) in &metrics.natural_language.per_candidate {
+            add!(format!("natural-language {candidate}"), cell);
+        }
+        for (label, arm) in &metrics.natural_language.proxy_arms {
+            add!(format!("natural-language proxy {label}"), &arm.score);
+            for (candidate, cell) in &arm.per_candidate {
+                add!(format!("natural-language proxy {label} {candidate}"), cell);
+            }
+        }
+        add!(
+            "explanation aggregate".into(),
+            &metrics.explanation.aggregate,
+        );
+        for (repository, cell) in &metrics.explanation.per_repository {
+            add!(format!("explanation repository {repository}"), cell);
+        }
+        for (candidate, cell) in &metrics.explanation.per_candidate {
+            add!(format!("explanation {candidate}"), cell);
+        }
+        for (name, metric) in [
+            ("concept", &metrics.concept),
+            ("concept-equivalence", &metrics.concept_equivalence),
+        ] {
+            add!(format!("{name} aggregate"), &metric.aggregate);
+            for (repository, cell) in &metric.per_repository {
+                add!(format!("{name} repository {repository}"), cell);
+            }
+            for (arm_name, arm) in [
+                ("default", &metric.arms.default),
+                ("no-expansion", &metric.arms.no_expansion),
+            ] {
+                add!(format!("{name} {arm_name}"), &arm.score);
+                for (candidate, cell) in &arm.per_candidate {
+                    add!(format!("{name} {arm_name} {candidate}"), cell);
+                }
+            }
+        }
+        scores
+    }
+}
+
+fn validate_score(label: &str, score: &Score) -> anyhow::Result<()> {
+    let expected_denominator = score.attempted + score.unavailable;
+    anyhow::ensure!(
+        score.coverage.numerator == score.attempted,
+        "{label} coverage numerator {} does not match attempted {}",
+        score.coverage.numerator,
+        score.attempted
+    );
+    anyhow::ensure!(
+        score.coverage.denominator == expected_denominator,
+        "{label} coverage denominator {} does not match attempted {} plus unavailable {}",
+        score.coverage.denominator,
+        score.attempted,
+        score.unavailable
+    );
+    match score.status {
+        CellStatus::Measured => {
+            anyhow::ensure!(
+                score.value.is_some(),
+                "{label} is measured without a value"
+            );
+            anyhow::ensure!(
+                score.denominator > 0,
+                "{label} is measured with a zero denominator"
+            );
+            let value = score.value.unwrap_or_default();
+            let expected = score.numerator as f64 / score.denominator as f64;
+            anyhow::ensure!(
+                (value - expected).abs() < 1e-9,
+                "{label} value {value} does not match {} of {}",
+                score.numerator,
+                score.denominator
+            );
+        }
+        CellStatus::Unavailable | CellStatus::NotApplicable => {
+            anyhow::ensure!(
+                score.value.is_none(),
+                "{label} is not measured but carries a value"
+            );
+            anyhow::ensure!(
+                score.reason.is_some(),
+                "{label} is not measured without a reason"
+            );
+            anyhow::ensure!(
+                score.numerator == 0 && score.denominator == 0,
+                "{label} is not measured but carries a fraction"
+            );
+        }
+    }
+    anyhow::ensure!(
+        score.coverage.value.is_none()
+            == (score.coverage.denominator == 0),
+        "{label} coverage value does not match its denominator"
+    );
+    if let Some(value) = score.coverage.value {
+        let expected = score.coverage.numerator as f64 / score.coverage.denominator as f64;
+        anyhow::ensure!(
+            (value - expected).abs() < 1e-9,
+            "{label} coverage value {value} does not match {} of {}",
+            score.coverage.numerator,
+            score.coverage.denominator
+        );
+    }
+    Ok(())
+}
+
+fn validate_gap(label: &str, gap: &Gap) -> anyhow::Result<()> {
+    match gap.status {
+        CellStatus::Measured => {
+            anyhow::ensure!(gap.value.is_some(), "{label} gap is measured without a value");
+        }
+        CellStatus::Unavailable | CellStatus::NotApplicable => {
+            anyhow::ensure!(
+                gap.value.is_none(),
+                "{label} gap is not measured but carries a value"
+            );
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,6 +448,9 @@ pub struct TypoMetric {
     pub recall_at_5_per_candidate: BTreeMap<String, Score>,
     pub no_match_rate: NoMatchRate,
     pub no_match_rate_per_candidate: BTreeMap<String, NoMatchRate>,
+    /// Recall @1 for each fixed repository, so a multi-repository run never
+    /// collapses into one aggregate.
+    pub per_repository: BTreeMap<String, Score>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -255,6 +466,8 @@ pub struct NaturalLanguageMetric {
     /// Clearly labelled proxy arms measured from the same questions. They are
     /// never folded into the recall value, coverage, or MRR above.
     pub proxy_arms: BTreeMap<String, Arm>,
+    /// Recall @5 for each fixed repository.
+    pub per_repository: BTreeMap<String, Score>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -263,6 +476,8 @@ pub struct ExplanationMetric {
     pub aggregate: Score,
     pub per_candidate: BTreeMap<String, Score>,
     pub evidence_grounding: GroundingScore,
+    /// Correctness for each fixed repository.
+    pub per_repository: BTreeMap<String, Score>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,6 +486,8 @@ pub struct ConceptMetric {
     pub aggregate: Score,
     pub per_candidate: BTreeMap<String, Score>,
     pub arms: Arms,
+    /// Default-arm recall @5 for each fixed repository.
+    pub per_repository: BTreeMap<String, Score>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

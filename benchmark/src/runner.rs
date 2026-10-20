@@ -322,6 +322,7 @@ fn assemble_report(
     external_requests: u64,
     reproduction: Reproduction,
 ) -> Report {
+    let limitations = report_limitations(manifest, &metrics);
     Report {
         schema_version: SCHEMA_VERSION,
         run: RunReport {
@@ -384,6 +385,7 @@ fn assemble_report(
             .collect(),
         metrics,
         gaps,
+        limitations,
         path_decision: PathDecision {
             status: PathDecisionStatus::Deferred,
             owner: "maintainer--ortsinn".to_string(),
@@ -392,6 +394,59 @@ fn assemble_report(
         },
         reproduction,
     }
+}
+
+/// Closed limitation labels derived from the fixed inputs and the measured
+/// report. They state what the measurement does not cover rather than hiding
+/// it in prose.
+fn report_limitations(manifest: &Manifest, metrics: &Metrics) -> Vec<String> {
+    use crate::manifest::{CapabilityStatus, TargetStatus};
+    use std::collections::BTreeSet;
+
+    let mut limitations = BTreeSet::new();
+    for (key, target) in &manifest.targets {
+        if target.status == TargetStatus::Proposed {
+            let value = target
+                .value
+                .map(|value| format!("{value}"))
+                .unwrap_or_else(|| "unstated".to_string());
+            limitations.insert(format!(
+                "target {key} = {value} is proposed, not a confirmed acceptance criterion"
+            ));
+        }
+    }
+    for candidate in &manifest.candidates {
+        for (name, capability) in &candidate.capabilities {
+            if capability.status == CapabilityStatus::Unavailable {
+                limitations.insert(format!(
+                    "capability {} {name} unavailable: {}",
+                    candidate.id,
+                    capability
+                        .reason
+                        .as_deref()
+                        .unwrap_or("no reason recorded")
+                ));
+            }
+        }
+        for (language, tier) in &candidate.setup.language_support {
+            if tier.contains('3') {
+                limitations.insert(format!(
+                    "candidate {} language support {language}: {tier}",
+                    candidate.id
+                ));
+            }
+        }
+    }
+    for label in metrics.natural_language.proxy_arms.keys() {
+        limitations.insert(format!(
+            "arm {label} is a labelled proxy excluded from natural-language recall and mean reciprocal rank"
+        ));
+    }
+    limitations.insert(
+        "explanation rubric credits only the listed surface forms; a paraphrase outside them is not credited"
+            .to_string(),
+    );
+    limitations.into_iter().collect()
 }
 
 /// Report the setup with deadline breaches applied: an index that exceeded
