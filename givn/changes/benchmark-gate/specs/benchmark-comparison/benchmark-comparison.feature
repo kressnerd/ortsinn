@@ -74,7 +74,7 @@ Feature: Benchmark comparison
     And no request leaves the local recording boundary
     And the report states the replay mode and the recording fingerprint "sha256:fixture-model-v1"
 
-  @givn.added @wip
+  @givn.added
   Scenario: A missing recorded response stops the run
     Given a benchmark run that needs a model response absent from the recording
     When the maintainer runs the benchmark in replay mode

@@ -21,6 +21,9 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) first_report: Option<Report>,
     /// Failure from a run that must not publish a report.
     pub(crate) run_failure: Option<benchmark::runner::RunFailure>,
+    /// Recorded model key and candidate omitted by the missing-response
+    /// fixture, so the Then-step can name both.
+    pub(crate) missing_model: Option<(String, String)>,
 }
 
 impl Default for BenchmarkWorld {
@@ -38,6 +41,7 @@ impl Default for BenchmarkWorld {
             report: None,
             first_report: None,
             run_failure: None,
+            missing_model: None,
         }
     }
 }

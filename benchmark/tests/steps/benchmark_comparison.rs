@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use benchmark::manifest::Manifest;
 use benchmark::report::model::Report;
 use cucumber::{given, then, when};
@@ -12,9 +15,16 @@ fn report(world: &BenchmarkWorld) -> &Report {
 }
 
 fn run_replay(world: &mut BenchmarkWorld) -> Result<(), String> {
-    let report = benchmark::runner::run_replay(&world.manifest_path, &world.out_dir)
-        .map_err(|error| format!("run fixture replay: {error:#}"))?;
-    world.report = Some(report);
+    match benchmark::runner::run_replay(&world.manifest_path, &world.out_dir) {
+        Ok(report) => {
+            world.report = Some(report);
+            world.run_failure = None;
+        }
+        Err(failure) => {
+            world.report = None;
+            world.run_failure = Some(failure);
+        }
+    }
     Ok(())
 }
 
@@ -776,5 +786,131 @@ fn replay_mode_and_recording_fingerprint(
         &run.recording_fingerprint, fingerprint,
         "recording fingerprint"
     );
+    Ok(())
+}
+
+const MISSING_MODEL_KEY: &str = "model:explanation:fixture-ckb:exp-2";
+const MISSING_MODEL_CANDIDATE: &str = "fixture-ckb";
+
+fn missing_response_fixture(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let fixture = world
+        .manifest_path
+        .parent()
+        .ok_or("fixture manifest has no parent directory")?
+        .to_path_buf();
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("benchmark crate has no workspace root")?
+        .join("target")
+        .join("benchmark-missing-model");
+    if root.exists() {
+        fs::remove_dir_all(&root).map_err(|error| format!("clear {}: {error}", root.display()))?;
+    }
+    fs::create_dir_all(root.join("cassettes/results"))
+        .map_err(|error| format!("create missing-response fixture: {error}"))?;
+    fs::create_dir_all(root.join("cassettes/model"))
+        .map_err(|error| format!("create missing-response fixture: {error}"))?;
+    copy_tree(&fixture.join("gold"), &root.join("gold"))?;
+    fs::copy(
+        fixture.join("cassettes/results/results.jsonl"),
+        root.join("cassettes/results/results.jsonl"),
+    )
+    .map_err(|error| format!("copy result cassette: {error}"))?;
+    fs::copy(
+        fixture.join("cassettes/model/model.jsonl"),
+        root.join("cassettes/model/model.jsonl"),
+    )
+    .map_err(|error| format!("copy model cassette: {error}"))?;
+    let model_path = root.join("cassettes/model/model.jsonl");
+    let text = fs::read_to_string(&model_path)
+        .map_err(|error| format!("read copied model cassette: {error}"))?;
+    let kept: Vec<&str> = text
+        .lines()
+        .filter(|line| !line.contains(MISSING_MODEL_KEY))
+        .collect();
+    fs::write(&model_path, format!("{}\n", kept.join("\n")))
+        .map_err(|error| format!("write model cassette without {MISSING_MODEL_KEY}: {error}"))?;
+    fs::copy(fixture.join("manifest.yaml"), root.join("manifest.yaml"))
+        .map_err(|error| format!("copy fixture manifest: {error}"))?;
+
+    world.manifest_path = root.join("manifest.yaml");
+    world.out_dir = root.join("out");
+    world.missing_model = Some((
+        MISSING_MODEL_KEY.to_string(),
+        MISSING_MODEL_CANDIDATE.to_string(),
+    ));
+    load_fixture(world)
+}
+
+fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
+    fs::create_dir_all(to).map_err(|error| format!("create {}: {error}", to.display()))?;
+    for entry in fs::read_dir(from).map_err(|error| format!("read {}: {error}", from.display()))? {
+        let entry = entry.map_err(|error| format!("read {}: {error}", from.display()))?;
+        let source = entry.path();
+        let target = to.join(entry.file_name());
+        if source.is_dir() {
+            copy_tree(&source, &target)?;
+        } else {
+            fs::copy(&source, &target)
+                .map_err(|error| format!("copy {}: {error}", source.display()))?;
+        }
+    }
+    Ok(())
+}
+
+#[given("a benchmark run that needs a model response absent from the recording")]
+fn a_run_needs_a_missing_model_response(world: &mut BenchmarkWorld) -> Result<(), String> {
+    missing_response_fixture(world)
+}
+
+#[then("the run exits with code 2")]
+fn the_run_exits_with_code_two(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let failure = world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; a report was produced")?;
+    if failure.exit_code != benchmark::runner::EXIT_INPUT_ERROR {
+        return Err(format!(
+            "run exit code was {}, expected {}",
+            failure.exit_code,
+            benchmark::runner::EXIT_INPUT_ERROR
+        ));
+    }
+    Ok(())
+}
+
+#[then("the error names the missing input and the candidate that requested it")]
+fn the_error_names_the_missing_input(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let failure = world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; no error to inspect")?;
+    let (key, candidate) = world
+        .missing_model
+        .as_ref()
+        .ok_or("the missing-response fixture did not record its key")?;
+    if !failure.message.contains(key) {
+        return Err(format!(
+            "error does not name the missing input {key}: {}",
+            failure.message
+        ));
+    }
+    if !failure.message.contains(candidate) {
+        return Err(format!(
+            "error does not name the candidate {candidate}: {}",
+            failure.message
+        ));
+    }
+    Ok(())
+}
+
+#[then("no report.json or report.md is published")]
+fn no_report_is_published(world: &mut BenchmarkWorld) -> Result<(), String> {
+    for name in ["report.json", "report.md"] {
+        let path = world.out_dir.join(name);
+        if path.exists() {
+            return Err(format!("failed run published {}", path.display()));
+        }
+    }
     Ok(())
 }
