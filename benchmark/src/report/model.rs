@@ -41,6 +41,12 @@ impl Report {
             "report has no limitations"
         );
         anyhow::ensure!(
+            self.limitations
+                .windows(2)
+                .all(|pair| pair[0] < pair[1]),
+            "report limitations are not sorted and unique"
+        );
+        anyhow::ensure!(
             !self.reproduction.command.trim().is_empty(),
             "report has no reproduction command"
         );
