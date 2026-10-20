@@ -902,7 +902,7 @@
     118 steps (118 passed)
     EXIT=0
     ```
-  - Commit:
+  - Commit: `0568c8f2b8346038fc81956db64bcb986dd85a5d`
 - Design constraints: fixture-serena NL `unavailable` reason
   `no_natural_language_search`; aggregate NL 0.50 (2/4) excluding it; regex
   proxy labelled `regex_pattern_search_proxy`, excluded from NL/MRR.
