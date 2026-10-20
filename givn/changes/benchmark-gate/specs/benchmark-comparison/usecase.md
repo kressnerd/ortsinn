@@ -25,25 +25,22 @@ replay of a completed run.
 
 ## Preconditions
 
-Record mode:
-
-- The committed fixture manifest fixes the repository, the fixture candidate
-  identities, the target records, the gold sets, and the cassettes.
-- The fixture checkout, gold sets, and recorded result cassette exist at the
-  fixed revision.
-- A local OpenAI-compatible model endpoint is available; the fixture record
-  boundary runs against a loopback fake endpoint.
-- No real candidate install is required. Real candidate installs are
-  `benchmark-run`'s precondition.
-
-Replay mode:
-
-- A benchmark manifest fixes the inputs, candidate identities, target
-  records, gold sets, and cassettes.
-- Recorded result and model cassettes exist for the manifest, gold, and
-  candidate set, and the manifest records each repository's fixed checkout.
-- No candidate install and no model endpoint are required; replay starts no
-  candidate process.
+- Record mode — the committed fixture manifest fixes the repository, the
+  fixture candidate identities, the target records, the gold sets, and the
+  cassettes.
+- Record mode — the fixture checkout, gold sets, and recorded result cassette
+  exist at the fixed revision.
+- Record mode — a local OpenAI-compatible model endpoint is available; the
+  fixture record boundary runs against a loopback fake endpoint.
+- Record mode — no real candidate install is required; real candidate
+  installs are `benchmark-run`'s precondition.
+- Replay mode — a benchmark manifest fixes the inputs, candidate identities,
+  target records, gold sets, and cassettes.
+- Replay mode — recorded result and model cassettes exist for the manifest,
+  gold, and candidate set, and the manifest records each repository's fixed
+  checkout.
+- Replay mode — no candidate install and no model endpoint are required;
+  replay starts no candidate process.
 
 ## Main flow
 
