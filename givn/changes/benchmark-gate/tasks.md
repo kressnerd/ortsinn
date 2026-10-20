@@ -616,7 +616,7 @@
     9 steps (9 passed)
     EXIT=0
     ```
-- [x] COMMIT — hash: `PENDING_S13`
+- [x] COMMIT — hash: `e11669276f0c20ebf9c0cf597cf2b64be8d54bee`
 - Design constraints: install/version/commit/adapter; CKB indexers + doctor
   output + Rust Tier 3; Serena Python 3.13 + language servers; ocbi custom
   embedding URL; `git_metadata: present`; per-repository index status/duration.
