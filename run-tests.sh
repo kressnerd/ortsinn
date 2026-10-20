@@ -3,9 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 source ./env.sh
 
-FEATURES="${GIVN_FEATURES:-$(find givn/specs givn/changes/benchmark-gate/specs -name '*.feature' -exec realpath {} + 2>/dev/null || true)}"
+FEATURES="$(givn_resolve_features)"
 if [ -z "$FEATURES" ]; then
-  echo "no feature files found" >&2
+  echo "no feature files found under givn/specs or givn/changes/*/specs" >&2
   exit 2
 fi
 export GIVN_FEATURES="$FEATURES"

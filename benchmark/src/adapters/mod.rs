@@ -1,14 +1,14 @@
-//! Normalized candidate models and the fixture adapter.
+//! Normalized candidate models shared by the cassette and report layers.
+//!
+//! The real candidate adapters are delivered by the `benchmark-run` change.
+//! This change proves the contract with recorded normalized results.
 
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(any(test, feature = "fixture"))]
-pub mod fixture;
-
 /// A normalized candidate location. A candidate result without a line range
-/// is not produced by the fixture adapter and is rejected by normalization.
+/// is a file-level resolution, never a promoted symbol match.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NormalizedLocation {
     pub path: String,

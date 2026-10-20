@@ -88,13 +88,13 @@ fn feature_paths() -> Vec<PathBuf> {
         .map(PathBuf::from)
         .collect();
     if paths.is_empty() {
-        paths.push(PathBuf::from("givn/changes/benchmark-gate/specs"));
+        paths.push(PathBuf::from("givn/specs"));
     }
     paths
 }
 
 fn staged_features(paths: &[PathBuf]) -> anyhow::Result<PathBuf> {
-    let root = Path::new("target").join("cucumber-features");
+    let root = Path::new("target").join("givn-features");
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root)?;
     let mut count = 0usize;
@@ -156,7 +156,11 @@ fn main() {
         BenchmarkWorld::cucumber()
             .with_cli::<cucumber::cli::Empty>(Opts::parsed())
             .fail_on_skipped()
-            .run_and_exit(&staged)
+            // `filter_run` applies the CLI `--name`/`--tags` filters before
+            // this closure, `fail_on_skipped` records skipped steps, and
+            // `filter_run_and_exit` turns any failed/skipped run into a
+            // non-zero process exit.
+            .filter_run_and_exit(&staged, |_, _, _| true)
             .await;
     });
 }
