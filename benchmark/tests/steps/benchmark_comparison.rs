@@ -22,9 +22,6 @@ fn load_fixture(world: &mut BenchmarkWorld) -> Result<(), String> {
     let manifest = Manifest::load(&world.manifest_path)
         .map_err(|error| format!("load fixture manifest: {error:#}"))?;
     world.manifest = Some(manifest);
-    if world.report.is_none() {
-        run_replay(world)?;
-    }
     Ok(())
 }
 
