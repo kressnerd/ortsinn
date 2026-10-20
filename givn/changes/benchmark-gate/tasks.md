@@ -768,7 +768,7 @@
     6 steps (6 passed)
     EXIT=0
     ```
-  - Commit:
+  - Commit: `685a3a91eebd3a391364ad11cc62cf70e41cefb1`
 - Design constraints: `fixture-timeout`, 1 s deadline, `index_timeout`;
   elapsed time; metrics unavailable, never zero; run continues.
 
