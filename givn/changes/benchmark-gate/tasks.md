@@ -559,7 +559,7 @@
     5 steps (5 passed)
     EXIT=0
     ```
-- [x] COMMIT — hash: `PENDING_S12`
+- [x] COMMIT — hash: `180fbf8b2aae6726facf6d14db086a61ee376a7c`
 - Design constraints: replay command with fixture manifest, mode, output path;
   toolchain environment prefix; manifest/gold/model/result fingerprints.
   The prefix references zlib through `ZLIB_LIBRARY_PATH` (exported by
