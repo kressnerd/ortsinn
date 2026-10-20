@@ -35,6 +35,23 @@ pub struct RunFailure {
     pub message: String,
 }
 
+impl RunFailure {
+    /// Turn a run error into the process failure the CLI reports. A replay
+    /// miss keeps its typed identity instead of being flattened to a string.
+    pub fn from_error(error: anyhow::Error) -> Self {
+        if let Some(miss) = error.downcast_ref::<MissingRecordedResponse>() {
+            return Self {
+                exit_code: EXIT_INPUT_ERROR,
+                message: miss.to_string(),
+            };
+        }
+        Self {
+            exit_code: EXIT_INPUT_ERROR,
+            message: format!("{error:#}"),
+        }
+    }
+}
+
 impl fmt::Display for RunFailure {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.message)
@@ -43,6 +60,32 @@ impl fmt::Display for RunFailure {
 
 impl std::error::Error for RunFailure {}
 
+/// A normalized result depends on a model response the cassette does not
+/// hold. Replay stops with exit code 2 and names the missing layer, key,
+/// candidate, repository, and query; it never falls back to a live call or a
+/// partial report.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissingRecordedResponse {
+    pub key: String,
+    pub candidate: String,
+    pub repository: String,
+    pub task: String,
+    pub query: String,
+    pub layer: String,
+}
+
+impl fmt::Display for MissingRecordedResponse {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "missing recorded {} response {} for candidate {} (repository {}, query {}, task {})",
+            self.layer, self.key, self.candidate, self.repository, self.query, self.task
+        )
+    }
+}
+
+impl std::error::Error for MissingRecordedResponse {}
+
 pub type RunResult<T> = std::result::Result<T, RunFailure>;
 
 /// Build the report from fixed inputs and replay cassettes, then write
@@ -50,10 +93,7 @@ pub type RunResult<T> = std::result::Result<T, RunFailure>;
 ///
 /// A missing recorded response stops the run before any report is written.
 pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> RunResult<Report> {
-    run_replay_inner(manifest_path, out_dir).map_err(|error| RunFailure {
-        exit_code: EXIT_INPUT_ERROR,
-        message: format!("{error:#}"),
-    })
+    run_replay_inner(manifest_path, out_dir).map_err(RunFailure::from_error)
 }
 
 /// Run the fixture candidates once against the loopback recording boundary,
@@ -63,10 +103,7 @@ pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> RunResult<Report> {
 /// The committed fixture cassettes are never overwritten: `out_dir` is a
 /// temporary location owned by the caller.
 pub fn run_record(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) -> RunResult<Report> {
-    run_record_inner(manifest_path, out_dir, model_endpoint).map_err(|error| RunFailure {
-        exit_code: EXIT_INPUT_ERROR,
-        message: format!("{error:#}"),
-    })
+    run_record_inner(manifest_path, out_dir, model_endpoint).map_err(RunFailure::from_error)
 }
 
 fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
@@ -387,13 +424,15 @@ fn verify_recorded_model_responses(results: &ResultCassette, models: &ModelCasse
             } else {
                 &dependency.query
             };
-            anyhow::bail!(
-                "missing recorded model response {} for candidate {} (repository {}, query {}, layer model)",
-                dependency.key,
-                result.candidate,
-                result.repository,
-                query
-            );
+            return Err(MissingRecordedResponse {
+                key: dependency.key.clone(),
+                candidate: result.candidate.clone(),
+                repository: result.repository.clone(),
+                task: result.task.clone(),
+                query: query.clone(),
+                layer: "model".to_string(),
+            }
+            .into());
         }
     }
     Ok(())
