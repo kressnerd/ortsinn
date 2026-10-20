@@ -108,12 +108,8 @@ behaves as specified.
 
 ## Personas
 
-- maintainer--ortsinn
-- upstream--maintainer
-
-`maintainer--ortsinn` is confirmed and is the user-visible actor.
-`upstream--maintainer` is conditional: relevant only if the post-report path is
-a contribution, and not exercised by this change.
+- maintainer--ortsinn — confirmed; the user-visible actor.
+- upstream--maintainer — conditional; relevant only if the post-report path is a contribution; not exercised by this change.
 
 ## Capabilities
 
@@ -137,14 +133,10 @@ a contribution, and not exercised by this change.
 ## Out of scope
 
 - The product's runtime MCP surface and any product use case.
-- The real candidate adapters, fixed reference repositories, real gold sets,
-  fetch script, candidate installs, and the real record run; `benchmark-run`
-  owns them.
-- The build/contribute/compose decision; the post-report decision record owns
-  it.
+- The real candidate adapters, fixed reference repositories, real gold sets, fetch script, candidate installs, and the real record run; `benchmark-run` owns them.
+- The build/contribute/compose decision; the post-report decision record owns it.
 - Patching or optimizing a candidate.
-- Measuring metrics other than the four named acceptance families; index time
-  is recorded only to explain availability.
+- Measuring metrics other than the four named acceptance families; index time is recorded only to explain availability.
 - The product's owner-visibility record for external model calls (Q6).
 
 ## Diagram
