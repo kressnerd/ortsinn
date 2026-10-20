@@ -146,6 +146,22 @@ impl Gold {
     }
 }
 
+/// A gold task that cannot be checked against the fixed checkout. The
+/// message names the task, path, and failed range; the run stops before any
+/// score is computed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GoldValidationError {
+    pub detail: String,
+}
+
+impl std::fmt::Display for GoldValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.detail)
+    }
+}
+
+impl std::error::Error for GoldValidationError {}
+
 /// Every expected target must exist at the fixed checkout and its line range
 /// must fall inside the file. A task that cites a missing path or an
 /// out-of-range line fails the run before any score is computed.
@@ -189,6 +205,19 @@ fn validate_explanation_locations(
 }
 
 fn validate_location(
+    root: &Path,
+    location: &NormalizedLocation,
+    context: &str,
+) -> Result<PathBuf> {
+    validate_location_inner(root, location, context).map_err(|error| {
+        GoldValidationError {
+            detail: format!("{error:#}"),
+        }
+        .into()
+    })
+}
+
+fn validate_location_inner(
     root: &Path,
     location: &NormalizedLocation,
     context: &str,
