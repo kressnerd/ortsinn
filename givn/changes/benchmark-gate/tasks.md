@@ -167,7 +167,7 @@
     10 steps (10 passed)
     EXIT=0
     ```
-  - Commit:
+  - Commit: `5261c265dd165b1419bf01315275f0e2e22c73c6`
 - Design constraints: typo @1 0.60 (3/5), @5 0.80 (4/5); NL recall @5 0.50
   (2/4), MRR 0.30; explanation 0.50 (2/4), grounding 1.00 (4/4); concept
   0.40 (2/5), concept-equivalence 0.50 (2/4); `concept_equivalence` is in the
