@@ -11,10 +11,20 @@ fn report(world: &BenchmarkWorld) -> &Report {
         .expect("the benchmark replay must have produced a report")
 }
 
+fn run_replay(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = benchmark::runner::run_replay(&world.manifest_path, &world.out_dir)
+        .map_err(|error| format!("run fixture replay: {error:#}"))?;
+    world.report = Some(report);
+    Ok(())
+}
+
 fn load_fixture(world: &mut BenchmarkWorld) -> Result<(), String> {
     let manifest = Manifest::load(&world.manifest_path)
         .map_err(|error| format!("load fixture manifest: {error:#}"))?;
     world.manifest = Some(manifest);
+    if world.report.is_none() {
+        run_replay(world)?;
+    }
     Ok(())
 }
 
@@ -27,10 +37,7 @@ fn the_fixture_benchmark_inputs(world: &mut BenchmarkWorld) -> Result<(), String
 fn the_maintainer_runs_the_benchmark_in_replay_mode(
     world: &mut BenchmarkWorld,
 ) -> Result<(), String> {
-    let report = benchmark::runner::run_replay(&world.manifest_path, &world.out_dir)
-        .map_err(|error| format!("run fixture replay: {error:#}"))?;
-    world.report = Some(report);
-    Ok(())
+    run_replay(world)
 }
 
 #[then(regex = r#"^the report names (\S+) at version "([^"]+)" and commit "([^"]+)"$"#)]
