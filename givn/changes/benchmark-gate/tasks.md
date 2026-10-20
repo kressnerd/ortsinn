@@ -909,25 +909,107 @@
 
 ## E2E setup — local environment and e2e runner
 
-- [ ] Bring up the local environment: `benchmark/setup.sh` installs Rust
+- [x] Bring up the local environment: `benchmark/setup.sh` installs Rust
   toolchain env, zlib, candidates, CKB indexers, Serena 3.13 + language
   servers, and the fake OpenAI-compatible endpoint fixture.
+  - The fixture candidates are pinned identities in
+    `benchmark/tests/fixtures/e2e/manifest.yaml`; the E2E run starts no
+    candidate binary and no container runtime. The local endpoint is the
+    `axum` server in `benchmark/src/record/proxy.rs`, bound to loopback on an
+    ephemeral port.
   - Output:
-- [ ] Configure and prove `verify.e2e_command` strict subset.
-  - `verify.command` count:
-  - `verify.e2e_command` count:
+    ```text
+    benchmark setup: toolchain rustc 1.99.1 (58cf8f9c6 2026-10-13)
+    benchmark setup: zlib available from /nix/store/…-zlib-1.3.2/lib
+    benchmark setup: candidate installs land under benchmark/.tools/
+    benchmark setup: worktrees and cassettes land under benchmark/.work/
+    benchmark setup: fixture manifest, gold sets, cassettes, and repository present
+    benchmark setup: fake OpenAI-compatible endpoint fixture is ready (loopback, ephemeral port)
+    ```
+- [x] Configure and prove `verify.e2e_command` strict subset.
+  - `verify.command` count: 1 feature, 21 scenarios, 132 steps.
+  - `verify.e2e_command` count: 1 feature, 2 scenarios, 14 steps.
   - Strict proof output:
-- [ ] Prove the e2e runner reaches the local fixture endpoint.
+    ```text
+    $ ./run-tests.sh
+    1 feature
+    21 scenarios (21 passed)
+    132 steps (132 passed)
+    EXIT=0
+
+    $ ./run-tests.sh --e2e
+    1 feature
+    2 scenarios (2 passed)
+    14 steps (14 passed)
+    EXIT=0
+    ```
+  - The E2E filter selects 2 of 21 scenarios, so `verify.e2e_command` is a
+    strict subset of `verify.command`.
+- [x] Prove the e2e runner reaches the local fixture endpoint.
+  - Command: `cargo test --test e2e_fixture`
   - Output:
+    ```text
+    running 1 test
+    test the_e2e_runner_reaches_the_local_fixture_endpoint ... ok
+    test result: ok. 1 passed; 0 failed; 0 ignored
+    EXIT=0
+    ```
+  - The test starts the same `axum` server, posts one chat-completion and one
+    embedding request to its loopback base URL, and asserts both requests were
+    logged from a loopback peer.
+  - Commit: `32f32da2dd51eed964964284ec727214a5b2bb11`
 
 ## S20 — Maintainer runs the benchmark and reads the measured report
 
-- [ ] RED / GREEN / REFACTOR / COMMIT (e2e runner)
+- [x] RED / GREEN / REFACTOR / COMMIT (e2e runner)
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Maintainer runs the benchmark and reads the measured report
+     ✘  Given a benchmark fixture with fixed repository revisions, pinned candidate identities, and recorded model responses
+        Step failed:
+        Defined: target/cucumber-features/0.feature:194:5
+        Matched: benchmark/tests/steps/e2e/benchmark_cli.rs:9:1
+        Step panicked. Captured output: not implemented: benchmark-comparison e2e: fixture benchmark run
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/cli.rs`,
+    `benchmark/src/report/render.rs`, `benchmark/tests/benchmark_features.rs`,
+    `benchmark/tests/steps/e2e/benchmark_cli.rs`,
+    `givn/changes/benchmark-gate/specs/benchmark-comparison/benchmark-comparison.feature`,
+    `givn/changes/benchmark-gate/evidence/visual/maintainer-runs-the-benchmark-and-reads-the-measured-report/transcript.txt`,
+    `benchmark/.gitignore`.
   - GREEN output:
+    ```text
+    Scenario: Maintainer runs the benchmark and reads the measured report
+     ✔  Given a benchmark fixture with fixed repository revisions, pinned candidate identities, and recorded model responses
+     ✔  When the maintainer runs "benchmark run" in the terminal
+     ✔  Then the command exits with code 0
+     ✔  And the terminal shows the four measurement sections and the report path
+     ✔  And the report at that path states typo recall at rank one 0.60, natural-language recall at rank five 0.50, explanation correctness 0.50, and concept recall at rank five 0.40
+     ✔  And the terminal renders every metric label and value on one line at width 80
+     ✔  And the terminal renders every metric label and value on one line at width 160
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    7 steps (7 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
-  - Commit:
+    ```text
+    1 feature
+    1 scenario (1 passed)
+    7 steps (7 passed)
+    EXIT=0
+    ```
+  - Commit: `bc042c15e0700c6473a5d7e271c5e18fce294a1f`
+  - Transcript: the CLI is driven as `run --manifest
+    benchmark/tests/fixtures/e2e/manifest.yaml --mode replay --out <temp>`,
+    then rerun with `--width 80` and `--width 160`. Every metric row is 80 and
+    160 columns respectively, with the value on the label's line.
 - Design constraints: `env!("CARGO_BIN_EXE_benchmark")`; `run --manifest
   benchmark/tests/fixtures/e2e/manifest.yaml --mode replay`; exit 0; four
   sections and report path; values 0.60/0.50/0.50/0.40; width 80 and 160
@@ -935,22 +1017,90 @@
 
 ## S21 — Maintainer records a run and replays it without an external call
 
-- [ ] RED / GREEN / REFACTOR / COMMIT (e2e runner)
+- [x] RED / GREEN / REFACTOR / COMMIT (e2e runner)
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Maintainer records a run and replays it without an external call
+     ✘  Given a local fake OpenAI-compatible endpoint and the fixture candidates
+        Step failed:
+        Defined: target/cucumber-features/0.feature:204:5
+        Matched: benchmark/tests/steps/e2e/benchmark_cli.rs:272:1
+        Step panicked. Captured output: not implemented: benchmark-comparison e2e: local endpoint
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/runner.rs`,
+    `benchmark/src/record/cassette.rs`, `benchmark/src/record/proxy.rs`,
+    `benchmark/src/cli.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`,
+    `benchmark/tests/steps/e2e/benchmark_cli.rs`,
+    `givn/changes/benchmark-gate/specs/benchmark-comparison/benchmark-comparison.feature`,
+    `givn/changes/benchmark-gate/evidence/visual/maintainer-records-a-run-and-replays-it-without-an-external-call/transcript.txt`,
+    `benchmark/.gitignore`.
   - GREEN output:
+    ```text
+    Scenario: Maintainer records a run and replays it without an external call
+     ✔  Given a local fake OpenAI-compatible endpoint and the fixture candidates
+     ✔  When the maintainer records the benchmark run against that endpoint
+     ✔  Then the model requests are recorded and the model cassette fingerprint is written
+     ✔  And the normalized results are recorded
+     ✔  When the maintainer replays the recorded run
+     ✔  Then the measurements and their order match the recorded run
+     ✔  And no request leaves the local recording boundary
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    7 steps (7 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
-  - Commit:
+    ```text
+    1 feature
+    1 scenario (1 passed)
+    7 steps (7 passed)
+    EXIT=0
+    ```
+  - Commit: `9fd8a5fe14d1acfcefcd8d6164e7f7aed125f94d`
+  - Record output writes `cassettes/model/model.jsonl` and
+    `cassettes/results/results.jsonl` under the temporary report directory;
+    the endpoint saw 1 request per recorded model response, every peer was
+    loopback, and the report fingerprint equals the recorded file's SHA-256.
+    Replay leaves the endpoint request count unchanged and reports
+    `external_requests: 0`. The committed fixture cassettes are never
+    overwritten.
 - Design constraints: local fake OpenAI-compatible endpoint; record writes
   model and result cassettes; replay matches measurements and order; no
   external request; model cassette fingerprint written.
 
+- Combined active set (S1–S21):
+  ```text
+  $ ./run-tests.sh
+  1 feature
+  21 scenarios (21 passed)
+  132 steps (132 passed)
+  EXIT=0
+
+  $ ./run-tests.sh --e2e
+  1 feature
+  2 scenarios (2 passed)
+  14 steps (14 passed)
+  EXIT=0
+  ```
+
 ## Done when
 
-- [ ] Every scenario has targeted RED, GREEN, and REFACTOR output pasted, a
+- [x] Every scenario has targeted RED, GREEN, and REFACTOR output pasted, a
   production-files list for GREEN, and a commit hash.
-- [ ] `verify.command` and `verify.e2e_command` both exit 0 on the full suite.
-- [ ] The e2e scenario count is strictly less than the full count, or every
+- [x] `verify.command` and `verify.e2e_command` both exit 0 on the full suite.
+- [x] The e2e scenario count is strictly less than the full count, or every
   in-scope scenario is `@e2e` (not the case here).
-- [ ] The manual record-run gate evidence is committed or the task names the
-  exact condition for it.
+- [x] The manual record-run gate evidence is committed or the task names the
+  exact condition for it. Condition: the manual gate needs a host with at
+  least one real candidate installed (open-codebase-index, CKB, or Serena) and
+  that candidate's reference repository checked out at its fixed commit. This
+  change runs the committed fixture environment, starts no real candidate, and
+  proves the recorder→replay contract against the loopback fake endpoint; the
+  real-candidate record run is therefore not available in this environment.
