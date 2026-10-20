@@ -227,6 +227,14 @@ pub struct Gap {
 pub struct Gaps {
     pub to_target: BTreeMap<String, Gap>,
     pub to_best: BTreeMap<String, Gap>,
+    pub capability_gaps: Vec<CapabilityGap>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CapabilityGap {
+    pub candidate: String,
+    pub capability: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

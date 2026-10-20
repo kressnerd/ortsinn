@@ -3,12 +3,28 @@
 
 use std::collections::BTreeMap;
 
-use crate::manifest::{Target, TargetStatus};
-use crate::report::model::{CellStatus, Gap, Gaps, Metrics, Score};
+use crate::manifest::{CapabilityStatus, Manifest, Target, TargetStatus};
+use crate::report::model::{CapabilityGap, CellStatus, Gap, Gaps, Metrics, Score};
 
-pub fn compute(metrics: &Metrics) -> Gaps {
+pub fn compute(manifest: &Manifest, metrics: &Metrics) -> Gaps {
     let mut to_target = BTreeMap::new();
     let mut to_best = BTreeMap::new();
+    let mut capability_gaps = Vec::new();
+
+    for candidate in &manifest.candidates {
+        for (capability, status) in &candidate.capabilities {
+            if status.status == CapabilityStatus::Unavailable {
+                capability_gaps.push(CapabilityGap {
+                    candidate: candidate.id.clone(),
+                    capability: capability.clone(),
+                    reason: status
+                        .reason
+                        .clone()
+                        .unwrap_or_else(|| "capability_not_declared".to_string()),
+                });
+            }
+        }
+    }
 
     let mut target_gap = |key: &str, target: &Target, measured: Option<f64>| {
         to_target.insert(key.to_string(), gap_to_target(target, measured));
@@ -64,7 +80,11 @@ pub fn compute(metrics: &Metrics) -> Gaps {
         gap_to_best(&metrics.concept_equivalence.per_candidate),
     );
 
-    Gaps { to_target, to_best }
+    Gaps {
+        to_target,
+        to_best,
+        capability_gaps,
+    }
 }
 
 fn gap_to_target(target: &Target, measured: Option<f64>) -> Gap {

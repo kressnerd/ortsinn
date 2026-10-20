@@ -581,3 +581,136 @@ fn serena_no_expansion_not_applicable(
     assert_eq!(cell.value, None, "not-applicable arm must not be zero");
     Ok(())
 }
+
+#[given("a candidate that cannot explain code")]
+fn a_candidate_cannot_explain_code(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_fixture(world)?;
+    let manifest = world
+        .manifest
+        .as_ref()
+        .ok_or("fixture manifest was not loaded")?;
+    let unavailable = manifest.candidates.iter().any(|candidate| {
+        candidate
+            .capabilities
+            .get("explanation")
+            .is_some_and(|capability| {
+                capability.status == benchmark::manifest::CapabilityStatus::Unavailable
+            })
+    });
+    if !unavailable {
+        return Err("fixture has no candidate without an explanation operation".into());
+    }
+    Ok(())
+}
+
+#[then(
+    regex = r#"^the explanation correctness for (\S+) is unavailable with the reason "([^"]+)"$"#
+)]
+fn explanation_correctness_unavailable(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [candidate, reason] = captures else {
+        return Err("explanation unavailable step needs two captures".into());
+    };
+    let cell = report(world)
+        .metrics
+        .explanation
+        .per_candidate
+        .get(candidate)
+        .ok_or_else(|| format!("report has no explanation cell for {candidate}"))?;
+    assert_eq!(
+        cell.status,
+        benchmark::report::model::CellStatus::Unavailable,
+        "explanation status"
+    );
+    assert_eq!(cell.reason.as_deref(), Some(reason.as_str()), "reason");
+    assert_eq!(cell.value, None, "unavailable explanation must not be zero");
+    Ok(())
+}
+
+#[then(regex = r"^the explanation coverage for (\S+) is (\d+) of (\d+) with a value of ([\d.]+)$")]
+fn explanation_coverage(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [candidate, numerator, denominator, value] = captures else {
+        return Err("explanation coverage step needs four captures".into());
+    };
+    let cell = report(world)
+        .metrics
+        .explanation
+        .per_candidate
+        .get(candidate)
+        .ok_or_else(|| format!("report has no explanation cell for {candidate}"))?;
+    let expected_numerator: u64 = numerator
+        .parse()
+        .map_err(|error| format!("parse coverage numerator: {error}"))?;
+    let expected_denominator: u64 = denominator
+        .parse()
+        .map_err(|error| format!("parse coverage denominator: {error}"))?;
+    assert_eq!(
+        cell.coverage.numerator, expected_numerator,
+        "coverage numerator"
+    );
+    assert_eq!(
+        cell.coverage.denominator, expected_denominator,
+        "coverage denominator"
+    );
+    check_value(
+        cell.coverage
+            .value
+            .ok_or("coverage has no value for an unavailable cell")?,
+        value,
+        "coverage value",
+    )
+}
+
+#[then(
+    regex = r"^the aggregate explanation correctness remains ([\d.]+) with (\d+) of (\d+) tasks$"
+)]
+fn aggregate_explanation_correctness(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [value, numerator, denominator] = captures else {
+        return Err("aggregate explanation step needs three captures".into());
+    };
+    let score = &report(world).metrics.explanation.aggregate;
+    check_value(
+        score
+            .value
+            .ok_or("aggregate explanation correctness has no value")?,
+        value,
+        "aggregate explanation correctness",
+    )?;
+    check_counts(
+        score.numerator,
+        score.denominator,
+        numerator,
+        denominator,
+        "aggregate explanation correctness",
+    )
+}
+
+#[then(
+    regex = r"^the report lists the missing explanation capability as a capability gap for (\S+)$"
+)]
+fn explanation_capability_gap(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [candidate] = captures else {
+        return Err("explanation capability gap step needs one capture".into());
+    };
+    let gap = report(world)
+        .gaps
+        .capability_gaps
+        .iter()
+        .find(|gap| gap.candidate == *candidate && gap.capability == "explanation")
+        .ok_or_else(|| {
+            format!("report does not list an explanation capability gap for {candidate}")
+        })?;
+    assert_eq!(
+        gap.reason, "no_explanation_operation",
+        "capability gap reason"
+    );
+    Ok(())
+}

@@ -247,11 +247,34 @@
 
 ## S5 — Report distinguishes an unavailable capability from a zero score
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Report distinguishes an unavailable capability from a zero score
+     ✘  Given a candidate that cannot explain code
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/report/model.rs`,
+    `benchmark/src/metrics/gaps.rs`, `benchmark/src/runner.rs`,
+    `benchmark/src/report/render.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
+    ```text
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
   - Commit:
 - Design constraints: fixture-ocbi explanation `unavailable` reason
   `no_explanation_operation`; coverage 0/4 with value 0.0; aggregate remains

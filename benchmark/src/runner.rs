@@ -27,7 +27,7 @@ pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     let gold = Gold::load(&manifest, &base)?;
     let cassette = ResultCassette::load(&base.join(&manifest.cassettes.results.path))?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
-    let gaps = metrics::gaps::compute(&metrics);
+    let gaps = metrics::gaps::compute(&manifest, &metrics);
 
     let command = format!(
         "benchmark run --manifest {} --mode replay --out {}",

@@ -110,6 +110,12 @@ fn render_metrics(out: &mut String, report: &Report) {
             ));
         }
     }
+    for gap in &report.gaps.capability_gaps {
+        out.push_str(&format!(
+            "- Capability gap: {} {} ({})\n",
+            gap.candidate, gap.capability, gap.reason
+        ));
+    }
     out.push('\n');
     out.push_str("## Path decision\n\n");
     out.push_str(&format!(

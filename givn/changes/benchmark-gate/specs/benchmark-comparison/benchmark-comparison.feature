@@ -57,7 +57,7 @@ Feature: Benchmark comparison
     And the concept-equivalence recall for the no-expansion arm is 0.25 with 1 of 4 variants
     And fixture-serena's no-expansion arm is not applicable with the reason "no_expansion_switch", not zero
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report distinguishes an unavailable capability from a zero score
     Given a candidate that cannot explain code
     When the maintainer runs the benchmark in replay mode
