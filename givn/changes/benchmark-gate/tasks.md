@@ -857,11 +857,51 @@
 
 ## S19 — Report does not score a regex interface mismatch as natural-language recall
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Report does not score a regex interface mismatch as natural-language recall
+     ✘  Given fixture-serena exposes no natural-language search operation
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/metrics/natural_language.rs`,
+    `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`,
+    `benchmark/src/metrics/common.rs`, `benchmark/src/manifest.rs`,
+    `benchmark/tests/fixtures/e2e/manifest.yaml`,
+    `benchmark/tests/fixtures/e2e/cassettes/results/results.jsonl`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    Scenario: Report does not score a regex interface mismatch as natural-language recall
+     ✔  Given fixture-serena exposes no natural-language search operation
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then fixture-serena's natural-language cells are unavailable with the reason "no_natural_language_search"
+     ✔  And the natural-language recall at rank five remains 0.50 with 2 of 4 tasks, excluding fixture-serena
+     ✔  And a measured regex arm is labelled "regex_pattern_search_proxy" and excluded from natural-language recall and mean reciprocal rank
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+  - Combined active set (S1–S19):
+    ```text
+    1 feature
+    19 scenarios (19 passed)
+    118 steps (118 passed)
+    EXIT=0
+    ```
   - Commit:
 - Design constraints: fixture-serena NL `unavailable` reason
   `no_natural_language_search`; aggregate NL 0.50 (2/4) excluding it; regex

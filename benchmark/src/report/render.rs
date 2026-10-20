@@ -174,6 +174,18 @@ fn render_metrics(out: &mut String, report: &Report) {
         "- NL query errors: {} (each counted as a miss, not unavailable)\n",
         metrics.natural_language.query_errors
     ));
+    for (label, arm) in &metrics.natural_language.proxy_arms {
+        match arm.score.value {
+            Some(value) => out.push_str(&format!(
+                "- NL `{label}` arm (proxy only; excluded from NL recall and MRR): {value:.2} ({} of {})\n",
+                arm.score.numerator, arm.score.denominator
+            )),
+            None => out.push_str(&format!(
+                "- NL `{label}` arm (proxy only; excluded from NL recall and MRR): unavailable ({})\n",
+                arm.score.reason.as_deref().unwrap_or("no reason")
+            )),
+        }
+    }
     coverage_line(
         out,
         "Natural-language",

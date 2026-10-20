@@ -70,6 +70,7 @@ candidates:
     capabilities:
       typo: {status: not_applicable, reason: fixture_family_not_measured}
       natural_language: {status: unavailable, reason: no_natural_language_search}
+      regex_pattern_search_proxy: {status: measured}
       explanation: {status: not_applicable, reason: fixture_family_not_measured}
       concept: {status: not_applicable, reason: fixture_family_not_measured}
       concept_equivalence: {status: not_applicable, reason: fixture_family_not_measured}

@@ -51,7 +51,8 @@ pub fn index_unavailable_cell(
     if candidate.unavailable.is_some() {
         return None;
     }
-    (!candidate.timed_out_indexes(manifest).is_empty())
+    candidate
+        .index_timed_out(manifest)
         .then(|| Score::unavailable("index_timeout", tasks))
 }
 

@@ -84,6 +84,17 @@ impl Candidate {
         })
     }
 
+    /// True when any recorded index exceeded the effective deadline.
+    pub fn index_timed_out(&self, manifest: &Manifest) -> bool {
+        let Some(deadline) = self.index_deadline(manifest) else {
+            return false;
+        };
+        self.setup
+            .indexes
+            .iter()
+            .any(|index| index.seconds > deadline as f64)
+    }
+
     /// Index records that exceeded the effective deadline. A breach is
     /// derived from the recorded elapsed time, so replay reaches the same
     /// conclusion as the live run.

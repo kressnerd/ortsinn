@@ -2245,3 +2245,154 @@ fn report_published_as_complete(world: &mut BenchmarkWorld) -> Result<(), String
     );
     Ok(())
 }
+
+#[given("fixture-serena exposes no natural-language search operation")]
+fn serena_has_no_natural_language_search(world: &mut BenchmarkWorld) -> Result<(), String> {
+    use benchmark::manifest::CapabilityStatus;
+
+    load_fixture(world)?;
+    let manifest = world
+        .manifest
+        .as_ref()
+        .ok_or("fixture manifest was not loaded")?;
+    let serena = manifest
+        .candidate("fixture-serena")
+        .ok_or("fixture manifest does not name fixture-serena")?;
+    let natural_language = serena
+        .capabilities
+        .get("natural_language")
+        .ok_or("fixture-serena declares no natural-language capability")?;
+    assert_eq!(
+        natural_language.status,
+        CapabilityStatus::Unavailable,
+        "fixture-serena natural-language status"
+    );
+    assert_eq!(
+        natural_language.reason.as_deref(),
+        Some("no_natural_language_search"),
+        "fixture-serena natural-language reason"
+    );
+    let proxy = serena
+        .capabilities
+        .get("regex_pattern_search_proxy")
+        .ok_or("fixture-serena declares no regex proxy arm")?;
+    assert_eq!(
+        proxy.status,
+        CapabilityStatus::Measured,
+        "fixture-serena regex proxy capability"
+    );
+    Ok(())
+}
+
+#[then(
+    regex = r#"^fixture-serena's natural-language cells are unavailable with the reason "([^"]+)"$"#
+)]
+fn serena_natural_language_unavailable(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    use benchmark::report::model::CellStatus;
+
+    let [reason] = captures else {
+        return Err("serena NL step needs one capture".into());
+    };
+    let cell = report(world)
+        .metrics
+        .natural_language
+        .per_candidate
+        .get("fixture-serena")
+        .ok_or("report has no fixture-serena natural-language cell")?;
+    assert_eq!(cell.status, CellStatus::Unavailable, "NL status");
+    assert_eq!(cell.value, None, "unavailable NL cell must not be zero");
+    assert_eq!(cell.reason.as_deref(), Some(reason.as_str()), "NL reason");
+    Ok(())
+}
+
+#[then(
+    regex = r"^the natural-language recall at rank five remains ([\d.]+) with (\d+) of (\d+) tasks, excluding fixture-serena$"
+)]
+fn natural_language_recall_excluding_serena(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [value, numerator, denominator] = captures else {
+        return Err("NL recall excluding serena step needs three captures".into());
+    };
+    let metric = &report(world).metrics.natural_language;
+    check_value(
+        metric
+            .aggregate
+            .value
+            .ok_or("NL recall has no measured value")?,
+        value,
+        "NL recall @5",
+    )?;
+    check_counts(
+        metric.aggregate.numerator,
+        metric.aggregate.denominator,
+        numerator,
+        denominator,
+        "NL recall @5",
+    )?;
+    assert_eq!(
+        metric.aggregate.attempted, 4,
+        "only the measured candidate contributes to the NL aggregate"
+    );
+    Ok(())
+}
+
+#[then(
+    regex = r#"^a measured regex arm is labelled "([^"]+)" and excluded from natural-language recall and mean reciprocal rank$"#
+)]
+fn regex_proxy_arm_excluded(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    use benchmark::report::model::CellStatus;
+
+    let [label] = captures else {
+        return Err("regex proxy step needs one capture".into());
+    };
+    let metric = &report(world).metrics.natural_language;
+    let arm = metric
+        .proxy_arms
+        .get(label)
+        .ok_or_else(|| format!("report has no proxy arm labelled {label}"))?;
+    assert_eq!(arm.score.status, CellStatus::Measured, "proxy arm status");
+    check_value(
+        arm.score
+            .value
+            .ok_or("regex proxy arm has no measured value")?,
+        "0.50",
+        "regex proxy arm",
+    )?;
+    assert!(
+        arm.per_candidate
+            .get("fixture-serena")
+            .is_some_and(|cell| cell.status == CellStatus::Measured),
+        "the regex proxy is measured on fixture-serena"
+    );
+
+    check_value(
+        metric
+            .aggregate
+            .value
+            .ok_or("NL recall has no measured value")?,
+        "0.50",
+        "NL recall excluding the proxy",
+    )?;
+    assert_eq!(metric.aggregate.numerator, 2, "NL recall numerator");
+    assert_eq!(metric.aggregate.denominator, 4, "NL recall denominator");
+    check_value(metric.mrr_at_10.value, "0.30", "NL MRR excluding the proxy")?;
+    assert_eq!(
+        metric.mrr_at_10.attempted, 4,
+        "the proxy arm is excluded from MRR"
+    );
+
+    let markdown = fs::read_to_string(world.out_dir.join("report.md"))
+        .map_err(|error| format!("read report.md: {error}"))?;
+    let expected = format!("NL `{label}` arm (proxy only; excluded from NL recall and MRR)");
+    if !markdown.contains(&expected) {
+        return Err(format!(
+            "report.md does not label the regex arm as the proxy: {expected}"
+        ));
+    }
+    Ok(())
+}

@@ -252,6 +252,9 @@ pub struct NaturalLanguageMetric {
     /// is reported separately from the recall value.
     pub query_errors: u64,
     pub query_errors_per_candidate: BTreeMap<String, u64>,
+    /// Clearly labelled proxy arms measured from the same questions. They are
+    /// never folded into the recall value, coverage, or MRR above.
+    pub proxy_arms: BTreeMap<String, Arm>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

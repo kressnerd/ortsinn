@@ -181,7 +181,7 @@ Feature: Benchmark comparison
     And neither gap value is rendered as zero
     And the report is still published as complete
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report does not score a regex interface mismatch as natural-language recall
     Given fixture-serena exposes no natural-language search operation
     When the maintainer runs the benchmark in replay mode
