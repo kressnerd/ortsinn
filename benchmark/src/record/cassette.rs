@@ -13,6 +13,9 @@ use crate::adapters::{ExplanationResponse, NormalizedLocation};
 pub struct RecordedResult {
     pub candidate: String,
     pub repository: String,
+    /// Commit the normalized result was recorded against. Replay compares it
+    /// with the manifest's fixed input before scoring anything.
+    pub repository_commit: String,
     pub metric: String,
     pub task: String,
     pub arm: String,

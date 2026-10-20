@@ -139,7 +139,7 @@ Feature: Benchmark comparison
     And every candidate copy records git_metadata "present"
     And every candidate records a per-repository index status and duration
 
-  @givn.added @wip
+  @givn.added
   Scenario: A fixed-input mismatch stops the run
     Given a fixture manifest whose fixture-repo commit is "2222222222222222222222222222222222222222"
     When the maintainer runs the benchmark in replay mode

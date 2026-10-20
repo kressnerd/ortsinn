@@ -24,6 +24,8 @@ pub(crate) struct BenchmarkWorld {
     /// Recorded model key and candidate omitted by the missing-response
     /// fixture, so the Then-step can name both.
     pub(crate) missing_model: Option<(String, String)>,
+    /// Expected and actual repository commits of the mismatch fixture.
+    pub(crate) mismatch: Option<(String, String)>,
     /// First synthetic generation (the recorded run).
     pub(crate) synthetic_first: Option<benchmark::r#gen::synthetic_repo::SyntheticRepo>,
     /// Second synthetic generation (the regeneration).
@@ -46,6 +48,7 @@ impl Default for BenchmarkWorld {
             first_report: None,
             run_failure: None,
             missing_model: None,
+            mismatch: None,
             synthetic_first: None,
             synthetic_second: None,
         }

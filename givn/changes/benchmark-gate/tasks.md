@@ -623,12 +623,49 @@
 
 ## S14 — A fixed-input mismatch stops the run
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
-  - RED output:
-  - GREEN production files:
-  - GREEN output:
-  - REFACTOR output:
-  - Commit:
+- [x] RED — remove `@wip` from S14 only; run targeted; paste non-zero output.
+  - Output:
+    ```text
+    Scenario: A fixed-input mismatch stops the run
+     ✘  Given a fixture manifest whose fixture-repo commit is "2222222222222222222222222222222222222222"
+        Step panicked. Captured output: not implemented: benchmark-comparison: fixture manifest with a mismatched commit
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+- [x] GREEN — record the commit each normalized result was recorded against
+  and verify it against the manifest before scoring; implement the given and
+  the error step; list production files; run targeted; paste zero output.
+  - Production files: `benchmark/src/record/cassette.rs`,
+    `benchmark/src/runner.rs`,
+    `benchmark/tests/fixtures/e2e/cassettes/results/results.jsonl`,
+    `benchmark/tests/benchmark_features.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output:
+    ```text
+    Scenario: A fixed-input mismatch stops the run
+     ✔  Given a fixture manifest whose fixture-repo commit is "2222222222222222222222222222222222222222"
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then the run exits with code 2
+     ✔  And the error names fixture-repo and the mismatched expected and actual commits
+     ✔  And no report.json or report.md is published
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+- [x] REFACTOR — run targeted; paste zero output.
+  - Output:
+    ```text
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+- [x] COMMIT — hash: `PENDING_S14`
 - Design constraints: expected `1111…`, actual `2222…`; exit 2; error names
   the repository and commits; no report files.
 

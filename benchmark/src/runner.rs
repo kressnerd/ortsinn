@@ -63,6 +63,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     let gold = Gold::load(&manifest, &base)?;
     let cassette = ResultCassette::load(&base.join(&manifest.cassettes.results.path))?;
     let models = ModelCassette::load(&base.join(&manifest.cassettes.model.path))?;
+    verify_fixed_inputs(&manifest, &cassette)?;
     verify_recorded_model_responses(&cassette, &models)?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
     let gaps = metrics::gaps::compute(&manifest, &metrics);
@@ -151,6 +152,29 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     render::write_reports(&report, out_dir)
         .with_context(|| format!("write report into {}", out_dir.display()))?;
     Ok(report)
+}
+
+/// Every recorded result carries the commit it was recorded against. A
+/// manifest that names a different commit would score measurements against
+/// the wrong fixed input, so the run stops before writing any report.
+fn verify_fixed_inputs(manifest: &Manifest, results: &ResultCassette) -> Result<()> {
+    for result in results.entries() {
+        let repository = manifest.repository(&result.repository).with_context(|| {
+            format!(
+                "fixed-input mismatch: the result cassette names repository {}, which the manifest does not fix",
+                result.repository
+            )
+        })?;
+        if result.repository_commit != repository.commit {
+            anyhow::bail!(
+                "fixed-input mismatch for repository {}: expected commit {}, actual commit {}",
+                repository.id,
+                result.repository_commit,
+                repository.commit
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Replay serves recorded model responses only. A normalized result that

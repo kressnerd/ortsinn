@@ -1395,6 +1395,78 @@ fn candidate_git_metadata(
     Ok(())
 }
 
+const FIXED_REPOSITORY_COMMIT: &str = "1111111111111111111111111111111111111111";
+
+#[given(
+    regex = r#"^a fixture manifest whose fixture-repo commit is "([^"]+)"$"#
+)]
+fn a_fixture_manifest_with_commit(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [actual] = captures else {
+        return Err("mismatched-commit step needs one capture".into());
+    };
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("benchmark crate has no workspace root")?
+        .join("benchmark/tests/fixtures/e2e");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("benchmark crate has no workspace root")?
+        .join("target")
+        .join("benchmark-fixed-input-mismatch");
+    if root.exists() {
+        fs::remove_dir_all(&root).map_err(|error| format!("clear {}: {error}", root.display()))?;
+    }
+    copy_tree(&fixture.join("gold"), &root.join("gold"))?;
+    copy_tree(&fixture.join("cassettes"), &root.join("cassettes"))?;
+    let manifest = fs::read_to_string(fixture.join("manifest.yaml"))
+        .map_err(|error| format!("read fixture manifest: {error}"))?;
+    if !manifest.contains(FIXED_REPOSITORY_COMMIT) {
+        return Err(format!(
+            "fixture manifest does not fix the repository at {FIXED_REPOSITORY_COMMIT}"
+        ));
+    }
+    fs::write(
+        root.join("manifest.yaml"),
+        manifest.replace(FIXED_REPOSITORY_COMMIT, actual),
+    )
+    .map_err(|error| format!("write mismatched manifest: {error}"))?;
+
+    world.manifest_path = root.join("manifest.yaml");
+    world.out_dir = root.join("out");
+    world.mismatch = Some((FIXED_REPOSITORY_COMMIT.to_string(), actual.clone()));
+    load_fixture(world)
+}
+
+#[then("the error names fixture-repo and the mismatched expected and actual commits")]
+fn the_error_names_mismatched_commits(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let failure = world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; no error to inspect")?;
+    let (expected, actual) = world
+        .mismatch
+        .as_ref()
+        .ok_or("the mismatch fixture did not record its commits")?;
+    if !failure.message.contains("fixture-repo") {
+        return Err(format!(
+            "error does not name fixture-repo: {}",
+            failure.message
+        ));
+    }
+    for (commit, label) in [(expected, "expected"), (actual, "actual")] {
+        if !failure.message.contains(commit) {
+            return Err(format!(
+                "error does not name the {label} commit {commit}: {}",
+                failure.message
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[then("every candidate records a per-repository index status and duration")]
 fn candidate_index_status(world: &mut BenchmarkWorld) -> Result<(), String> {
     let report = report(world);
