@@ -121,7 +121,7 @@
     6 steps (6 passed)
     EXIT=0
     ```
-- [ ] COMMIT — hash:
+- [x] COMMIT — hash: `ec41183052166945f88513092b723f1877c9d9bc`
 - Design constraints: manifest/report identity fields; fixture values from the
   shared block; no product code.
 
