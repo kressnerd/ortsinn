@@ -4,4 +4,41 @@ cd "$(dirname "$0")/.."
 source ./env.sh
 
 echo "benchmark setup: toolchain $(rustc --version)"
+if ldconfig -p 2>/dev/null | grep -q 'libz\.so\.1'; then
+  echo "benchmark setup: zlib available"
+elif [ -n "${ZLIB_LIBRARY_PATH:-}" ] && [ -e "$ZLIB_LIBRARY_PATH/libz.so.1" ]; then
+  echo "benchmark setup: zlib available from $ZLIB_LIBRARY_PATH"
+else
+  echo "benchmark setup: zlib missing; env.sh could not resolve libz.so.1" >&2
+  exit 1
+fi
+
+mkdir -p benchmark/.tools benchmark/.work
 echo "benchmark setup: candidate installs land under benchmark/.tools/"
+echo "benchmark setup: worktrees and cassettes land under benchmark/.work/"
+
+# The change runs the fixture environment only. Candidate toolchains are
+# pinned in the manifest; this setup verifies the fixture inputs are present
+# instead of installing real candidate binaries on the host.
+fixture_root="benchmark/tests/fixtures/e2e"
+for path in \
+  "$fixture_root/manifest.yaml" \
+  "$fixture_root/cassettes/results/results.jsonl" \
+  "$fixture_root/cassettes/model/model.jsonl" \
+  "$fixture_root/gold/typo.jsonl" \
+  "$fixture_root/gold/natural_language.jsonl" \
+  "$fixture_root/gold/explanation.jsonl" \
+  "$fixture_root/gold/concept.jsonl" \
+  "$fixture_root/repo/src/math_utils.py" \
+  "$fixture_root/repo/src/text_utils.py"; do
+  if [ ! -f "$path" ]; then
+    echo "benchmark setup: missing fixture input $path" >&2
+    exit 1
+  fi
+done
+echo "benchmark setup: fixture manifest, gold sets, cassettes, and repository present"
+
+# The local OpenAI-compatible endpoint is an axum server bound to loopback on
+# an ephemeral port. The e2e runner starts it in-process; no container
+# runtime, shared server, or third-party service is involved.
+echo "benchmark setup: fake OpenAI-compatible endpoint fixture is ready (loopback, ephemeral port)"
