@@ -1,0 +1,4 @@
+{"id":"nl-1","query":"How does the tenth math helper add its value?","expected":[{"path":"src/math_utils.py","start_line":12,"end_line":12,"symbol":"helper_12"}]}
+{"id":"nl-2","query":"Where is text converted to a string?","expected":[{"path":"src/text_utils.py","start_line":22,"end_line":22,"symbol":"text_helper_22"}]}
+{"id":"nl-3","query":"Which helper multiplies a number?","expected":[{"path":"src/math_utils.py","start_line":32,"end_line":32,"symbol":"helper_32"}]}
+{"id":"nl-4","query":"Which helper splits text into tokens?","expected":[{"path":"src/text_utils.py","start_line":42,"end_line":42,"symbol":"text_helper_42"}]}

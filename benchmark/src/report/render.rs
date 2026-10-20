@@ -5,7 +5,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use super::model::Report;
+use super::model::{Report, Score};
 
 pub fn write_reports(report: &Report, out_dir: &Path) -> Result<()> {
     fs::create_dir_all(out_dir)
@@ -52,5 +52,62 @@ pub fn markdown(report: &Report) -> String {
             candidate.adapter_version
         ));
     }
+    out.push('\n');
+    render_metrics(&mut out, report);
     out
+}
+
+fn render_metrics(out: &mut String, report: &Report) {
+    let metrics = &report.metrics;
+    out.push_str("## Typo recall\n\n");
+    score_line(out, "Typo recall @1", &metrics.typo.aggregate);
+    score_line(out, "Typo recall @5", &metrics.typo.recall_at_5);
+    out.push('\n');
+    out.push_str("## Natural-language retrieval\n\n");
+    score_line(out, "NL recall @5", &metrics.natural_language.aggregate);
+    out.push_str(&format!(
+        "- NL MRR @10: {:.2}\n\n",
+        metrics.natural_language.mrr_at_10.value
+    ));
+    out.push_str("## Explanation correctness\n\n");
+    score_line(
+        out,
+        "Explanation correctness",
+        &metrics.explanation.aggregate,
+    );
+    out.push_str(&format!(
+        "- Explanation evidence grounding: {:.2}\n\n",
+        metrics.explanation.evidence_grounding.value
+    ));
+    out.push_str("## Concept recall\n\n");
+    score_line(out, "Concept recall @5", &metrics.concept.aggregate);
+    score_line(
+        out,
+        "Concept-equivalence recall @5",
+        &metrics.concept_equivalence.aggregate,
+    );
+    out.push('\n');
+}
+
+fn score_line(out: &mut String, label: &str, score: &Score) {
+    match score.value {
+        Some(value) => out.push_str(&format!(
+            "- {label}: {value:.2} ({} of {})\n",
+            score.numerator, score.denominator
+        )),
+        None => out.push_str(&format!(
+            "- {label}: {} ({})\n",
+            status(score),
+            score.reason.as_deref().unwrap_or("no reason")
+        )),
+    }
+}
+
+fn status(score: &Score) -> &'static str {
+    use super::model::CellStatus;
+    match score.status {
+        CellStatus::Measured => "measured",
+        CellStatus::Unavailable => "unavailable",
+        CellStatus::NotApplicable => "not applicable",
+    }
 }

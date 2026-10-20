@@ -23,7 +23,7 @@ Feature: Benchmark comparison
     And the report names fixture-serena at version "fixture-1" and commit "cccccccccccccccccccccccccccccccccccccccc"
     And the report names fixture-repo at revision "fixture-1", commit "1111111111111111111111111111111111111111", and 120 code lines
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report contains the four acceptance measurements
     Given the fixture benchmark inputs
     When the maintainer runs the benchmark in replay mode

@@ -1,0 +1,103 @@
+//! Shared scoring helpers.
+
+use anyhow::{Result, bail};
+
+use crate::adapters::NormalizedLocation;
+use crate::gold::matches;
+use crate::manifest::{Candidate, Capability, CapabilityStatus, Manifest, Target, TargetStatus};
+use crate::record::cassette::ResultCassette;
+use crate::report::model::{CellStatus, Score};
+
+pub fn target(manifest: &Manifest, key: &str) -> Target {
+    manifest
+        .targets
+        .get(key)
+        .cloned()
+        .unwrap_or_else(|| Target {
+            value: None,
+            status: TargetStatus::Unstated,
+            source: "unstated in confirmed records".to_string(),
+        })
+}
+
+pub fn capability<'a>(candidate: &'a Candidate, name: &str) -> Option<&'a Capability> {
+    candidate.capabilities.get(name)
+}
+
+pub fn capability_reason(capability: Option<&Capability>) -> &str {
+    capability
+        .and_then(|capability| capability.reason.as_deref())
+        .unwrap_or("capability_not_declared")
+}
+
+/// Build a per-candidate cell for a capability that is not measured.
+pub fn unmeasured_cell(capability: Option<&Capability>, tasks: u64) -> Option<Score> {
+    let Some(capability) = capability else {
+        return Some(Score::not_applicable("capability_not_declared"));
+    };
+    match capability.status {
+        CapabilityStatus::Unavailable => Some(Score::unavailable(
+            capability_reason(Some(capability)),
+            tasks,
+        )),
+        CapabilityStatus::NotApplicable => {
+            Some(Score::not_applicable(capability_reason(Some(capability))))
+        }
+        CapabilityStatus::Measured => None,
+    }
+}
+
+/// Combine measured and unmeasured candidate cells into a metric aggregate.
+/// Not-applicable cells contribute to neither side of the coverage fraction.
+pub fn aggregate(cells: &[Score], numerator: u64, denominator: u64) -> Score {
+    let attempted: u64 = cells.iter().map(|cell| cell.attempted).sum();
+    let unavailable: u64 = cells.iter().map(|cell| cell.unavailable).sum();
+    if attempted == 0 {
+        return Score::unavailable("no_measured_candidate", unavailable);
+    }
+    Score::measured(numerator, denominator, attempted, unavailable)
+}
+
+pub fn is_measured(cell: &Score) -> bool {
+    cell.status == CellStatus::Measured
+}
+
+/// Load one recorded result and return its deduplicated locations.
+pub fn recorded_locations(
+    cassette: &ResultCassette,
+    candidate: &str,
+    metric: &str,
+    task: &str,
+    arm: &str,
+) -> Result<Vec<NormalizedLocation>> {
+    let Some(record) = cassette.get(candidate, metric, task, arm) else {
+        bail!(
+            "missing result cassette entry for candidate {candidate}, repository {}, metric {metric}, task {task}, arm {arm}",
+            "fixture-repo"
+        );
+    };
+    if record.error.is_some() {
+        return Ok(Vec::new());
+    }
+    Ok(crate::adapters::dedup_locations(&record.results))
+}
+
+pub fn hit_at(
+    rank: usize,
+    results: &[NormalizedLocation],
+    expected: &[NormalizedLocation],
+) -> bool {
+    results
+        .iter()
+        .take(rank)
+        .any(|candidate| expected.iter().any(|target| matches(candidate, target)))
+}
+
+pub fn first_rank(
+    results: &[NormalizedLocation],
+    expected: &[NormalizedLocation],
+) -> Option<usize> {
+    results
+        .iter()
+        .position(|candidate| expected.iter().any(|target| matches(candidate, target)))
+}

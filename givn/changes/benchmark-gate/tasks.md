@@ -127,11 +127,46 @@
 
 ## S2 — Report contains the four acceptance measurements
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Report contains the four acceptance measurements
+     ✔  Given the fixture benchmark inputs
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✘  Then the typo recall at rank one is 0.60 with 3 of 5 tasks
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    3 steps (2 passed, 1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/adapters/mod.rs`,
+    `benchmark/src/adapters/fixture.rs`, `benchmark/src/record/mod.rs`,
+    `benchmark/src/record/cassette.rs`, `benchmark/src/gold/mod.rs`,
+    `benchmark/src/metrics/mod.rs`, `benchmark/src/metrics/common.rs`,
+    `benchmark/src/metrics/typo.rs`,
+    `benchmark/src/metrics/natural_language.rs`,
+    `benchmark/src/metrics/explanation.rs`,
+    `benchmark/src/metrics/concept.rs`, `benchmark/src/report/model.rs`,
+    `benchmark/src/report/render.rs`, `benchmark/src/runner.rs`,
+    `benchmark/src/lib.rs`, `benchmark/Cargo.toml`,
+    `benchmark/tests/steps/benchmark_comparison.rs`,
+    `benchmark/tests/fixtures/e2e/gold/*.jsonl`,
+    `benchmark/tests/fixtures/e2e/cassettes/results/results.jsonl`,
+    `benchmark/tests/fixtures/e2e/cassettes/model/model.jsonl`.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    10 steps (10 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
+    ```text
+    1 scenario (1 passed)
+    10 steps (10 passed)
+    EXIT=0
+    ```
   - Commit:
 - Design constraints: typo @1 0.60 (3/5), @5 0.80 (4/5); NL recall @5 0.50
   (2/4), MRR 0.30; explanation 0.50 (2/4), grounding 1.00 (4/4); concept

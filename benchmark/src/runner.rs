@@ -1,16 +1,20 @@
-//! Replay runner: reads the fixed manifest and assembles the report.
+//! Replay runner: reads the fixed manifest and result cassettes and assembles
+//! the report.
 
 use std::path::Path;
 
 use anyhow::{Context, Result};
 
+use crate::gold::Gold;
 use crate::manifest::{Manifest, RunMode};
+use crate::metrics;
+use crate::record::cassette::ResultCassette;
 use crate::report::model::{
     CandidateReport, Inputs, LineCountReport, Report, RepositoryReport, RunReport, SCHEMA_VERSION,
 };
 use crate::report::render;
 
-/// Build the identity portion of the report from fixed inputs and write
+/// Build the report from fixed inputs and replay cassettes, then write
 /// `report.json`/`report.md` into `out_dir`.
 pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     let manifest = Manifest::load(manifest_path)?;
@@ -18,6 +22,10 @@ pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
         manifest.mode == RunMode::Replay,
         "the fixture manifest must declare replay mode"
     );
+    let base = Manifest::base_dir(manifest_path);
+    let gold = Gold::load(&manifest, &base)?;
+    let cassette = ResultCassette::load(&base.join(&manifest.cassettes.results.path))?;
+    let metrics = metrics::score(&manifest, &gold, &cassette)?;
 
     let command = format!(
         "benchmark run --manifest {} --mode replay --out {}",
@@ -64,6 +72,7 @@ pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
                 adapter_version: candidate.adapter_version,
             })
             .collect(),
+        metrics,
     };
 
     render::write_reports(&report, out_dir)

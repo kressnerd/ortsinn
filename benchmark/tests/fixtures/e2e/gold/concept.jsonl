@@ -1,0 +1,9 @@
+{"id":"concept-1","query":"arithmetic helper","expected":[{"path":"src/math_utils.py","start_line":14,"end_line":14,"symbol":"helper_14"}],"equivalence":false}
+{"id":"concept-2","query":"string conversion helper","expected":[{"path":"src/text_utils.py","start_line":24,"end_line":24,"symbol":"text_helper_24"}],"equivalence":false}
+{"id":"concept-3","query":"numeric multiplication helper","expected":[{"path":"src/math_utils.py","start_line":34,"end_line":34,"symbol":"helper_34"}],"equivalence":false}
+{"id":"concept-4","query":"text tokenization helper","expected":[{"path":"src/text_utils.py","start_line":44,"end_line":44,"symbol":"text_helper_44"}],"equivalence":false}
+{"id":"concept-5","query":"average calculation helper","expected":[{"path":"src/math_utils.py","start_line":54,"end_line":54,"symbol":"helper_54"}],"equivalence":false}
+{"id":"ce-1","query":"addition helper","expected":[{"path":"src/math_utils.py","start_line":16,"end_line":16,"symbol":"helper_16"}],"equivalence":true}
+{"id":"ce-2","query":"to string helper","expected":[{"path":"src/text_utils.py","start_line":26,"end_line":26,"symbol":"text_helper_26"}],"equivalence":true}
+{"id":"ce-3","query":"multiply helper","expected":[{"path":"src/math_utils.py","start_line":36,"end_line":36,"symbol":"helper_36"}],"equivalence":true}
+{"id":"ce-4","query":"token helper","expected":[{"path":"src/text_utils.py","start_line":46,"end_line":46,"symbol":"text_helper_46"}],"equivalence":true}

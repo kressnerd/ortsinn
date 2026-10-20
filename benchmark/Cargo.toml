@@ -16,6 +16,11 @@ name = "benchmark_features"
 path = "tests/benchmark_features.rs"
 harness = false
 
+[features]
+default = []
+# The fixture adapter is never part of the release binary.
+fixture = []
+
 [dependencies]
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }
