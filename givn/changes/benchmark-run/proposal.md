@@ -41,6 +41,9 @@ Extend the fixture harness with the real candidate path:
   measured gaps and the deferred product-path decision.
 - Keep the fixture harness and its e2e scenarios as the deterministic
   contract test of the reporting path.
+- Add a query digest to the model cassette key before reusing a recorded
+  model response across gold versions; the fixture harness documents this
+  omission as a limitation.
 
 ## Capability Routing
 

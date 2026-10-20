@@ -12,7 +12,7 @@ flowchart LR
     CLI[CLI<br/>benchmark run] --> RUN[Runner]
     RUN --> MAN[Manifest, checkout, gold]
     RUN --> CASS[Result and model cassettes]
-    RUN --> GEN[Synthetic generator]
+    T[Executable specs] --> GEN[Synthetic generator]
     RUN --> REC[Loopback recorder]
     RUN --> MET[Metric scorers and gaps]
     MET --> REP[Report model]

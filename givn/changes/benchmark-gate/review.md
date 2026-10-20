@@ -446,7 +446,7 @@ No scenario exceeds the lint threshold; `givn lint` reports no `LONG` finding.
       this review.
 - [x] The exact files `verify.e2e_command` invokes were identified and read;
       the tree was searched for a parallel e2e implementation.
-- [x] `verify.e2e_command` is not identical to `verify.command`; 2 of 23
+- [x] `verify.e2e_command` is not identical to `verify.command`; 2 of 28
       scenarios prove the e2e scope is strictly smaller.
 - [x] Implementation (commands, file layout, framework/driver) matches
       `design.md`; the previous deviations were fixed and design-review was

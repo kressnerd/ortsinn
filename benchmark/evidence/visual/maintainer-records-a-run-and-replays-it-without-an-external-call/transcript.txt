@@ -1,4 +1,4 @@
-$ benchmark run --manifest /home/dan/dev/PRIVATE/ortsinn/benchmark/tests/fixtures/e2e/manifest.yaml --mode record --model-endpoint http://127.0.0.1:42379/v1 --out /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s21-run --width 80
+$ benchmark run --manifest /home/dan/dev/PRIVATE/ortsinn/benchmark/tests/fixtures/e2e/manifest.yaml --mode record --model-endpoint http://127.0.0.1:37145/v1 --out /home/dan/dev/PRIVATE/ortsinn/target/benchmark-e2e/s21-run --width 80
 Benchmark comparison
 Run: fixture-benchmark-v1 (record)
 Candidates: fixture-ocbi, fixture-ckb, fixture-serena

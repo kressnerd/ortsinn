@@ -89,4 +89,28 @@ Design checks: `givn check design --change benchmark-gate` and
 gold-validation, coverage, and split checks in `review.md` are the
 implementation evidence.
 
+## Post-hardening re-review (2026-10-20, fresh context)
+
+The hardened plan was re-checked against the full grill report in a fresh
+context (`DesignReReview`). Current counts are **28 scenarios (26 regular + 2
+`@e2e`)**; the earlier 23/21 counts in the historical sections are superseded.
+
+| ID | Status | Evidence |
+|---|---|---|
+| F-01 | Resolved | Report model/contract match; `Report::validate` and the generated fixture report carry the declared fields. |
+| F-02 | Resolved | Candidate/repository identities, gold digests, and cassette digests are verified; S25/S26/S28 exercise the failures. |
+| F-03 | Resolved | This post-hardening section is the current gate artifact; the historical 23/21 counts are marked superseded. |
+| F-04 | Resolved | `cargo run -p benchmark -- run …` is emitted with `. ./env.sh && …`; S12 checks it. |
+| F-05 | Resolved | Five gold identities, including `concept_equivalence` with 4 tasks and its digest; S11 asserts them. |
+| F-06 | Resolved | `IndexRecord.deadline_seconds` is recorded and rendered; S16 asserts the applied 1-second deadline. |
+| F-07 | Resolved | Both durable transcripts are tracked; `benchmark/.gitignore` ignores only generated directories. |
+| F-08 | Resolved | `Report::validate` checks the closed status, coverage, fingerprints, and limitations; S27 rejects an invalid report before writing. |
+| F-09 | Resolved | The child writes under `target/benchmark-e2e/`; replay makes no network request; no `BENCHMARK_HOME` remains. |
+| F-10 | Resolved | S24 multi-repository, S25 gold mismatch, S26 cassette mismatch, S27 limitations/validation, S28 candidate identity, and S15 uninstallable/unstartable are implemented. |
+| F-11 | Documented limitation | The fixture model key is `(candidate, task or model)` and excludes the query; the report limitation names it and `benchmark-run` must add a query digest before reuse across gold versions. |
+| F-12 | Resolved | `design.md` and arc42 ch.05 place the synthetic generator under the executable-spec verification path, not the runner. |
+
+No blocker remains. `givn check design-review --change benchmark-gate` and
+`givn check design` pass; `review.md` carries the implementation evidence.
+
 DESIGN-REVIEW: PASS

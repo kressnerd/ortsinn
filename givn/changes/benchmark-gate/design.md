@@ -187,7 +187,7 @@ flowchart LR
     RUN --> MAN[Manifest, checkout, gold]
     RUN --> CASS[Result and model cassettes]
     RUN --> REC[Loopback recorder / replayer]
-    RUN --> GEN[Synthetic monorepo generator]
+    T[Executable specs] --> GEN[Synthetic monorepo generator]
     RUN --> MET[Metric scorers and gaps]
     MET --> REP[Report model]
     REP --> JSON[report.json]
@@ -334,9 +334,12 @@ Replay is the default and the only mode needed for a free rerun.
   makes the report deterministic and free even when a candidate's internal
   retrieval is not deterministic.
 - Result entries are indexed by `(candidate, metric, task, arm)`; model
-  entries by a deterministic key (`model:explanation:<candidate>:<task>` or
-  `model:embedding:<candidate>:<model>`). The SHA-256 fingerprint is computed
-  over the cassette file bytes, not over a request object.
+  entries by `(candidate, task or model)` (`model:explanation:<candidate>:<task>`
+  or `model:embedding:<candidate>:<model>`). The model key excludes the query
+  in this fixture harness; a model-record digest and the report limitation
+  make the omission visible. `benchmark-run` must add a query digest before
+  reusing a model cassette across gold versions. The SHA-256 fingerprint is
+  computed over the cassette file bytes, not over a request object.
 - Replay verifies every fixed input it can check: each result's candidate
   version and commit against the manifest, each result's repository commit,
   every gold file's digest, and each committed cassette's digest. A mismatch

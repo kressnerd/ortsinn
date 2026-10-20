@@ -440,6 +440,9 @@ fn report_limitations(manifest: &Manifest, metrics: &Metrics) -> Vec<String> {
         ));
     }
     limitations.insert(
+        "model cassette keys are (candidate, task or model) and exclude the query; a new gold version must invalidate the cassette".to_string(),
+    );
+    limitations.insert(
         "explanation rubric credits only the listed surface forms; a paraphrase outside them is not credited"
             .to_string(),
     );
