@@ -206,7 +206,7 @@
     8 steps (8 passed)
     EXIT=0
     ```
-  - Commit:
+  - Commit: `fd6d4702ba09b8c018b751cf5891cf6cc5667227`
 - Design constraints: typo @1 gap -0.30 to a **proposed** 0.90; never
   "confirmed"; NL/concept show measured and best values; `path_decision`
   deferred to `maintainer--ortsinn` and `docs/decisions/benchmark-path.md`.
