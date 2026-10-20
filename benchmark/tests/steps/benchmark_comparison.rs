@@ -1549,6 +1549,16 @@ fn candidate_unavailable_with_reason(
         Some(reason.as_str()),
         "{candidate} unavailable reason"
     );
+    let index = entry
+        .setup
+        .indexes
+        .first()
+        .ok_or_else(|| format!("{candidate} records no index outcome"))?;
+    assert_eq!(
+        index.reason.as_deref(),
+        Some(reason.as_str()),
+        "{candidate} index reason"
+    );
     Ok(())
 }
 
