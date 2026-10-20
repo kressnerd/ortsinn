@@ -33,33 +33,33 @@ pub fn compute(manifest: &Manifest, metrics: &Metrics) -> Gaps {
         }
     }
 
-    let mut target_gap = |key: &str, target: &Target, measured: Option<f64>| {
-        to_target.insert(key.to_string(), gap_to_target(target, measured));
+    let mut target_gap = |key: &str, target: &Target, aggregate: &Score| {
+        to_target.insert(key.to_string(), gap_to_target(target, aggregate));
     };
     target_gap(
         "typo_recall_at_1",
         &metrics.typo.target,
-        metrics.typo.aggregate.value,
+        &metrics.typo.aggregate,
     );
     target_gap(
         "natural_language_recall_at_5",
         &metrics.natural_language.target,
-        metrics.natural_language.aggregate.value,
+        &metrics.natural_language.aggregate,
     );
     target_gap(
         "explanation_correctness",
         &metrics.explanation.target,
-        metrics.explanation.aggregate.value,
+        &metrics.explanation.aggregate,
     );
     target_gap(
         "concept_recall_at_5",
         &metrics.concept.target,
-        metrics.concept.aggregate.value,
+        &metrics.concept.aggregate,
     );
     target_gap(
         "concept_equivalence_recall_at_5",
         &metrics.concept_equivalence.target,
-        metrics.concept_equivalence.aggregate.value,
+        &metrics.concept_equivalence.aggregate,
     );
 
     to_best.insert(
@@ -94,40 +94,35 @@ pub fn compute(manifest: &Manifest, metrics: &Metrics) -> Gaps {
     }
 }
 
-fn gap_to_target(target: &Target, measured: Option<f64>) -> Gap {
+fn gap_to_target(target: &Target, aggregate: &Score) -> Gap {
     if target.status == TargetStatus::Unstated || target.value.is_none() {
-        return Gap {
-            value: None,
-            status: CellStatus::NotApplicable,
-            reason: Some("target_unstated".to_string()),
-            target_status: Some(TargetStatus::Unstated),
-            best_candidate: None,
-            best_value: None,
-            deltas: BTreeMap::new(),
-        };
+        return Gap::not_applicable("target_unstated", Some(TargetStatus::Unstated));
     }
     let Some(target_value) = target.value else {
         unreachable!("target value checked above");
     };
-    match measured {
-        Some(measured) => Gap {
-            value: Some(measured - target_value),
-            status: CellStatus::Measured,
-            reason: None,
-            target_status: Some(target.status),
-            best_candidate: None,
-            best_value: None,
-            deltas: BTreeMap::new(),
-        },
-        None => Gap {
-            value: None,
-            status: CellStatus::Unavailable,
-            reason: Some("no_measured_candidate".to_string()),
-            target_status: Some(target.status),
-            best_candidate: None,
-            best_value: None,
-            deltas: BTreeMap::new(),
-        },
+    let Some(measured) = aggregate.value else {
+        // A stated target with no measured value is unavailable when a
+        // candidate actually attempted coverage, and not applicable when the
+        // metric had no applicable task at all. Neither is a zero gap.
+        return match aggregate.status {
+            CellStatus::Unavailable => {
+                Gap::unavailable("no_measured_candidate", Some(target.status))
+            }
+            CellStatus::NotApplicable => {
+                Gap::not_applicable("no_applicable_task", Some(target.status))
+            }
+            CellStatus::Measured => unreachable!("a measured cell carries a value"),
+        };
+    };
+    Gap {
+        value: Some(measured - target_value),
+        status: CellStatus::Measured,
+        reason: None,
+        target_status: Some(target.status),
+        best_candidate: None,
+        best_value: None,
+        deltas: BTreeMap::new(),
     }
 }
 
@@ -141,15 +136,15 @@ fn gap_to_best(cells: &BTreeMap<String, Score>) -> Gap {
         .max_by(|left, right| left.1.total_cmp(&right.1))
         .map(|(candidate, value)| ((*candidate).clone(), *value))
     else {
-        return Gap {
-            value: None,
-            status: CellStatus::Unavailable,
-            reason: Some("no_measured_candidate".to_string()),
-            target_status: None,
-            best_candidate: None,
-            best_value: None,
-            deltas: BTreeMap::new(),
-        };
+        // Name the missing measurement instead of publishing an empty or
+        // zero-valued to-best gap.
+        if cells
+            .values()
+            .any(|cell| cell.status == CellStatus::Unavailable)
+        {
+            return Gap::unavailable("no_measured_candidate", None);
+        }
+        return Gap::not_applicable("no_applicable_task", None);
     };
     let mut deltas = BTreeMap::new();
     for (candidate, value) in measured {

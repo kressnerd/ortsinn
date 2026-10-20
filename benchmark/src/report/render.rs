@@ -244,12 +244,17 @@ fn render_metrics(out: &mut String, report: &Report) {
         }
     }
     for (name, gap) in &report.gaps.to_best {
-        if let Some(best) = &gap.best_candidate {
-            out.push_str(&format!(
+        match &gap.best_candidate {
+            Some(best) => out.push_str(&format!(
                 "- {name} best measured: {} ({:.2})\n",
                 best,
                 gap.best_value.unwrap_or_default()
-            ));
+            )),
+            None => out.push_str(&format!(
+                "- {name} best measured: {} ({})\n",
+                gap_status(gap.status),
+                gap.reason.as_deref().unwrap_or("no reason")
+            )),
         }
     }
     for gap in &report.gaps.capability_gaps {

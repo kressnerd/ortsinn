@@ -295,6 +295,36 @@ pub struct Gap {
     pub deltas: BTreeMap<String, f64>,
 }
 
+impl Gap {
+    /// A gap without a measured value. It carries a closed reason and no
+    /// numeric value, so a zero can never stand in for a missing measurement.
+    pub fn unavailable(reason: &str, target_status: Option<TargetStatus>) -> Self {
+        Self {
+            value: None,
+            status: CellStatus::Unavailable,
+            reason: Some(reason.to_string()),
+            target_status,
+            best_candidate: None,
+            best_value: None,
+            deltas: BTreeMap::new(),
+        }
+    }
+
+    /// A gap that does not apply because no task was scoreable, for example a
+    /// metric whose every candidate is not applicable.
+    pub fn not_applicable(reason: &str, target_status: Option<TargetStatus>) -> Self {
+        Self {
+            value: None,
+            status: CellStatus::NotApplicable,
+            reason: Some(reason.to_string()),
+            target_status,
+            best_candidate: None,
+            best_value: None,
+            deltas: BTreeMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Gaps {
     pub to_target: BTreeMap<String, Gap>,
