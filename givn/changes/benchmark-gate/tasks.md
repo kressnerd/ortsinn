@@ -518,14 +518,52 @@
 
 ## S12 — Report states the exact command that reproduces the run
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
-  - RED output:
-  - GREEN production files:
-  - GREEN output:
-  - REFACTOR output:
-  - Commit:
+- [x] RED — remove `@wip` from S12 only; run targeted; paste non-zero output.
+  - Output:
+    ```text
+    Scenario: Report states the exact command that reproduces the run
+     ✔  Given a completed benchmark run with recorded model responses
+     ✘  When the maintainer reads the report
+        Step panicked. Captured output: not implemented: benchmark-comparison: read the report
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    2 steps (1 passed, 1 failed)
+    EXIT=101
+    ```
+- [x] GREEN — add the reproduction record (command, portable toolchain prefix,
+  manifest/gold/model/result fingerprints) and implement the steps; list
+  production files; run targeted; paste zero output.
+  - Production files: `benchmark/src/report/model.rs`,
+    `benchmark/src/report/render.rs`, `benchmark/src/runner.rs`, `env.sh`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output:
+    ```text
+    Scenario: Report states the exact command that reproduces the run
+     ✔  Given a completed benchmark run with recorded model responses
+     ✔  When the maintainer reads the report
+     ✔  Then the report states the replay command for the fixture manifest with mode replay and its output path
+     ✔  And the report states the toolchain environment prefix used by the command
+     ✔  And the report states the manifest, gold, model-cassette, and result-cassette fingerprints
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+- [x] REFACTOR — run targeted; paste zero output.
+  - Output:
+    ```text
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+- [x] COMMIT — hash: `PENDING_S12`
 - Design constraints: replay command with fixture manifest, mode, output path;
   toolchain environment prefix; manifest/gold/model/result fingerprints.
+  The prefix references zlib through `ZLIB_LIBRARY_PATH` (exported by
+  `env.sh`) so no absolute host path enters the report.
 
 ## S13 — Report records candidate setup, index status, and timeouts
 

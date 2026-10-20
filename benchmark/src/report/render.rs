@@ -25,18 +25,46 @@ pub fn markdown(report: &Report) -> String {
     out.push_str("## Run\n\n");
     out.push_str(&format!("- Run: `{}`\n", report.run.id));
     out.push_str(&format!("- Mode: `{:?}`\n", report.run.mode));
-    out.push_str(&format!("- Command: `{}`\n", report.run.command));
-    out.push_str(&format!(
-        "- Manifest fingerprint: `{}`\n",
-        report.run.manifest_fingerprint
-    ));
-    out.push_str(&format!(
-        "- Recording fingerprint: `{}`\n",
-        report.run.recording_fingerprint
-    ));
     out.push_str(&format!(
         "- External model requests: {}\n\n",
         report.run.external_requests
+    ));
+    out.push_str("## Reproduction\n\n");
+    let reproduction = &report.reproduction;
+    out.push_str(&format!(
+        "- Command: `{} {}`\n",
+        reproduction.toolchain_prefix, reproduction.command
+    ));
+    out.push_str(&format!(
+        "- Candidate install required: {}\n",
+        if reproduction.candidate_install_required {
+            "yes"
+        } else {
+            "no"
+        }
+    ));
+    out.push_str(&format!(
+        "- External model calls: {}\n",
+        if reproduction.external_model_calls {
+            "yes"
+        } else {
+            "no"
+        }
+    ));
+    out.push_str(&format!(
+        "- Manifest fingerprint: `{}`\n",
+        reproduction.manifest_fingerprint
+    ));
+    for (metric, fingerprint) in &reproduction.gold_fingerprints {
+        out.push_str(&format!("- Gold fingerprint `{metric}`: `{fingerprint}`\n"));
+    }
+    out.push_str(&format!(
+        "- Model cassette fingerprint: `{}`\n",
+        reproduction.model_cassette_fingerprint
+    ));
+    out.push_str(&format!(
+        "- Result cassette fingerprint: `{}`\n\n",
+        reproduction.result_cassette_fingerprint
     ));
     out.push_str("## Fixed inputs\n\n");
     for repository in &report.inputs.repositories {

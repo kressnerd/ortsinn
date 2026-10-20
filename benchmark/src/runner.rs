@@ -12,12 +12,18 @@ use crate::metrics;
 use crate::record::cassette::{ModelCassette, ResultCassette};
 use crate::report::model::{
     CandidateReport, GoldSetReport, Inputs, LineCountReport, PathDecision, PathDecisionStatus,
-    Report, RepositoryReport, RunReport, SCHEMA_VERSION,
+    Report, Reproduction, RepositoryReport, RunReport, SCHEMA_VERSION,
 };
 use crate::report::render;
 
 /// Process exit code for a run that cannot produce a complete report.
 pub const EXIT_INPUT_ERROR: i32 = 2;
+
+/// Shell prefix that reproduces the run's toolchain. The zlib directory is
+/// referenced through the environment variable `env.sh` exports, so the
+/// report stays portable across workstations.
+pub const TOOLCHAIN_PREFIX: &str =
+    "RUSTUP_TOOLCHAIN=stable-x86_64-unknown-linux-gnu LD_LIBRARY_PATH=\"${ZLIB_LIBRARY_PATH}\"";
 
 /// A failed run. The message names the fixed input that stopped the run.
 #[derive(Debug, Clone)]
@@ -66,14 +72,25 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
         manifest_path.display(),
         out_dir.display()
     );
+    let reproduction = Reproduction {
+        command,
+        toolchain_prefix: TOOLCHAIN_PREFIX.to_string(),
+        manifest_fingerprint: manifest.fingerprint()?,
+        gold_fingerprints: manifest
+            .gold
+            .iter()
+            .map(|set| (set.metric.clone(), set.fingerprint.clone()))
+            .collect(),
+        model_cassette_fingerprint: manifest.cassettes.model.fingerprint.clone(),
+        result_cassette_fingerprint: manifest.cassettes.results.fingerprint.clone(),
+        candidate_install_required: false,
+        external_model_calls: false,
+    };
     let report = Report {
         schema_version: SCHEMA_VERSION,
         run: RunReport {
             id: manifest.run_id.clone(),
             mode: manifest.mode,
-            command,
-            manifest_fingerprint: manifest.fingerprint()?,
-            recording_fingerprint: manifest.cassettes.model.fingerprint.clone(),
             external_requests: 0,
         },
         inputs: Inputs {
@@ -127,6 +144,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
             artifact: "docs/decisions/benchmark-path.md".to_string(),
             rule: "decide after the report; no pre-registered build threshold".to_string(),
         },
+        reproduction,
     };
 
     render::write_reports(&report, out_dir)

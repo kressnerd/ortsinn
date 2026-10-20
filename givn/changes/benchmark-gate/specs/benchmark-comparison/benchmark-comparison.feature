@@ -119,7 +119,7 @@ Feature: Benchmark comparison
     And the explanation gold set is version 1 with 4 tasks and fingerprint "sha256:fixture-explanation-v1"
     And the concept gold set is version 1 with 5 tasks and fingerprint "sha256:fixture-concept-v1"
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report states the exact command that reproduces the run
     Given a completed benchmark run with recorded model responses
     When the maintainer reads the report

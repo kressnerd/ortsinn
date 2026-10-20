@@ -11,6 +11,7 @@ if [ -z "${LD_LIBRARY_PATH:-}" ] || ! ldconfig -p 2>/dev/null | grep -q 'libz\.s
   else
     ZLIB_DIR="$(nix build --no-link --print-out-paths nixpkgs#zlib 2>/dev/null | head -1)/lib"
     if [ -n "$ZLIB_DIR" ] && [ -e "$ZLIB_DIR/libz.so.1" ]; then
+      export ZLIB_LIBRARY_PATH="$ZLIB_DIR"
       export LD_LIBRARY_PATH="$ZLIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     fi
   fi

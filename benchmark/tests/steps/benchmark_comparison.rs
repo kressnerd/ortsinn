@@ -780,10 +780,14 @@ fn replay_mode_and_recording_fingerprint(
     let [fingerprint] = captures else {
         return Err("replay identity step needs one capture".into());
     };
-    let run = &report(world).run;
-    assert_eq!(run.mode, benchmark::manifest::RunMode::Replay, "run mode");
+    let report = report(world);
     assert_eq!(
-        &run.recording_fingerprint, fingerprint,
+        report.run.mode,
+        benchmark::manifest::RunMode::Replay,
+        "run mode"
+    );
+    assert_eq!(
+        &report.reproduction.model_cassette_fingerprint, fingerprint,
         "recording fingerprint"
     );
     Ok(())
@@ -1263,6 +1267,102 @@ fn every_coverage_value_is_attempted_over_attempted_plus_unavailable(
             ));
         }
     }
+    Ok(())
+}
+
+#[when("the maintainer reads the report")]
+fn the_maintainer_reads_the_report(world: &mut BenchmarkWorld) -> Result<(), String> {
+    world.report = world.first_report.clone();
+    if world.report.is_none() {
+        return Err("no completed run to read".into());
+    }
+    Ok(())
+}
+
+#[then(
+    "the report states the replay command for the fixture manifest with mode replay and its output path"
+)]
+fn reproduction_command(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let reproduction = &report(world).reproduction;
+    let manifest = world.manifest_path.display().to_string();
+    let out = world.out_dir.display().to_string();
+    let command = &reproduction.command;
+    for (fragment, label) in [
+        (manifest.as_str(), "fixture manifest path"),
+        ("--mode replay", "replay mode"),
+        (out.as_str(), "output path"),
+    ] {
+        if !command.contains(fragment) {
+            return Err(format!(
+                "reproduction command does not state the {label}: {command}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("the report states the toolchain environment prefix used by the command")]
+fn reproduction_toolchain_prefix(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let prefix = &report(world).reproduction.toolchain_prefix;
+    for required in [
+        "RUSTUP_TOOLCHAIN=stable-x86_64-unknown-linux-gnu",
+        "LD_LIBRARY_PATH",
+        "ZLIB_LIBRARY_PATH",
+    ] {
+        if !prefix.contains(required) {
+            return Err(format!(
+                "toolchain prefix does not state {required}: {prefix}"
+            ));
+        }
+    }
+    for host_specific in ["/nix/store", "/usr/lib"] {
+        if prefix.contains(host_specific) {
+            return Err(format!(
+                "toolchain prefix embeds the host-specific path {host_specific}: {prefix}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then(
+    "the report states the manifest, gold, model-cassette, and result-cassette fingerprints"
+)]
+fn reproduction_fingerprints(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = world
+        .manifest
+        .as_ref()
+        .ok_or("fixture manifest was not loaded")?;
+    let reproduction = &report(world).reproduction;
+    let manifest_fingerprint = manifest
+        .fingerprint()
+        .map_err(|error| format!("compute manifest fingerprint: {error}"))?;
+    assert_eq!(
+        reproduction.manifest_fingerprint, manifest_fingerprint,
+        "manifest fingerprint"
+    );
+    let expected_gold: std::collections::BTreeMap<String, String> = manifest
+        .gold
+        .iter()
+        .map(|set| (set.metric.clone(), set.fingerprint.clone()))
+        .collect();
+    assert_eq!(
+        reproduction.gold_fingerprints, expected_gold,
+        "gold fingerprints"
+    );
+    for metric in ["typo", "natural_language", "explanation", "concept"] {
+        if !reproduction.gold_fingerprints.contains_key(metric) {
+            return Err(format!("report has no {metric} gold fingerprint"));
+        }
+    }
+    assert_eq!(
+        reproduction.model_cassette_fingerprint, manifest.cassettes.model.fingerprint,
+        "model cassette fingerprint"
+    );
+    assert_eq!(
+        reproduction.result_cassette_fingerprint, manifest.cassettes.results.fingerprint,
+        "result cassette fingerprint"
+    );
     Ok(())
 }
 

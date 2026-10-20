@@ -18,19 +18,32 @@ pub struct Report {
     pub metrics: Metrics,
     pub gaps: Gaps,
     pub path_decision: PathDecision,
+    pub reproduction: Reproduction,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunReport {
     pub id: String,
     pub mode: RunMode,
-    pub command: String,
-    pub manifest_fingerprint: String,
-    /// Fingerprint of the recorded responses served by the replay boundary.
-    pub recording_fingerprint: String,
     /// External model requests attempted during the run. Replay reads only
     /// local cassettes, so this is zero.
     pub external_requests: u64,
+}
+
+/// Everything needed to reproduce the run from the fixed inputs without a
+/// candidate install or an external model call.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Reproduction {
+    pub command: String,
+    /// Shell prefix that selects the pinned toolchain and zlib path.
+    pub toolchain_prefix: String,
+    pub manifest_fingerprint: String,
+    /// Fingerprint per gold metric; the manifest is the source of truth.
+    pub gold_fingerprints: BTreeMap<String, String>,
+    pub model_cassette_fingerprint: String,
+    pub result_cassette_fingerprint: String,
+    pub candidate_install_required: bool,
+    pub external_model_calls: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
