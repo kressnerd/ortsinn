@@ -213,11 +213,33 @@
 
 ## S4 — Report compares concept recall with and without query expansion
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Report compares concept recall with and without query expansion
+     ✘  Given a candidate that supports disabling query expansion
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: none beyond the shared arm scoring added with
+    the S2 metric model; the S4 step definitions are in
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    7 steps (7 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
+    ```text
+    1 scenario (1 passed)
+    7 steps (7 passed)
+    EXIT=0
+    ```
   - Commit:
 - Design constraints: default concept 0.40 (2/5), no-expansion 0.20 (1/5);
   concept-equivalence 0.50 (2/4) and 0.25 (1/4); fixture-serena no-expansion

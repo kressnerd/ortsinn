@@ -47,7 +47,7 @@ Feature: Benchmark comparison
     And the report records the product-path decision as deferred
     And the report names the Ortsinn maintainer and the post-report decision record as the decision owner and artifact
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report compares concept recall with and without query expansion
     Given a candidate that supports disabling query expansion
     When the maintainer runs the benchmark in replay mode

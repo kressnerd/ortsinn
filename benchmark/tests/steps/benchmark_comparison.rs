@@ -427,3 +427,157 @@ fn path_decision_owner_and_artifact(world: &mut BenchmarkWorld) -> Result<(), St
     );
     Ok(())
 }
+
+#[given("a candidate that supports disabling query expansion")]
+fn a_candidate_supports_disabling_expansion(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_fixture(world)?;
+    let manifest = world
+        .manifest
+        .as_ref()
+        .ok_or("fixture manifest was not loaded")?;
+    let expansion_supported = manifest.candidates.iter().any(|candidate| {
+        candidate
+            .capabilities
+            .get("expansion")
+            .is_some_and(|capability| {
+                capability.status == benchmark::manifest::CapabilityStatus::Measured
+            })
+    });
+    if !expansion_supported {
+        return Err("fixture has no candidate with a query-expansion switch".into());
+    }
+    Ok(())
+}
+
+#[then(regex = r"^the concept recall for the default arm is ([\d.]+) with (\d+) of (\d+) tasks$")]
+fn concept_default_arm(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [value, numerator, denominator] = captures else {
+        return Err("concept default arm step needs three captures".into());
+    };
+    let score = &report(world).metrics.concept.arms.default.score;
+    check_value(
+        score
+            .value
+            .ok_or("concept default arm has no measured value")?,
+        value,
+        "concept default arm",
+    )?;
+    check_counts(
+        score.numerator,
+        score.denominator,
+        numerator,
+        denominator,
+        "concept default arm",
+    )
+}
+
+#[then(
+    regex = r"^the concept recall for the no-expansion arm is ([\d.]+) with (\d+) of (\d+) tasks$"
+)]
+fn concept_no_expansion_arm(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [value, numerator, denominator] = captures else {
+        return Err("concept no-expansion arm step needs three captures".into());
+    };
+    let score = &report(world).metrics.concept.arms.no_expansion.score;
+    check_value(
+        score
+            .value
+            .ok_or("concept no-expansion arm has no measured value")?,
+        value,
+        "concept no-expansion arm",
+    )?;
+    check_counts(
+        score.numerator,
+        score.denominator,
+        numerator,
+        denominator,
+        "concept no-expansion arm",
+    )
+}
+
+#[then(
+    regex = r"^the concept-equivalence recall for the default arm is ([\d.]+) with (\d+) of (\d+) variants$"
+)]
+fn concept_equivalence_default_arm(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [value, numerator, denominator] = captures else {
+        return Err("concept-equivalence default arm step needs three captures".into());
+    };
+    let score = &report(world).metrics.concept_equivalence.arms.default.score;
+    check_value(
+        score
+            .value
+            .ok_or("concept-equivalence default arm has no measured value")?,
+        value,
+        "concept-equivalence default arm",
+    )?;
+    check_counts(
+        score.numerator,
+        score.denominator,
+        numerator,
+        denominator,
+        "concept-equivalence default arm",
+    )
+}
+
+#[then(
+    regex = r"^the concept-equivalence recall for the no-expansion arm is ([\d.]+) with (\d+) of (\d+) variants$"
+)]
+fn concept_equivalence_no_expansion_arm(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [value, numerator, denominator] = captures else {
+        return Err("concept-equivalence no-expansion arm step needs three captures".into());
+    };
+    let score = &report(world)
+        .metrics
+        .concept_equivalence
+        .arms
+        .no_expansion
+        .score;
+    check_value(
+        score
+            .value
+            .ok_or("concept-equivalence no-expansion arm has no measured value")?,
+        value,
+        "concept-equivalence no-expansion arm",
+    )?;
+    check_counts(
+        score.numerator,
+        score.denominator,
+        numerator,
+        denominator,
+        "concept-equivalence no-expansion arm",
+    )
+}
+
+#[then(
+    regex = r#"^fixture-serena's no-expansion arm is not applicable with the reason "([^"]+)", not zero$"#
+)]
+fn serena_no_expansion_not_applicable(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [reason] = captures else {
+        return Err("serena no-expansion step needs one capture".into());
+    };
+    let cell = report(world)
+        .metrics
+        .concept
+        .arms
+        .no_expansion
+        .per_candidate
+        .get("fixture-serena")
+        .ok_or("report has no fixture-serena no-expansion cell")?;
+    assert_eq!(
+        cell.status,
+        benchmark::report::model::CellStatus::NotApplicable,
+        "fixture-serena no-expansion status"
+    );
+    assert_eq!(cell.reason.as_deref(), Some(reason.as_str()), "reason");
+    assert_eq!(cell.value, None, "not-applicable arm must not be zero");
+    Ok(())
+}
