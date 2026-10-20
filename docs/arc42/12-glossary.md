@@ -1,0 +1,74 @@
+# 12. Glossary
+
+<!-- Domain and technical terms used in this project. Entries are alphabetically
+     ordered. Use the same terms consistently throughout all documentation. -->
+
+## Ubiquitous language
+
+| Term | Definition | Contrast / anti-term |
+|---|---|---|
+| Benchmark | The reproducible measurement of pinned candidate tools against the acceptance criteria on fixed inputs, published as one report. | Product use case, not benchmark: the benchmark is a project gate outside product runtime; it changes no product behavior. |
+| Candidate | An external code-knowledge tool measured through its own documented interface at a pinned version and commit. | Dependency, not candidate: a candidate is measured and never linked into the product. |
+| Capability gap | A candidate's missing operation or support level, recorded with a reason (for example `no_explanation_operation` or CKB Rust Tier 3) and excluded from scoring. | Zero score, not capability gap: a gap states that a capability is absent; a zero would claim it was measured and failed. |
+| Cassette | A recorded JSONL file of normalized candidate results or raw model requests/responses, keyed by a canonical SHA-256 fingerprint. | Live run, not cassette: a cassette is evidence from one recorded run; a live run calls the candidate and the endpoint. |
+| Chunk | A retrievable text segment bounded by a symbol or a size limit. | Symbol, not chunk: a symbol is a named code entity; a chunk is a retrieval unit that may span or split symbols. |
+| Concept | A unit of meaning that several terms and identifiers may express (for example user, visitor, Benutzer, Besucher). | Term, not concept: a term is one spelling; a concept is the meaning several terms share. |
+| Concept equivalence | The measured property that different surface variants expressing one concept retrieve the same expected target. | Term equality, not concept equivalence: identical spelling is not required; equivalence is judged by the retrieved target. |
+| Concept vocabulary | The consistency boundary that maps each accepted term to at most one concept and records the evidence for each mapping. | Glossary, not concept vocabulary: the glossary is the persistent read model; the vocabulary enforces the mappings. |
+| Evidence | The file and line citation that backs an answer. | Explanation, not evidence: an explanation interprets; evidence is checkable in the repository. |
+| Fixed input | A pinned element of the comparison: repository and revision, synthetic seed and generator version, gold version and fingerprint, candidate version and commit, and the manifest itself. | Mutable input, not fixed input: an unpinned repository or version makes two runs incomparable. |
+| Freshness | A measure of how current the index is relative to the repositories. | Staleness, not freshness: stale is the boolean observation that a level lags. |
+| Glossary | The persistent read model of the concept vocabulary: each concept with its accepted terms, languages, identifiers, and evidence. | Concept vocabulary, not glossary: the vocabulary is the consistency boundary; the glossary is its read model. |
+| Gold set | The reviewed, versioned expected answers for one metric and repository, with a task count and a content fingerprint. | Proposal, not gold set: an unreviewed draft or model-generated task is not an expected answer. |
+| Impact | The transitive set of dependents affected by a change to a symbol. | Dependency, not impact: a dependency is one edge; impact is the reachable set under a direction. |
+| Index | The derived structure that answers queries over a workspace. | Workspace, not index: the workspace is the source set; the index is the rebuildable projection over it. |
+| Indexed file | The consistency boundary that keeps every symbol, chunk, and edge derived from one file tied to that file's current content hash. | Index, not indexed file: the index is the workspace-wide read model; the indexed file is the per-file consistency boundary. |
+| Measured gap | The signed difference between a measured value and its target (`value - target`), carrying a status and, for AC-01, `target_status: proposed`. | Zero, not measured gap: an unavailable or unmeasured cell has no gap value. |
+| Metric/task coverage | The share of gold tasks that produced a measurement: attempted divided by attempted plus unavailable, excluding not-applicable cells. | Code coverage, not metric/task coverage: code coverage counts instrumented lines; metric/task coverage counts scored tasks. |
+| Naming inconsistency | The state in which one concept is expressed by several terms without a declared mapping. | Synonymy, not inconsistency: synonyms are acceptable when the glossary declares them; inconsistency is undeclared variation. |
+| No-expansion arm | The same concept queries repeated with query expansion disabled, reported separately from the default arm. | Default arm, not no-expansion arm: the default arm uses the candidate's normal query expansion. |
+| Precision level | The stated basis of a navigation answer: precise (type-resolved) or syntactic (name-matched). | Confidence, not precision level: confidence is a score; precision level names the evidence source. |
+| Query expansion | The act of deriving additional search terms — synonyms, translations, identifier forms — from a query before retrieval. | Stemming, not expansion: stemming normalizes one word form; expansion adds different words. |
+| Recording boundary | The loopback OpenAI-compatible proxy through which every candidate model request passes; it records in record mode and serves recordings in replay. | Provider endpoint, not recording boundary: the boundary decides what is recorded; the provider only answers. |
+| Reference | An occurrence of a symbol at a location, either type-resolved or name-matched. | Definition, not reference: the definition introduces the symbol; a reference points at it. |
+| Replay | A run that reads recorded cassettes, starts no candidate, and makes no external model call. | Record, not replay: record mode starts candidates and forwards model calls to the local endpoint. |
+| Repository | One of the independent directory trees in a workspace. | Workspace, not repository: a workspace is the set the index spans; a repository is one member. |
+| Summary | An LLM-generated explanation of a symbol, file, module, or workspace, cached against a content hash and prompt version. | Evidence, not summary: evidence is a checkable location; a summary is an interpretation. |
+| Symbol | A named code entity (function, type, constant, field) with a definition location and a kind. | Chunk, not symbol: a chunk is a retrievable text segment. |
+| Term | One spelling used in a repository for a concept, in any language or identifier form. | Concept, not term: a concept is the meaning; a term is one spelling of it. |
+| Workspace | The set of independent repositories that one index covers. | Repository, not workspace: a repository is one source tree; a workspace is the set the index spans. |
+
+## Aggregates and boundaries
+
+| Aggregate | Invariant | Commands | Events |
+|---|---|---|---|
+| Indexed file | Every symbol, chunk, and edge derived from a file carries that file's current content hash; no entry points outside the file's line range; removing the file removes all its entries. | Index file; Remove file. | File indexed; File index failed; File removed from index. |
+| Concept vocabulary | Each accepted term maps to at most one concept; every mapping cites evidence; merging preserves all terms. | Declare concept; Map term; Merge concepts; Reject term. | Concept declared; Term mapped; Concepts merged; Term rejected. |
+
+The workspace is a configuration, not an aggregate. The index, symbol table,
+text index, vector index, dependency graph, precise index, freshness status,
+error list, glossary, and summary cache are read models or records. The
+repository, model endpoint, and precise indexer are external systems.
+
+## Invariants
+
+- A file's derived entries share one content hash; a partial file update is
+  never published.
+- A term maps to at most one concept; an accepted mapping cites evidence;
+  merging two concepts preserves all terms.
+- Observing use cases never change the repository or the index.
+- Removed or newly ignored content is purged before the index is marked fresh.
+- External transfer requires both offline mode off and endpoint permission.
+- A returned explanation carries at least one citation that resolves and is
+  relevant to the target.
+
+## Lifecycle events
+
+Workspace configured; Repository added; Ignore rule set; File change observed;
+File indexed; File index failed; File removed from index; Embeddings produced;
+Dependency edges updated; Precise index loaded; Index freshness changed; Index
+rebuilt; Concept candidates proposed; Concept declared; Term mapped; Concepts
+merged; Term rejected; Naming inconsistency detected; Question asked; Query
+expanded; Candidates retrieved; Results fused; Answer delivered; Evidence
+cited; Summary generated; Summary invalidated; Impact requested; Impact
+assessed.
