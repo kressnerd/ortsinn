@@ -66,7 +66,7 @@
   - Targeted S1: `GIVN_FEATURES=<feature> cargo test --test benchmark_features
     -- --name "^Report identifies every candidate and fixed repository revision$"`
     → `S1_RED_EXIT=101`; `1 scenario (1 failed)`; `not implemented`.
-  - Commit: pending
+  - Commit: e5e77f7d962cbfc2cf2526fa0f3264f33d0b6b24
 
 ## S1 — Report identifies every candidate and fixed repository revision
 
