@@ -309,6 +309,22 @@ pub fn file_fingerprint(path: &Path) -> Result<String> {
     Ok(format!("sha256:{}", hex(&digest)))
 }
 
+/// Require a committed fixed input to match its declared digest. The label
+/// names the input (for example `gold set fixture-repo typo` or
+/// `result cassette`); the error carries the path, the declared value, and
+/// the actual value.
+pub fn ensure_declared_fingerprint(path: &Path, declared: &str, label: &str) -> Result<String> {
+    let actual = file_fingerprint(path)?;
+    anyhow::ensure!(
+        actual == declared,
+        "{label} fingerprint mismatch for {}: expected {}, actual {}",
+        path.display(),
+        declared,
+        actual
+    );
+    Ok(actual)
+}
+
 pub fn hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
