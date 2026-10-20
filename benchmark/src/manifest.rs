@@ -157,6 +157,10 @@ pub struct IndexRecord {
     pub repository: String,
     pub status: String,
     pub seconds: f64,
+    /// The effective deadline applied to this index, in seconds, so a
+    /// timeout can be audited from the report.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline_seconds: Option<u64>,
     #[serde(default)]
     pub reason: Option<String>,
 }
@@ -294,6 +298,15 @@ impl Manifest {
             .unwrap_or_else(|| Path::new("."))
             .to_path_buf()
     }
+}
+
+/// Content fingerprint of a fixed input file, in the report's `sha256:<hex>`
+/// shape. Gold files and committed cassettes declare this value in the
+/// manifest, and the loader compares it before scoring.
+pub fn file_fingerprint(path: &Path) -> Result<String> {
+    let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
+    let digest = Sha256::digest(&bytes);
+    Ok(format!("sha256:{}", hex(&digest)))
 }
 
 pub fn hex(bytes: &[u8]) -> String {

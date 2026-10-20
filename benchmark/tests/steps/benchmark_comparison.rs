@@ -2007,6 +2007,38 @@ fn candidate_unavailable_on_repository(
     Ok(())
 }
 
+#[then(regex = r"^the report records the applied index deadline of (\d+) seconds?$")]
+fn report_records_applied_deadline(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [deadline] = captures else {
+        return Err("applied-deadline step needs one capture".into());
+    };
+    let expected: u64 = deadline
+        .parse()
+        .map_err(|error| format!("parse applied deadline: {error}"))?;
+    let index = candidate_report(world, "fixture-timeout")?
+        .setup
+        .indexes
+        .first()
+        .ok_or("fixture-timeout records no index outcome")?;
+    assert_eq!(
+        index.deadline_seconds,
+        Some(expected),
+        "applied index deadline"
+    );
+    let markdown = fs::read_to_string(world.out_dir.join("report.md"))
+        .map_err(|error| format!("read report.md: {error}"))?;
+    let rendered = format!("{expected}s deadline");
+    if !markdown.contains(&rendered) {
+        return Err(format!(
+            "report.md does not state the applied deadline `{rendered}`"
+        ));
+    }
+    Ok(())
+}
+
 #[then("the report records the elapsed index time")]
 fn report_records_elapsed_index_time(world: &mut BenchmarkWorld) -> Result<(), String> {
     let deadline = world

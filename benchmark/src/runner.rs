@@ -378,6 +378,7 @@ fn recorded_setup(manifest: &Manifest, candidate: &Candidate) -> CandidateSetup 
         return setup;
     };
     for index in &mut setup.indexes {
+        index.deadline_seconds = Some(deadline);
         if index.seconds > deadline as f64 {
             index.status = "timed_out".to_string();
             index.reason = Some("index_timeout".to_string());

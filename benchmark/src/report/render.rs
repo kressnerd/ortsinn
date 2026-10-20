@@ -114,11 +114,16 @@ pub fn markdown(report: &Report) -> String {
             candidate.setup.git_metadata
         ));
         for index in &candidate.setup.indexes {
+            let deadline = index
+                .deadline_seconds
+                .map(|deadline| format!(" of a {deadline}s deadline"))
+                .unwrap_or_default();
             out.push_str(&format!(
-                "  - Index `{}`: {} in {:.2}s{}\n",
+                "  - Index `{}`: {} in {:.2}s{}{}\n",
                 index.repository,
                 index.status,
                 index.seconds,
+                deadline,
                 index
                     .reason
                     .as_ref()
