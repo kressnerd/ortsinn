@@ -7,6 +7,7 @@ repositories:
     revision: fixture-1
     commit: "1111111111111111111111111111111111111111"
     language: python
+    checkout: repo
     loc:
       language_code_lines: 120
       total_code_lines: 120

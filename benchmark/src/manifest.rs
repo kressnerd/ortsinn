@@ -39,6 +39,9 @@ pub struct Repository {
     pub commit: String,
     pub language: String,
     pub loc: LineCount,
+    /// Path to the fixed checkout, relative to the manifest directory. Gold
+    /// tasks are validated against this checkout before any score runs.
+    pub checkout: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

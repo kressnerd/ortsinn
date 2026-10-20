@@ -1,7 +1,7 @@
 //! Gold-set loading. The fixture gold files are committed and fixed.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -64,19 +64,46 @@ impl Gold {
             sets: manifest.gold.clone(),
         };
         for set in &manifest.gold {
+            let repository = manifest.repository(&set.repository).with_context(|| {
+                format!(
+                    "gold set {} names repository {}, which the manifest does not fix",
+                    set.metric, set.repository
+                )
+            })?;
+            let root = base.join(&repository.checkout);
+            anyhow::ensure!(
+                root.is_dir(),
+                "gold validation: checkout {} for repository {} does not exist",
+                root.display(),
+                repository.id
+            );
             let path = base.join(&set.path);
+            let label = format!("{} {}", repository.id, set.metric);
             match set.metric.as_str() {
-                "typo" => gold.typo = read_tasks(&path)?,
-                "natural_language" => gold.natural_language = read_tasks(&path)?,
-                "explanation" => gold.explanation = read_explanation(&path)?,
+                "typo" => {
+                    let tasks: Vec<GoldTask> = read_tasks(&path)?;
+                    validate_task_locations(&root, &tasks, &label)?;
+                    gold.typo = tasks;
+                }
+                "natural_language" => {
+                    let tasks: Vec<GoldTask> = read_tasks(&path)?;
+                    validate_task_locations(&root, &tasks, &label)?;
+                    gold.natural_language = tasks;
+                }
+                "explanation" => {
+                    let tasks: Vec<ExplanationTask> = read_explanation(&path)?;
+                    validate_explanation_locations(&root, &tasks, &label)?;
+                    gold.explanation = tasks;
+                }
                 "concept" => {
                     let entries: Vec<ConceptEntry> = read_jsonl(&path)?;
-                    for entry in entries {
+                    for entry in &entries {
                         let task = GoldTask {
-                            id: entry.id,
-                            query: entry.query,
-                            expected: entry.expected,
+                            id: entry.id.clone(),
+                            query: entry.query.clone(),
+                            expected: entry.expected.clone(),
                         };
+                        validate_task_locations(&root, std::slice::from_ref(&task), &label)?;
                         if entry.equivalence {
                             gold.concept_equivalence.push(task);
                         } else {
@@ -117,6 +144,104 @@ impl Gold {
         );
         Ok(gold)
     }
+}
+
+/// Every expected target must exist at the fixed checkout and its line range
+/// must fall inside the file. A task that cites a missing path or an
+/// out-of-range line fails the run before any score is computed.
+fn validate_task_locations(root: &Path, tasks: &[GoldTask], label: &str) -> Result<()> {
+    for task in tasks {
+        for location in &task.expected {
+            validate_location(root, location, &format!("{label} task {}", task.id))?;
+        }
+    }
+    Ok(())
+}
+
+/// The explanation rubric cites a target and an acceptable-evidence range in
+/// that target's file; both must be inside the fixed checkout.
+fn validate_explanation_locations(
+    root: &Path,
+    tasks: &[ExplanationTask],
+    label: &str,
+) -> Result<()> {
+    for task in tasks {
+        let context = format!("{label} task {}", task.id);
+        let path = validate_location(root, &task.target, &context)?;
+        let lines = line_count(&path)?;
+        for range in &task.acceptable_evidence {
+            anyhow::ensure!(
+                range.start_line >= 1 && range.end_line >= range.start_line,
+                "{context}: acceptable evidence range {}..={} is not ordered",
+                range.start_line,
+                range.end_line
+            );
+            anyhow::ensure!(
+                u64::from(range.end_line) <= lines,
+                "{context}: acceptable evidence range {}..={} exceeds {} lines",
+                range.start_line,
+                range.end_line,
+                lines
+            );
+        }
+    }
+    Ok(())
+}
+
+fn validate_location(
+    root: &Path,
+    location: &NormalizedLocation,
+    context: &str,
+) -> Result<PathBuf> {
+    anyhow::ensure!(
+        location.start_line >= 1,
+        "{context}: gold path {} start line must be at least 1",
+        location.path
+    );
+    anyhow::ensure!(
+        location.end_line >= location.start_line,
+        "{context}: gold path {} line range {}..={} is not ordered",
+        location.path,
+        location.start_line,
+        location.end_line
+    );
+    let relative = Path::new(&location.path);
+    anyhow::ensure!(
+        !relative.is_absolute()
+            && relative
+                .components()
+                .all(|component| matches!(component, Component::Normal(_))),
+        "{context}: gold path {} must stay inside the checkout",
+        location.path
+    );
+    let canonical_root = root
+        .canonicalize()
+        .with_context(|| format!("{context}: canonicalize checkout {}", root.display()))?;
+    let canonical = root
+        .join(relative)
+        .canonicalize()
+        .with_context(|| format!("{context}: gold path {} does not exist at the fixed checkout", location.path))?;
+    anyhow::ensure!(
+        canonical.starts_with(&canonical_root),
+        "{context}: gold path {} resolves outside the checkout",
+        location.path
+    );
+    let lines = line_count(&canonical)?;
+    anyhow::ensure!(
+        u64::from(location.end_line) <= lines,
+        "{context}: gold path {} line range {}..={} exceeds {} lines",
+        location.path,
+        location.start_line,
+        location.end_line,
+        lines
+    );
+    Ok(canonical)
+}
+
+fn line_count(path: &Path) -> Result<u64> {
+    let text = fs::read_to_string(path)
+        .with_context(|| format!("read gold target {}", path.display()))?;
+    Ok(text.lines().count() as u64)
 }
 
 fn read_tasks(path: &Path) -> Result<Vec<GoldTask>> {

@@ -816,6 +816,7 @@ fn missing_response_fixture(world: &mut BenchmarkWorld) -> Result<(), String> {
     fs::create_dir_all(root.join("cassettes/model"))
         .map_err(|error| format!("create missing-response fixture: {error}"))?;
     copy_tree(&fixture.join("gold"), &root.join("gold"))?;
+    copy_tree(&fixture.join("repo"), &root.join("repo"))?;
     fs::copy(
         fixture.join("cassettes/results/results.jsonl"),
         root.join("cassettes/results/results.jsonl"),
@@ -1432,6 +1433,7 @@ fn a_fixture_manifest_with_commit(
     }
     copy_tree(&fixture.join("gold"), &root.join("gold"))?;
     copy_tree(&fixture.join("cassettes"), &root.join("cassettes"))?;
+    copy_tree(&fixture.join("repo"), &root.join("repo"))?;
     let manifest = fs::read_to_string(fixture.join("manifest.yaml"))
         .map_err(|error| format!("read fixture manifest: {error}"))?;
     if !manifest.contains(FIXED_REPOSITORY_COMMIT) {
@@ -1483,6 +1485,7 @@ fn fixture_unstartable(world: &mut BenchmarkWorld) -> Result<(), String> {
     }
     copy_tree(&fixture.join("gold"), &root.join("gold"))?;
     copy_tree(&fixture.join("cassettes"), &root.join("cassettes"))?;
+    copy_tree(&fixture.join("repo"), &root.join("repo"))?;
 
     let text = fs::read_to_string(fixture.join("manifest.yaml"))
         .map_err(|error| format!("read fixture manifest: {error}"))?;
@@ -1833,6 +1836,7 @@ fn variant_fixture_root(name: &str) -> Result<PathBuf, String> {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/e2e");
     copy_tree(&fixture.join("gold"), &root.join("gold"))?;
     copy_tree(&fixture.join("cassettes"), &root.join("cassettes"))?;
+    copy_tree(&fixture.join("repo"), &root.join("repo"))?;
     Ok(root)
 }
 
@@ -2212,8 +2216,13 @@ fn gaps_not_rendered_as_zero(world: &mut BenchmarkWorld) -> Result<(), String> {
     }
     let markdown = fs::read_to_string(world.out_dir.join("report.md"))
         .map_err(|error| format!("read report.md: {error}"))?;
-    if !markdown.contains("typo_recall_at_1 to target: unavailable (no_measured_candidate)") {
-        return Err("report.md does not render the typo to-target gap as unavailable".into());
+    for expected in [
+        "typo_recall_at_1 to target: unavailable (no_measured_candidate)",
+        "typo_recall_at_1 best measured: unavailable (no_measured_candidate)",
+    ] {
+        if !markdown.contains(expected) {
+            return Err(format!("report.md does not render `{expected}`"));
+        }
     }
     Ok(())
 }
