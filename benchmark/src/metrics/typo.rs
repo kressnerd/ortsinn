@@ -13,6 +13,7 @@ use crate::report::model::{Score, TypoMetric};
 pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Result<TypoMetric> {
     let tasks = gold.typo.len() as u64;
     let mut per_candidate = BTreeMap::new();
+    let mut recall_at_5_per_candidate = BTreeMap::new();
     let mut cells = Vec::new();
     let mut at_1 = 0u64;
     let mut at_5 = 0u64;
@@ -22,6 +23,7 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
         let capability = capability(candidate, "typo");
         if let Some(cell) = unmeasured_cell(capability, tasks) {
             per_candidate.insert(candidate.id.clone(), cell.clone());
+            recall_at_5_per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
         }
@@ -42,6 +44,10 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
         at_5 += candidate_at_5;
         let cell = Score::measured(candidate_at_1, tasks, tasks, 0);
         per_candidate.insert(candidate.id.clone(), cell.clone());
+        recall_at_5_per_candidate.insert(
+            candidate.id.clone(),
+            Score::measured(candidate_at_5, tasks, tasks, 0),
+        );
         cells.push(cell);
     }
 
@@ -52,5 +58,6 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
         aggregate: aggregate_cell,
         recall_at_5,
         per_candidate,
+        recall_at_5_per_candidate,
     })
 }

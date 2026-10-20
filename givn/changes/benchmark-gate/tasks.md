@@ -175,11 +175,37 @@
 
 ## S3 — Report states measured gaps without a pre-registered build threshold
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Report states measured gaps without a pre-registered build threshold
+     ✔  Given the fixture benchmark inputs
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✘  Then the typo recall at rank one shows a gap of -0.30 to the target 0.90
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    3 steps (2 passed, 1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/metrics/gaps.rs`,
+    `benchmark/src/metrics/mod.rs`, `benchmark/src/metrics/typo.rs`,
+    `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`,
+    `benchmark/src/runner.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    8 steps (8 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
+    ```text
+    1 scenario (1 passed)
+    8 steps (8 passed)
+    EXIT=0
+    ```
   - Commit:
 - Design constraints: typo @1 gap -0.30 to a **proposed** 0.90; never
   "confirmed"; NL/concept show measured and best values; `path_decision`

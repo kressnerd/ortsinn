@@ -36,7 +36,7 @@ Feature: Benchmark comparison
     And the concept recall at rank five is 0.40 with 2 of 5 tasks
     And the concept-equivalence recall at rank five is 0.50 with 2 of 4 variants
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report states measured gaps without a pre-registered build threshold
     Given the fixture benchmark inputs
     When the maintainer runs the benchmark in replay mode

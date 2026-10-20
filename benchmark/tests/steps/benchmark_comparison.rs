@@ -275,3 +275,155 @@ fn concept_equivalence_recall_at_five(
         "concept-equivalence recall @5",
     )
 }
+
+#[then(regex = r"^the typo recall at rank one shows a gap of (-?[\d.]+) to the target ([\d.]+)$")]
+fn typo_gap_to_target(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [gap, target] = captures else {
+        return Err("typo gap step needs two captures".into());
+    };
+    let report = report(world);
+    let measured_target = report
+        .metrics
+        .typo
+        .target
+        .value
+        .ok_or("typo target is not stated")?;
+    check_value(measured_target, target, "typo target")?;
+    let entry = report
+        .gaps
+        .to_target
+        .get("typo_recall_at_1")
+        .ok_or("report has no typo to-target gap")?;
+    check_value(
+        entry.value.ok_or("typo to-target gap has no value")?,
+        gap,
+        "typo to-target gap",
+    )?;
+    if entry.status != benchmark::report::model::CellStatus::Measured {
+        return Err(format!("typo to-target gap is {:?}", entry.status));
+    }
+    Ok(())
+}
+
+#[then(regex = r#"^the report labels the ([\d.]+) target "([^"]+)" and never "([^"]+)"$"#)]
+fn target_label(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    let [value, label, forbidden] = captures else {
+        return Err("target label step needs three captures".into());
+    };
+    let target = &report(world).metrics.typo.target;
+    check_value(
+        target.value.ok_or("typo target has no value")?,
+        value,
+        "target value",
+    )?;
+    let actual = match target.status {
+        benchmark::manifest::TargetStatus::Proposed => "proposed",
+        benchmark::manifest::TargetStatus::Confirmed => "confirmed",
+        benchmark::manifest::TargetStatus::Unstated => "unstated",
+    };
+    assert_eq!(actual, label, "target status");
+    if actual == forbidden {
+        return Err(format!("target must never be labelled {forbidden}"));
+    }
+    let gap = report(world)
+        .gaps
+        .to_target
+        .get("typo_recall_at_1")
+        .ok_or("report has no typo to-target gap")?;
+    assert_eq!(
+        gap.target_status,
+        Some(benchmark::manifest::TargetStatus::Proposed),
+        "gap target status"
+    );
+    Ok(())
+}
+
+#[then(
+    regex = r"^the natural-language recall at rank five shows its measured value ([\d.]+) and the best measured value ([\d.]+)$"
+)]
+fn natural_language_measured_and_best(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [measured, best] = captures else {
+        return Err("NL measured/best step needs two captures".into());
+    };
+    let report = report(world);
+    check_value(
+        report
+            .metrics
+            .natural_language
+            .aggregate
+            .value
+            .ok_or("NL recall has no measured value")?,
+        measured,
+        "NL measured value",
+    )?;
+    let gap = report
+        .gaps
+        .to_best
+        .get("natural_language_recall_at_5")
+        .ok_or("report has no NL to-best gap")?;
+    check_value(
+        gap.best_value.ok_or("NL to-best gap has no best value")?,
+        best,
+        "NL best measured value",
+    )
+}
+
+#[then(
+    regex = r"^the concept recall at rank five shows its measured value ([\d.]+) and the best measured value ([\d.]+)$"
+)]
+fn concept_measured_and_best(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [measured, best] = captures else {
+        return Err("concept measured/best step needs two captures".into());
+    };
+    let report = report(world);
+    check_value(
+        report
+            .metrics
+            .concept
+            .aggregate
+            .value
+            .ok_or("concept recall has no measured value")?,
+        measured,
+        "concept measured value",
+    )?;
+    let gap = report
+        .gaps
+        .to_best
+        .get("concept_recall_at_5")
+        .ok_or("report has no concept to-best gap")?;
+    check_value(
+        gap.best_value
+            .ok_or("concept to-best gap has no best value")?,
+        best,
+        "concept best measured value",
+    )
+}
+
+#[then("the report records the product-path decision as deferred")]
+fn path_decision_deferred(world: &mut BenchmarkWorld) -> Result<(), String> {
+    assert_eq!(
+        report(world).path_decision.status,
+        benchmark::report::model::PathDecisionStatus::Deferred,
+        "path decision status"
+    );
+    Ok(())
+}
+
+#[then(
+    "the report names the Ortsinn maintainer and the post-report decision record as the decision owner and artifact"
+)]
+fn path_decision_owner_and_artifact(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let decision = &report(world).path_decision;
+    assert_eq!(decision.owner, "maintainer--ortsinn", "decision owner");
+    assert_eq!(
+        decision.artifact, "docs/decisions/benchmark-path.md",
+        "decision artifact"
+    );
+    Ok(())
+}

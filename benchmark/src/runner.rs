@@ -10,7 +10,8 @@ use crate::manifest::{Manifest, RunMode};
 use crate::metrics;
 use crate::record::cassette::ResultCassette;
 use crate::report::model::{
-    CandidateReport, Inputs, LineCountReport, Report, RepositoryReport, RunReport, SCHEMA_VERSION,
+    CandidateReport, Inputs, LineCountReport, PathDecision, PathDecisionStatus, Report,
+    RepositoryReport, RunReport, SCHEMA_VERSION,
 };
 use crate::report::render;
 
@@ -26,6 +27,7 @@ pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     let gold = Gold::load(&manifest, &base)?;
     let cassette = ResultCassette::load(&base.join(&manifest.cassettes.results.path))?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
+    let gaps = metrics::gaps::compute(&metrics);
 
     let command = format!(
         "benchmark run --manifest {} --mode replay --out {}",
@@ -73,6 +75,13 @@ pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
             })
             .collect(),
         metrics,
+        gaps,
+        path_decision: PathDecision {
+            status: PathDecisionStatus::Deferred,
+            owner: "maintainer--ortsinn".to_string(),
+            artifact: "docs/decisions/benchmark-path.md".to_string(),
+            rule: "decide after the report; no pre-registered build threshold".to_string(),
+        },
     };
 
     render::write_reports(&report, out_dir)

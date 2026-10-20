@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::manifest::{RunMode, Target};
+use crate::manifest::{RunMode, Target, TargetStatus};
 
 pub const SCHEMA_VERSION: u32 = 1;
 
@@ -16,6 +16,8 @@ pub struct Report {
     pub inputs: Inputs,
     pub candidates: Vec<CandidateReport>,
     pub metrics: Metrics,
+    pub gaps: Gaps,
+    pub path_decision: PathDecision,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,6 +174,7 @@ pub struct TypoMetric {
     pub aggregate: Score,
     pub recall_at_5: Score,
     pub per_candidate: BTreeMap<String, Score>,
+    pub recall_at_5_per_candidate: BTreeMap<String, Score>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,4 +208,37 @@ pub struct Metrics {
     pub explanation: ExplanationMetric,
     pub concept: ConceptMetric,
     pub concept_equivalence: ConceptMetric,
+}
+
+/// A measured or unavailable gap. `value` is absent exactly when the gap is
+/// unavailable or not applicable; it is never rendered as zero.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Gap {
+    pub value: Option<f64>,
+    pub status: CellStatus,
+    pub reason: Option<String>,
+    pub target_status: Option<TargetStatus>,
+    pub best_candidate: Option<String>,
+    pub best_value: Option<f64>,
+    pub deltas: BTreeMap<String, f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Gaps {
+    pub to_target: BTreeMap<String, Gap>,
+    pub to_best: BTreeMap<String, Gap>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PathDecisionStatus {
+    Deferred,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PathDecision {
+    pub status: PathDecisionStatus,
+    pub owner: String,
+    pub artifact: String,
+    pub rule: String,
 }

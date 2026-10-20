@@ -5,6 +5,7 @@
 pub mod common;
 pub mod concept;
 pub mod explanation;
+pub mod gaps;
 pub mod natural_language;
 pub mod typo;
 

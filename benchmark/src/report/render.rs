@@ -61,6 +61,9 @@ fn render_metrics(out: &mut String, report: &Report) {
     let metrics = &report.metrics;
     out.push_str("## Typo recall\n\n");
     score_line(out, "Typo recall @1", &metrics.typo.aggregate);
+    if metrics.typo.target.status == crate::manifest::TargetStatus::Proposed {
+        out.push_str("- Typo recall @1 target is the proposed target 0.90 (not confirmed)\n");
+    }
     score_line(out, "Typo recall @5", &metrics.typo.recall_at_5);
     out.push('\n');
     out.push_str("## Natural-language retrieval\n\n");
@@ -87,6 +90,39 @@ fn render_metrics(out: &mut String, report: &Report) {
         &metrics.concept_equivalence.aggregate,
     );
     out.push('\n');
+    out.push_str("## Measured gaps\n\n");
+    for (name, gap) in &report.gaps.to_target {
+        match gap.value {
+            Some(value) => out.push_str(&format!("- {name} to target: {value:+.2}\n")),
+            None => out.push_str(&format!(
+                "- {name} to target: {} ({})\n",
+                gap_status(gap.status),
+                gap.reason.as_deref().unwrap_or("no reason")
+            )),
+        }
+    }
+    for (name, gap) in &report.gaps.to_best {
+        if let Some(best) = &gap.best_candidate {
+            out.push_str(&format!(
+                "- {name} best measured: {} ({:.2})\n",
+                best,
+                gap.best_value.unwrap_or_default()
+            ));
+        }
+    }
+    out.push('\n');
+    out.push_str("## Path decision\n\n");
+    out.push_str(&format!(
+        "- Status: `{:?}`\n- Owner: `{}`\n- Artifact: `{}`\n- Rule: {}\n",
+        report.path_decision.status,
+        report.path_decision.owner,
+        report.path_decision.artifact,
+        report.path_decision.rule
+    ));
+}
+
+fn gap_status(status: super::model::CellStatus) -> &'static str {
+    status_label(status)
 }
 
 fn score_line(out: &mut String, label: &str, score: &Score) {
@@ -104,8 +140,12 @@ fn score_line(out: &mut String, label: &str, score: &Score) {
 }
 
 fn status(score: &Score) -> &'static str {
+    status_label(score.status)
+}
+
+fn status_label(status: super::model::CellStatus) -> &'static str {
     use super::model::CellStatus;
-    match score.status {
+    match status {
         CellStatus::Measured => "measured",
         CellStatus::Unavailable => "unavailable",
         CellStatus::NotApplicable => "not applicable",
