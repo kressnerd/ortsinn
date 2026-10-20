@@ -264,17 +264,14 @@ fn cassette_identity(
     local: bool,
     layer: &str,
 ) -> Result<String> {
-    let actual = cassette::fingerprint(path)?;
-    if !local {
-        anyhow::ensure!(
-            actual == declared.fingerprint,
-            "{layer} cassette fingerprint mismatch for {}: expected {}, actual {}",
-            path.display(),
-            declared.fingerprint,
-            actual
-        );
+    if local {
+        return cassette::fingerprint(path);
     }
-    Ok(actual)
+    crate::manifest::ensure_declared_fingerprint(
+        path,
+        &declared.fingerprint,
+        &format!("{layer} cassette"),
+    )
 }
 
 fn write_jsonl<T: serde::Serialize>(path: &Path, entries: impl Iterator<Item = T>) -> Result<()> {
