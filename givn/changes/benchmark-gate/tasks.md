@@ -851,7 +851,7 @@
     6 steps (6 passed)
     EXIT=0
     ```
-  - Commit:
+  - Commit: `b10d24201af038465c880aab0dce6e78eacaaf6d`
 - Design constraints: typo `to_best` and `to_target` status `unavailable`,
   reason `no_measured_candidate`; no zero; report complete.
 
