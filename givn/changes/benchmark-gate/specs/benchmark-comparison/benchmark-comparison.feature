@@ -172,7 +172,7 @@ Feature: Benchmark comparison
     And the report states a query error total of 1 separately from the recall value
     And the errored query is counted as a miss and not as an unavailable task
 
-  @givn.added @wip
+  @givn.added
   Scenario: A metric with no measured candidate reports an unavailable gap
     Given a fixture run where every typo candidate is unavailable
     When the maintainer runs the benchmark in replay mode

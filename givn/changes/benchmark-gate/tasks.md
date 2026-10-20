@@ -815,11 +815,42 @@
 
 ## S18 — A metric with no measured candidate reports an unavailable gap
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: A metric with no measured candidate reports an unavailable gap
+     ✘  Given a fixture run where every typo candidate is unavailable
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: none; the S3/S5 gap model already carries an
+    unavailable gap without a numeric value. Step definitions only:
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    Scenario: A metric with no measured candidate reports an unavailable gap
+     ✔  Given a fixture run where every typo candidate is unavailable
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then the typo to-best gap has status "unavailable" with the reason "no_measured_candidate"
+     ✔  And the typo to-target gap has status "unavailable" with the reason "no_measured_candidate"
+     ✔  And neither gap value is rendered as zero
+     ✔  And the report is still published as complete
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
+    ```text
+    1 scenario (1 passed)
+    6 steps (6 passed)
+    EXIT=0
+    ```
   - Commit:
 - Design constraints: typo `to_best` and `to_target` status `unavailable`,
   reason `no_measured_candidate`; no zero; report complete.

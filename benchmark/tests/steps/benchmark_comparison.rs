@@ -2115,3 +2115,133 @@ fn errored_query_is_a_miss(world: &mut BenchmarkWorld) -> Result<(), String> {
     assert_eq!(cell.value, Some(0.5), "recall after the error");
     Ok(())
 }
+
+#[given("a fixture run where every typo candidate is unavailable")]
+fn every_typo_candidate_unavailable(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-no-typo-candidate")?;
+    let mut manifest = read_fixture_manifest()?;
+    let unavailable: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str("{status: unavailable, reason: no_symbol_search}")
+            .map_err(|error| format!("parse typo capability: {error}"))?;
+    for candidate in manifest
+        .get_mut("candidates")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no candidates sequence")?
+    {
+        let capabilities = candidate
+            .get_mut("capabilities")
+            .and_then(serde_yaml_ng::Value::as_mapping_mut)
+            .ok_or("fixture candidate has no capabilities mapping")?;
+        capabilities.insert(
+            serde_yaml_ng::Value::String("typo".to_string()),
+            unavailable.clone(),
+        );
+    }
+    let path = write_variant_manifest(&root, &manifest)?;
+    world.manifest_path = path;
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then(regex = r#"^the typo to-(best|target) gap has status "([^"]+)" with the reason "([^"]+)"$"#)]
+fn typo_gap_status(world: &mut BenchmarkWorld, captures: &[String]) -> Result<(), String> {
+    use benchmark::report::model::CellStatus;
+
+    let [kind, status, reason] = captures else {
+        return Err("typo gap status step needs three captures".into());
+    };
+    let gaps = &report(world).gaps;
+    let gap = match kind.as_str() {
+        "best" => gaps.to_best.get("typo_recall_at_1"),
+        "target" => gaps.to_target.get("typo_recall_at_1"),
+        other => return Err(format!("unknown gap kind {other}")),
+    }
+    .ok_or_else(|| format!("report has no typo to-{kind} gap"))?;
+    let expected_status = match status.as_str() {
+        "unavailable" => CellStatus::Unavailable,
+        "measured" => CellStatus::Measured,
+        "not_applicable" => CellStatus::NotApplicable,
+        other => return Err(format!("unknown gap status {other}")),
+    };
+    assert_eq!(gap.status, expected_status, "gap status");
+    assert_eq!(gap.reason.as_deref(), Some(reason.as_str()), "gap reason");
+    if expected_status == CellStatus::Unavailable {
+        assert_eq!(gap.value, None, "typo to-{kind} gap value");
+    }
+    Ok(())
+}
+
+#[then("neither gap value is rendered as zero")]
+fn gaps_not_rendered_as_zero(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let gaps = &report(world).gaps;
+    for (label, gap) in [
+        ("to-best", gaps.to_best.get("typo_recall_at_1")),
+        ("to-target", gaps.to_target.get("typo_recall_at_1")),
+    ] {
+        let gap = gap.ok_or_else(|| format!("report has no typo {label} gap"))?;
+        if gap.value.is_some() {
+            return Err(format!(
+                "typo {label} gap carries a numeric value without a measured candidate"
+            ));
+        }
+    }
+    let json: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(world.out_dir.join("report.json"))
+            .map_err(|error| format!("read report.json: {error}"))?,
+    )
+    .map_err(|error| format!("parse report.json: {error}"))?;
+    for path in [
+        &["gaps", "to_best", "typo_recall_at_1", "value"][..],
+        &["gaps", "to_target", "typo_recall_at_1", "value"][..],
+    ] {
+        let mut value = &json;
+        for key in path {
+            value = value
+                .get(key)
+                .ok_or_else(|| format!("report.json has no {}", path.join(".")))?;
+        }
+        if !value.is_null() {
+            return Err(format!(
+                "report.json renders {} as {value}, not null",
+                path.join(".")
+            ));
+        }
+    }
+    let markdown = fs::read_to_string(world.out_dir.join("report.md"))
+        .map_err(|error| format!("read report.md: {error}"))?;
+    if !markdown.contains("typo_recall_at_1 to target: unavailable (no_measured_candidate)") {
+        return Err("report.md does not render the typo to-target gap as unavailable".into());
+    }
+    Ok(())
+}
+
+#[then("the report is still published as complete")]
+fn report_published_as_complete(world: &mut BenchmarkWorld) -> Result<(), String> {
+    use benchmark::report::model::CellStatus;
+
+    let json_path = world.out_dir.join("report.json");
+    let md_path = world.out_dir.join("report.md");
+    for path in [&json_path, &md_path] {
+        if !path.exists() {
+            return Err(format!("report was not published at {}", path.display()));
+        }
+    }
+    let json: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&json_path).map_err(|error| format!("read report.json: {error}"))?,
+    )
+    .map_err(|error| format!("parse report.json: {error}"))?;
+    if json["schema_version"].as_u64() != Some(u64::from(benchmark::report::model::SCHEMA_VERSION))
+    {
+        return Err("report.json is not a complete schema-versioned report".into());
+    }
+    if json["metrics"]["typo"]["aggregate"]["status"] != "unavailable" {
+        return Err("typo aggregate is not marked unavailable".into());
+    }
+    let typo = &report(world).metrics.typo.aggregate;
+    assert_eq!(
+        typo.status,
+        CellStatus::Unavailable,
+        "typo aggregate status"
+    );
+    Ok(())
+}
