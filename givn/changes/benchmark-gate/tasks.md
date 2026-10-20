@@ -431,12 +431,37 @@
 
 ## S10 — Report states metric and task coverage with denominators
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Report states metric and task coverage with denominators
+     ✔  Given the fixture benchmark inputs
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✘  Then the typo coverage is 5 of 5 with a value of 1.0
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    3 steps (2 passed, 1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/report/render.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`. The per-candidate
+    `attempted`, `unavailable`, and `coverage` fields already existed on
+    `Score` from the S2/S5 model; this step exercises every cell.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    9 steps (9 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
-  - Commit:
+    ```text
+    1 scenario (1 passed)
+    9 steps (9 passed)
+    EXIT=0
+    ```
+  - Commit: `54013e22c382c2edcf78e197c248f6c71dd74c73`
 - Design constraints: typo 5/5 = 1.0; NL 4/8 = 0.5; explanation 4/8 = 0.5;
   concept 5/5 = 1.0; concept-equivalence 4/4 = 1.0; ckb explanation 4/4,
   ocbi 0/4; formula attempted / (attempted + unavailable), excluding
