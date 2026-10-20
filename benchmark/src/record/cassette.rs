@@ -5,11 +5,12 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::adapters::{ExplanationResponse, NormalizedLocation};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RecordedResult {
     pub candidate: String,
     pub repository: String,
@@ -19,23 +20,23 @@ pub struct RecordedResult {
     pub metric: String,
     pub task: String,
     pub arm: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub results: Vec<NormalizedLocation>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub explanation: Option<ExplanationResponse>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
     /// Recorded model responses this normalized result depends on. Replay
     /// must find every one of them in the model cassette.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub model_requests: Vec<ModelDependency>,
 }
 
 /// One model response a recorded result depends on.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ModelDependency {
     pub key: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub query: String,
 }
 
@@ -104,15 +105,19 @@ impl ResultCassette {
 
 /// One recorded model response. The key is the canonical request key; the
 /// raw transport metadata is not part of the recording.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ModelRecord {
     pub key: String,
     pub candidate: String,
     pub task: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub query: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub layer: String,
+    /// Canonical OpenAI-compatible request body, without headers, request
+    /// IDs, or timestamps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request: Option<serde_json::Value>,
     #[serde(default)]
     pub response: serde_json::Value,
 }
@@ -154,4 +159,18 @@ impl ModelCassette {
     pub fn entry_count(&self) -> usize {
         self.entries.len()
     }
+
+    pub fn entries(&self) -> impl Iterator<Item = &ModelRecord> {
+        self.entries.values()
+    }
+}
+
+/// Content fingerprint of a cassette file, in the report's `sha256:<hex>`
+/// shape. The recording and the replay of the same temporary cassette
+/// produce the same value.
+pub fn fingerprint(path: &Path) -> Result<String> {
+    let bytes = fs::read(path).with_context(|| format!("read cassette {}", path.display()))?;
+    let digest = Sha256::digest(&bytes);
+    let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    Ok(format!("sha256:{hex}"))
 }

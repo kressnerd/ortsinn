@@ -761,6 +761,9 @@ fn measurements_and_order_match(world: &mut BenchmarkWorld) -> Result<(), String
 
 #[then("no request leaves the local recording boundary")]
 fn no_external_request(world: &mut BenchmarkWorld) -> Result<(), String> {
+    if world.e2e_endpoint.is_some() {
+        return crate::steps::e2e::benchmark_cli::assert_recording_boundary(world);
+    }
     let requests = report(world).run.external_requests;
     if requests != 0 {
         return Err(format!(

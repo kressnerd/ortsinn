@@ -2,16 +2,22 @@
 // `benchmark` binary; the in-process steps live in
 // `benchmark/tests/steps/benchmark_comparison.rs`.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use benchmark::record::cassette::{self, ModelCassette, ResultCassette};
+use benchmark::record::proxy::{
+    FakeOpenAiEndpoint, FixtureCompletion, is_loopback,
+};
 use cucumber::{given, then, when};
 use serde_json::Value;
 
 use crate::BenchmarkWorld;
 
 const S20_SLUG: &str = "maintainer-runs-the-benchmark-and-reads-the-measured-report";
+const S21_SLUG: &str = "maintainer-records-a-run-and-replays-it-without-an-external-call";
 
 /// Metric rows the terminal summary always renders, in report order.
 const METRIC_LABELS: &[&str] = &[
@@ -270,36 +276,316 @@ fn render_at_width(world: &mut BenchmarkWorld, width: usize) -> Result<(), Strin
 }
 
 #[given("a local fake OpenAI-compatible endpoint and the fixture candidates")]
-fn a_local_fake_endpoint(_world: &mut BenchmarkWorld) -> Result<(), String> {
-    unimplemented!("benchmark-comparison e2e: local endpoint")
+fn a_local_fake_endpoint(world: &mut BenchmarkWorld) -> Result<(), String> {
+    world.manifest_path = fixture_manifest();
+    world.e2e_out = e2e_root("s21-run")?;
+    let model_path = world
+        .manifest_path
+        .parent()
+        .ok_or("fixture manifest has no parent")?
+        .join("cassettes/model/model.jsonl");
+    let models = ModelCassette::load(&model_path)
+        .map_err(|error| format!("load fixture model cassette: {error:#}"))?;
+    let mut completions = BTreeMap::new();
+    for record in models.entries() {
+        if record.layer != "explanation" {
+            continue;
+        }
+        let completion: FixtureCompletion = serde_json::from_value(record.response.clone())
+            .map_err(|error| format!("parse fixture completion {}: {error}", record.key))?;
+        completions.insert(record.query.clone(), completion);
+    }
+    if completions.is_empty() {
+        return Err("fixture model cassette has no explanation responses".into());
+    }
+    world.e2e_endpoint = Some(
+        FakeOpenAiEndpoint::start(completions)
+            .map_err(|error| format!("start local fixture endpoint: {error}"))?,
+    );
+    Ok(())
 }
 
 #[when("the maintainer records the benchmark run against that endpoint")]
-fn the_maintainer_records_the_run(_world: &mut BenchmarkWorld) -> Result<(), String> {
-    unimplemented!("benchmark-comparison e2e: record run")
+fn the_maintainer_records_the_run(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let base_url = world
+        .e2e_endpoint
+        .as_ref()
+        .ok_or("the local fixture endpoint is not running")?
+        .base_url();
+    let args = vec![
+        "run".to_string(),
+        "--manifest".to_string(),
+        world.manifest_path.display().to_string(),
+        "--mode".to_string(),
+        "record".to_string(),
+        "--model-endpoint".to_string(),
+        base_url,
+        "--out".to_string(),
+        world.e2e_out.display().to_string(),
+        "--width".to_string(),
+        "80".to_string(),
+    ];
+    run_and_capture(world, &args)?;
+    if world.e2e_exit != Some(0) {
+        return Err(format!(
+            "record run exited {:?}:\n{}",
+            world.e2e_exit, world.e2e_terminal
+        ));
+    }
+    let report_path = world.e2e_out.join("report.json");
+    let text = fs::read_to_string(&report_path)
+        .map_err(|error| format!("read record report {}: {error}", report_path.display()))?;
+    let report: Value = serde_json::from_str(&text)
+        .map_err(|error| format!("parse record report {}: {error}", report_path.display()))?;
+    world.e2e_report_path = Some(report_path);
+    world.e2e_record_report = Some(report);
+    world.e2e_record_requests = world
+        .e2e_endpoint
+        .as_ref()
+        .ok_or("the local fixture endpoint is not running")?
+        .request_count();
+    Ok(())
 }
 
 #[then("the model requests are recorded and the model cassette fingerprint is written")]
-fn the_model_requests_are_recorded(_world: &mut BenchmarkWorld) -> Result<(), String> {
-    unimplemented!("benchmark-comparison e2e: model cassette")
+fn the_model_requests_are_recorded(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let endpoint = world
+        .e2e_endpoint
+        .as_ref()
+        .ok_or("the local fixture endpoint is not running")?;
+    let model_path = world.e2e_out.join("cassettes/model/model.jsonl");
+    if !model_path.is_file() {
+        return Err(format!("model cassette {} was not written", model_path.display()));
+    }
+    let models = ModelCassette::load(&model_path)
+        .map_err(|error| format!("load recorded model cassette: {error:#}"))?;
+    if models.entry_count() == 0 {
+        return Err("recorded model cassette is empty".into());
+    }
+    let requests = endpoint.requests();
+    if requests.len() != models.entry_count() {
+        return Err(format!(
+            "endpoint saw {} request(s) but {} model response(s) were recorded",
+            requests.len(),
+            models.entry_count()
+        ));
+    }
+    for request in &requests {
+        if !request.path.starts_with("/v1/") {
+            return Err(format!("unexpected request path {}", request.path));
+        }
+        if !is_loopback(request.peer) {
+            return Err(format!(
+                "request left loopback from peer {}",
+                request.peer
+            ));
+        }
+    }
+    let report = world
+        .e2e_record_report
+        .as_ref()
+        .ok_or("the record run did not produce a report")?;
+    let printed = report
+        .pointer("/reproduction/model_cassette_fingerprint")
+        .and_then(Value::as_str)
+        .ok_or("record report has no model cassette fingerprint")?;
+    let computed = cassette::fingerprint(&model_path)
+        .map_err(|error| format!("fingerprint model cassette: {error:#}"))?;
+    if printed != computed {
+        return Err(format!(
+            "model cassette fingerprint {printed} does not match recorded content {computed}"
+        ));
+    }
+    if !printed.starts_with("sha256:") {
+        return Err(format!("model cassette fingerprint {printed} is not a sha256 value"));
+    }
+    Ok(())
 }
 
 #[then("the normalized results are recorded")]
-fn the_normalized_results_are_recorded(_world: &mut BenchmarkWorld) -> Result<(), String> {
-    unimplemented!("benchmark-comparison e2e: result cassette")
+fn the_normalized_results_are_recorded(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let results_path = world.e2e_out.join("cassettes/results/results.jsonl");
+    if !results_path.is_file() {
+        return Err(format!(
+            "result cassette {} was not written",
+            results_path.display()
+        ));
+    }
+    let recorded = ResultCassette::load(&results_path)
+        .map_err(|error| format!("load recorded result cassette: {error:#}"))?;
+    let committed_path = world
+        .manifest_path
+        .parent()
+        .ok_or("fixture manifest has no parent")?
+        .join("cassettes/results/results.jsonl");
+    let committed = ResultCassette::load(&committed_path)
+        .map_err(|error| format!("load committed result cassette: {error:#}"))?;
+    if recorded.entry_count() != committed.entry_count() {
+        return Err(format!(
+            "recorded {} normalized result(s), expected {}",
+            recorded.entry_count(),
+            committed.entry_count()
+        ));
+    }
+    for expected in committed.entries() {
+        let Some(actual) = recorded.get(
+            &expected.candidate,
+            &expected.metric,
+            &expected.task,
+            &expected.arm,
+        ) else {
+            return Err(format!(
+                "recorded results are missing {}/{}/{}/{}",
+                expected.candidate, expected.metric, expected.task, expected.arm
+            ));
+        };
+        let expected_json = serde_json::to_value(expected)
+            .map_err(|error| format!("serialize committed result: {error}"))?;
+        let actual_json = serde_json::to_value(actual)
+            .map_err(|error| format!("serialize recorded result: {error}"))?;
+        if expected_json != actual_json {
+            return Err(format!(
+                "recorded normalized result differs for {}/{}/{}/{}",
+                expected.candidate, expected.metric, expected.task, expected.arm
+            ));
+        }
+    }
+    let report = world
+        .e2e_record_report
+        .as_ref()
+        .ok_or("the record run did not produce a report")?;
+    let printed = report
+        .pointer("/reproduction/result_cassette_fingerprint")
+        .and_then(Value::as_str)
+        .ok_or("record report has no result cassette fingerprint")?;
+    let computed = cassette::fingerprint(&results_path)
+        .map_err(|error| format!("fingerprint result cassette: {error:#}"))?;
+    if printed != computed {
+        return Err(format!(
+            "result cassette fingerprint {printed} does not match recorded content {computed}"
+        ));
+    }
+    Ok(())
 }
 
 #[when("the maintainer replays the recorded run")]
-fn the_maintainer_replays_the_recorded_run(_world: &mut BenchmarkWorld) -> Result<(), String> {
-    unimplemented!("benchmark-comparison e2e: replay run")
+fn the_maintainer_replays_the_recorded_run(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let before = world
+        .e2e_endpoint
+        .as_ref()
+        .ok_or("the local fixture endpoint is not running")?
+        .request_count();
+    let args = base_args(world);
+    run_and_capture(world, &args)?;
+    if world.e2e_exit != Some(0) {
+        return Err(format!(
+            "replay run exited {:?}:\n{}",
+            world.e2e_exit, world.e2e_terminal
+        ));
+    }
+    let after = world
+        .e2e_endpoint
+        .as_ref()
+        .ok_or("the local fixture endpoint is not running")?
+        .request_count();
+    if after != before || after != world.e2e_record_requests {
+        return Err(format!(
+            "replay changed the endpoint request count: {before} -> {after} (record run: {})",
+            world.e2e_record_requests
+        ));
+    }
+    Ok(())
 }
 
 #[then("the measurements and their order match the recorded run")]
-fn the_measurements_and_order_match(_world: &mut BenchmarkWorld) -> Result<(), String> {
-    unimplemented!("benchmark-comparison e2e: replay measurements")
+fn the_measurements_and_order_match(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let recorded = world
+        .e2e_record_report
+        .as_ref()
+        .ok_or("no recorded report to compare against")?
+        .clone();
+    let replayed = report_json(world)?;
+    for pointer in ["/metrics", "/gaps"] {
+        let recorded_value = recorded
+            .pointer(pointer)
+            .ok_or_else(|| format!("recorded report has no {pointer}"))?;
+        let replayed_value = replayed
+            .pointer(pointer)
+            .ok_or_else(|| format!("replayed report has no {pointer}"))?;
+        if recorded_value != replayed_value {
+            return Err(format!("replay changed {pointer}"));
+        }
+    }
+    let order = |report: &Value| -> Result<Vec<String>, String> {
+        report
+            .get("candidates")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "report has no candidates".to_string())?
+            .iter()
+            .map(|candidate| {
+                candidate
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .ok_or_else(|| "candidate has no id".to_string())
+            })
+            .collect()
+    };
+    if order(&recorded)? != order(&replayed)? {
+        return Err("replay changed the candidate order".into());
+    }
+    assert_value(
+        replayed
+            .pointer("/metrics/typo/aggregate/value")
+            .and_then(Value::as_f64)
+            .ok_or("replay report has no typo aggregate")?,
+        0.60,
+        "replayed typo recall @1",
+    )?;
+    Ok(())
 }
 
-#[then("no request leaves the local recording boundary")]
-fn no_request_leaves_the_local_boundary(_world: &mut BenchmarkWorld) -> Result<(), String> {
-    unimplemented!("benchmark-comparison e2e: local boundary")
+/// Shared with the in-process S6 scenario, which uses the same step text.
+/// The e2e world owns a live fixture endpoint, so it asserts the recorded
+/// request boundary; the in-process scenario reports zero external requests.
+pub(crate) fn assert_recording_boundary(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let endpoint = world
+        .e2e_endpoint
+        .as_ref()
+        .ok_or("the local fixture endpoint is not running")?;
+    if !endpoint.base_url().starts_with("http://127.0.0.1:") {
+        return Err(format!(
+            "fixture endpoint is not loopback: {}",
+            endpoint.base_url()
+        ));
+    }
+    let requests = endpoint.requests();
+    if requests.len() != world.e2e_record_requests {
+        return Err(format!(
+            "replay sent {} new request(s)",
+            requests.len() - world.e2e_record_requests
+        ));
+    }
+    if let Some(request) = requests.iter().find(|request| !is_loopback(request.peer)) {
+        return Err(format!(
+            "request reached a non-loopback peer {}",
+            request.peer
+        ));
+    }
+    let replayed = report_json(world)?;
+    if replayed.get("run").and_then(|run| run.get("mode")).and_then(Value::as_str) != Some("replay")
+    {
+        return Err("replay report does not state replay mode".into());
+    }
+    let external = replayed
+        .pointer("/run/external_requests")
+        .and_then(Value::as_u64)
+        .ok_or("replay report has no external request count")?;
+    if external != 0 {
+        return Err(format!(
+            "replay report recorded {external} external request(s)"
+        ));
+    }
+    write_transcript(S21_SLUG, &world.e2e_transcript)?;
+    Ok(())
 }

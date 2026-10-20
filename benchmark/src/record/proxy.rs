@@ -281,6 +281,7 @@ impl ModelRecorder {
             task: task.to_string(),
             query: query.to_string(),
             layer: "explanation".to_string(),
+            request: Some(body.clone()),
             response,
         })
     }
@@ -300,6 +301,7 @@ impl ModelRecorder {
             task: "embedding".to_string(),
             query: input,
             layer: "embedding".to_string(),
+            request: Some(body.clone()),
             response: json!({"model": model, "embedding": embedding}),
         })
     }

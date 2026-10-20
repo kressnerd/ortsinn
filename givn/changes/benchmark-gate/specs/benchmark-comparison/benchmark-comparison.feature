@@ -199,7 +199,7 @@ Feature: Benchmark comparison
     And the terminal renders every metric label and value on one line at width 80
     And the terminal renders every metric label and value on one line at width 160
 
-  @givn.added @e2e @wip
+  @givn.added @e2e
   Scenario: Maintainer records a run and replays it without an external call
     Given a local fake OpenAI-compatible endpoint and the fixture candidates
     When the maintainer records the benchmark run against that endpoint

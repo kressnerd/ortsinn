@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use crate::manifest::RunMode;
@@ -31,6 +31,9 @@ pub enum Command {
         /// Terminal width used for the summary. Defaults to `COLUMNS` or 80.
         #[arg(long)]
         width: Option<usize>,
+        /// Loopback OpenAI-compatible endpoint used in record mode.
+        #[arg(long)]
+        model_endpoint: Option<String>,
     },
 }
 
@@ -57,6 +60,7 @@ pub fn run() -> Result<()> {
             mode,
             out,
             width,
+            model_endpoint,
         } => {
             let out = out.unwrap_or_else(|| PathBuf::from("reports/benchmark"));
             let width = width.unwrap_or_else(crate::report::render::terminal_width);
@@ -67,7 +71,15 @@ pub fn run() -> Result<()> {
                     println!("Report: {}", out.join("report.json").display());
                     Ok(())
                 }
-                RunMode::Record => bail!("record mode is not available in this scenario"),
+                RunMode::Record => {
+                    let endpoint = model_endpoint.ok_or_else(|| {
+                        anyhow::anyhow!("--model-endpoint is required in record mode")
+                    })?;
+                    let report = runner::run_record(&manifest, &out, &endpoint)?;
+                    print!("{}", crate::report::render::terminal_summary(&report, width));
+                    println!("Report: {}", out.join("report.json").display());
+                    Ok(())
+                }
             }
         }
     }
