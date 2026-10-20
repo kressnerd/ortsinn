@@ -24,6 +24,8 @@ pub fn score(
     let mut hits = 0u64;
     let mut attempted = 0u64;
     let mut reciprocal_sum = 0.0f64;
+    let mut query_errors = 0u64;
+    let mut query_errors_per_candidate = BTreeMap::new();
 
     for candidate in &manifest.candidates {
         if let Some(cell) = candidate_unavailable_cell(candidate, tasks) {
@@ -43,7 +45,18 @@ pub fn score(
             continue;
         }
         let mut candidate_hits = 0u64;
+        let mut candidate_errors = 0u64;
         for task in &gold.natural_language {
+            // A query error is a miss for that task and is counted separately.
+            // It never makes the task unavailable.
+            let errored = cassette
+                .get(&candidate.id, "natural_language", &task.id, "default")
+                .is_some_and(|record| record.error.is_some());
+            attempted += 1;
+            if errored {
+                candidate_errors += 1;
+                continue;
+            }
             let results = recorded_locations(
                 cassette,
                 &candidate.id,
@@ -51,7 +64,6 @@ pub fn score(
                 &task.id,
                 "default",
             )?;
-            attempted += 1;
             if hit_at(5, &results, &task.expected) {
                 candidate_hits += 1;
             }
@@ -62,6 +74,8 @@ pub fn score(
             }
         }
         hits += candidate_hits;
+        query_errors += candidate_errors;
+        query_errors_per_candidate.insert(candidate.id.clone(), candidate_errors);
         let cell = Score::measured(candidate_hits, tasks, tasks, 0);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         cells.push(cell);
@@ -79,5 +93,7 @@ pub fn score(
             },
             attempted,
         },
+        query_errors,
+        query_errors_per_candidate,
     })
 }

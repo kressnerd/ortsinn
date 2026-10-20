@@ -774,11 +774,41 @@
 
 ## S17 — A query error counts as a miss and is reported separately
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: A query error counts as a miss and is reported separately
+     ✘  Given a natural-language gold set of four tasks where 1 query returns an error
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/metrics/natural_language.rs`,
+    `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    Scenario: A query error counts as a miss and is reported separately
+     ✔  Given a natural-language gold set of four tasks where 1 query returns an error
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then the natural-language recall at rank five is 0.50 with 2 of 4 tasks
+     ✔  And the report states a query error total of 1 separately from the recall value
+     ✔  And the errored query is counted as a miss and not as an unavailable task
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
   - Commit:
 - Design constraints: NL recall 0.50 (2/4); query error total 1 separate;
   errored query is a miss, not unavailable.

@@ -170,6 +170,10 @@ fn render_metrics(out: &mut String, report: &Report) {
         "- NL MRR @10: {:.2}\n",
         metrics.natural_language.mrr_at_10.value
     ));
+    out.push_str(&format!(
+        "- NL query errors: {} (each counted as a miss, not unavailable)\n",
+        metrics.natural_language.query_errors
+    ));
     coverage_line(
         out,
         "Natural-language",

@@ -248,6 +248,10 @@ pub struct NaturalLanguageMetric {
     pub aggregate: Score,
     pub per_candidate: BTreeMap<String, Score>,
     pub mrr_at_10: MrrScore,
+    /// Queries that returned an error. Each counts as a miss for its task and
+    /// is reported separately from the recall value.
+    pub query_errors: u64,
+    pub query_errors_per_candidate: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

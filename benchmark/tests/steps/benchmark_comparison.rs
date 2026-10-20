@@ -2033,3 +2033,85 @@ fn run_continues_with_other_candidates(world: &mut BenchmarkWorld) -> Result<(),
     }
     Ok(())
 }
+
+#[given("a natural-language gold set of four tasks where 1 query returns an error")]
+fn natural_language_query_error(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-query-error")?;
+    let path = root.join("cassettes/results/results.jsonl");
+    let text =
+        fs::read_to_string(&path).map_err(|error| format!("read result cassette: {error}"))?;
+    let mut rewritten = String::new();
+    let mut replaced = false;
+    for line in text.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let mut value: serde_json::Value = serde_json::from_str(line)
+            .map_err(|error| format!("parse result cassette line: {error}"))?;
+        let is_errored_task = value["candidate"] == "fixture-ocbi"
+            && value["metric"] == "natural_language"
+            && value["task"] == "nl-3";
+        if is_errored_task {
+            value["error"] = serde_json::json!("query failed");
+            replaced = true;
+        }
+        rewritten.push_str(
+            &serde_json::to_string(&value)
+                .map_err(|error| format!("serialize result cassette line: {error}"))?,
+        );
+        rewritten.push('\n');
+    }
+    if !replaced {
+        return Err("fixture result cassette has no fixture-ocbi nl-3 entry".into());
+    }
+    fs::write(&path, rewritten).map_err(|error| format!("write errored cassette: {error}"))?;
+    fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/e2e/manifest.yaml"),
+        root.join("manifest.yaml"),
+    )
+    .map_err(|error| format!("copy fixture manifest: {error}"))?;
+
+    world.manifest_path = root.join("manifest.yaml");
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then("the report states a query error total of 1 separately from the recall value")]
+fn query_error_total(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let metric = &report(world).metrics.natural_language;
+    assert_eq!(metric.query_errors, 1, "NL query error total");
+    assert_eq!(
+        metric.query_errors_per_candidate.get("fixture-ocbi"),
+        Some(&1),
+        "fixture-ocbi query error total"
+    );
+    assert_eq!(
+        metric.aggregate.value,
+        Some(0.5),
+        "the recall value stays separate from the error total"
+    );
+    let markdown = fs::read_to_string(world.out_dir.join("report.md"))
+        .map_err(|error| format!("read report.md: {error}"))?;
+    if !markdown.contains("NL query errors: 1") {
+        return Err("report.md does not state the query error total".into());
+    }
+    Ok(())
+}
+
+#[then("the errored query is counted as a miss and not as an unavailable task")]
+fn errored_query_is_a_miss(world: &mut BenchmarkWorld) -> Result<(), String> {
+    use benchmark::report::model::CellStatus;
+
+    let cell = report(world)
+        .metrics
+        .natural_language
+        .per_candidate
+        .get("fixture-ocbi")
+        .ok_or("report has no fixture-ocbi natural-language cell")?;
+    assert_eq!(cell.status, CellStatus::Measured, "NL cell status");
+    assert_eq!(cell.attempted, 4, "every task was attempted");
+    assert_eq!(cell.unavailable, 0, "the errored query is not unavailable");
+    assert_eq!(cell.numerator, 2, "errored query is a miss, not a hit");
+    assert_eq!(cell.value, Some(0.5), "recall after the error");
+    Ok(())
+}

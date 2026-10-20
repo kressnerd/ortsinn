@@ -164,7 +164,7 @@ Feature: Benchmark comparison
     And every metric for fixture-timeout on fixture-repo is unavailable and never zero
     And the run continues with the other candidates
 
-  @givn.added @wip
+  @givn.added
   Scenario: A query error counts as a miss and is reported separately
     Given a natural-language gold set of four tasks where 1 query returns an error
     When the maintainer runs the benchmark in replay mode
