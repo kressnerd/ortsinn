@@ -472,6 +472,40 @@ fn recorded_setup(manifest: &Manifest, candidate: &Candidate) -> CandidateSetup 
 /// the wrong fixed input, so the run stops before writing any report.
 fn verify_fixed_inputs(manifest: &Manifest, results: &ResultCassette) -> Result<()> {
     for result in results.entries() {
+        let candidate = manifest.candidate(&result.candidate).with_context(|| {
+            format!(
+                "fixed-input mismatch: the result cassette names candidate {}, which the manifest does not fix",
+                result.candidate
+            )
+        })?;
+        let version = result.candidate_version.as_deref().with_context(|| {
+            format!(
+                "fixed-input mismatch: the result cassette for candidate {} has no recorded candidate version",
+                result.candidate
+            )
+        })?;
+        if version != candidate.version {
+            anyhow::bail!(
+                "candidate identity mismatch for {}: expected version {}, actual version {}",
+                candidate.id,
+                candidate.version,
+                version
+            );
+        }
+        let commit = result.candidate_commit.as_deref().with_context(|| {
+            format!(
+                "fixed-input mismatch: the result cassette for candidate {} has no recorded candidate commit",
+                result.candidate
+            )
+        })?;
+        if commit != candidate.commit {
+            anyhow::bail!(
+                "candidate identity mismatch for {}: expected commit {}, actual commit {}",
+                candidate.id,
+                candidate.commit,
+                commit
+            );
+        }
         let repository = manifest.repository(&result.repository).with_context(|| {
             format!(
                 "fixed-input mismatch: the result cassette names repository {}, which the manifest does not fix",

@@ -13,6 +13,13 @@ use crate::adapters::{ExplanationResponse, NormalizedLocation};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RecordedResult {
     pub candidate: String,
+    /// Candidate version the result was recorded against. Replay compares it
+    /// with the manifest's pinned identity before scoring.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidate_version: Option<String>,
+    /// Candidate source commit recorded with the result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidate_commit: Option<String>,
     pub repository: String,
     /// Commit the normalized result was recorded against. Replay compares it
     /// with the manifest's fixed input before scoring anything.

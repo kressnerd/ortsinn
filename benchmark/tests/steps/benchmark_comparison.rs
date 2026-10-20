@@ -2651,6 +2651,8 @@ fn extra_results() -> Vec<serde_json::Value> {
         };
         entries.push(serde_json::json!({
             "candidate": "fixture-ocbi",
+            "candidate_version": "fixture-1",
+            "candidate_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repository": "fixture-extra",
             "repository_commit": "2222222222222222222222222222222222222222",
             "metric": "typo",
@@ -2894,6 +2896,50 @@ fn error_names_cassette_fingerprints(
         cassette.fingerprint.as_str(),
         actual.as_str(),
     ] {
+        if !message.contains(expected) {
+            return Err(format!("error does not contain `{expected}`: {message}"));
+        }
+    }
+    Ok(())
+}
+
+#[given("a fixture result cassette recorded for a different candidate version")]
+fn candidate_identity_mismatch(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-candidate-identity-mismatch")?;
+    let path = root.join("cassettes/results/results.jsonl");
+    let text = fs::read_to_string(&path)
+        .map_err(|error| format!("read result cassette: {error}"))?;
+    let mut lines = text.lines();
+    let first = lines.next().ok_or("fixture result cassette is empty")?;
+    let mut entry: serde_json::Value =
+        serde_json::from_str(first).map_err(|error| format!("parse result cassette: {error}"))?;
+    if entry["candidate"] != "fixture-ocbi" {
+        return Err("first result cassette entry is not fixture-ocbi".into());
+    }
+    entry["candidate_version"] = serde_json::Value::String("fixture-0".to_string());
+    let mut rewritten = serde_json::to_string(&entry)
+        .map_err(|error| format!("serialize mutated result: {error}"))?;
+    rewritten.push('\n');
+    for line in lines {
+        rewritten.push_str(line);
+        rewritten.push('\n');
+    }
+    fs::write(&path, rewritten).map_err(|error| format!("write mutated cassette: {error}"))?;
+    let mut manifest = read_fixture_manifest()?;
+    refresh_cassette_fingerprint(&mut manifest, &root, "results")?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    world.out_dir = root.join("out");
+    load_fixture(world)
+}
+
+#[then("the error names fixture-ocbi and the mismatched candidate versions")]
+fn error_names_candidate_versions(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let message = &world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; a report was produced")?
+        .message;
+    for expected in ["fixture-ocbi", "fixture-1", "fixture-0", "candidate identity mismatch"] {
         if !message.contains(expected) {
             return Err(format!("error does not contain `{expected}`: {message}"));
         }

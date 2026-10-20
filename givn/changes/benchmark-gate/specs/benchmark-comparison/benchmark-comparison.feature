@@ -241,6 +241,14 @@ Feature: Benchmark comparison
     And the report lists the proposed target, the unavailable capability reasons, and the regex proxy arm as limitations
     And an invalid report is rejected before it is written
 
+  @givn.added
+  Scenario: A candidate identity mismatch stops the run
+    Given a fixture result cassette recorded for a different candidate version
+    When the maintainer runs the benchmark in replay mode
+    Then the run exits with code 2
+    And the error names fixture-ocbi and the mismatched candidate versions
+    And no report.json or report.md is published
+
   @givn.added @e2e
   Scenario: Maintainer runs the benchmark and reads the measured report
     Given a benchmark fixture with fixed repository revisions, pinned candidate identities, and recorded model responses

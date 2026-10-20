@@ -99,7 +99,7 @@ gold:
   - {repository: fixture-repo, metric: concept, version: 1, tasks: 5, fingerprint: "sha256:13faa30317a28dbe35bad7168749af0362d64a71f7e1bd21c39b57161fadd257", path: gold/concept.jsonl}
   - {repository: fixture-repo, metric: concept_equivalence, version: 1, tasks: 4, fingerprint: "sha256:e37e8f25e7b7eaf05935854eaae0e5e6d383a426d267d3375ecec755bc76d83a", path: gold/concept_equivalence.jsonl}
 cassettes:
-  results: {path: cassettes/results/results.jsonl, fingerprint: "sha256:128ddb8fb68090557cf48c5ee4483cb79db1813799b44e185251cd151f644426"}
+  results: {path: cassettes/results/results.jsonl, fingerprint: "sha256:0c98fd7f6cebe38e4e5545a41d0dc62ef97eb60c685643170002ca9f601dd034"}
   model: {path: cassettes/model/model.jsonl, fingerprint: "sha256:7f63ef63751fae33df36d45a9a79d7b9a5786f7cbe74051706a73f6977d78d11"}
 index_deadlines:
   public_repository_seconds: 14400
