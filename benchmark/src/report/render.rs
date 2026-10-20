@@ -95,6 +95,42 @@ pub fn markdown(report: &Report) -> String {
             candidate.adapter,
             candidate.adapter_version
         ));
+        out.push_str(&format!("  - Install: `{}`\n", candidate.install));
+        out.push_str(&format!(
+            "  - Git metadata: `{}`\n",
+            candidate.setup.git_metadata
+        ));
+        for index in &candidate.setup.indexes {
+            out.push_str(&format!(
+                "  - Index `{}`: {} in {:.2}s{}\n",
+                index.repository,
+                index.status,
+                index.seconds,
+                index
+                    .reason
+                    .as_ref()
+                    .map(|reason| format!(" ({reason})"))
+                    .unwrap_or_default()
+            ));
+        }
+        for (language, tier) in &candidate.setup.language_support {
+            out.push_str(&format!("  - Language support `{language}`: {tier}\n"));
+        }
+        for (tool, version) in &candidate.setup.indexers {
+            out.push_str(&format!("  - Indexer `{tool}`: {version}\n"));
+        }
+        for (tool, version) in &candidate.setup.environment {
+            out.push_str(&format!("  - Environment `{tool}`: {version}\n"));
+        }
+        if let Some(embedding) = &candidate.setup.embedding {
+            out.push_str(&format!(
+                "  - Embedding provider `{}` at `{}`\n",
+                embedding.provider, embedding.base_url
+            ));
+        }
+        if let Some(doctor) = &candidate.setup.doctor {
+            out.push_str(&format!("  - Doctor: `{doctor}`\n"));
+        }
     }
     out.push('\n');
     render_metrics(&mut out, report);

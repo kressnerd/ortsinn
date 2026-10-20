@@ -1270,6 +1270,168 @@ fn every_coverage_value_is_attempted_over_attempted_plus_unavailable(
     Ok(())
 }
 
+fn candidate_report<'a>(
+    world: &'a BenchmarkWorld,
+    id: &str,
+) -> Result<&'a benchmark::report::model::CandidateReport, String> {
+    report(world)
+        .candidates
+        .iter()
+        .find(|candidate| candidate.id == id)
+        .ok_or_else(|| format!("report does not name candidate {id}"))
+}
+
+#[then("every candidate records its install command, version, commit, and adapter version")]
+fn candidate_identity_recorded(world: &mut BenchmarkWorld) -> Result<(), String> {
+    for candidate in &report(world).candidates {
+        if candidate.install.trim().is_empty() {
+            return Err(format!("{} has no install command", candidate.id));
+        }
+        if candidate.version.trim().is_empty() {
+            return Err(format!("{} has no version", candidate.id));
+        }
+        if candidate.commit.len() != 40 {
+            return Err(format!(
+                "{} commit {} is not 40 hex characters",
+                candidate.id, candidate.commit
+            ));
+        }
+        if candidate.adapter.trim().is_empty() || candidate.adapter_version == 0 {
+            return Err(format!("{} has no adapter version", candidate.id));
+        }
+    }
+    Ok(())
+}
+
+#[then(
+    "CKB records the pinned scip-typescript, scip-python, and rust-analyzer indexer versions and its doctor output"
+)]
+fn ckb_indexers_and_doctor(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let setup = &candidate_report(world, "fixture-ckb")?.setup;
+    for indexer in ["scip-typescript", "scip-python", "rust-analyzer"] {
+        match setup.indexers.get(indexer) {
+            Some(version) if !version.trim().is_empty() => {}
+            _ => return Err(format!("CKB does not record the {indexer} indexer version")),
+        }
+    }
+    match setup.doctor.as_deref() {
+        Some(doctor) if !doctor.trim().is_empty() => Ok(()),
+        _ => Err("CKB does not record its doctor output".into()),
+    }
+}
+
+#[then("CKB records Rust language support as Tier 3 in its capability note")]
+fn ckb_rust_tier(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let setup = &candidate_report(world, "fixture-ckb")?.setup;
+    let tier = setup
+        .language_support
+        .get("rust")
+        .ok_or("CKB does not record Rust language support")?;
+    if !tier.eq_ignore_ascii_case("tier 3") {
+        return Err(format!("CKB records Rust support as {tier}, expected Tier 3"));
+    }
+    Ok(())
+}
+
+#[then(
+    "Serena records its Python 3.13 environment and the pyright, typescript-language-server, and rust-analyzer versions"
+)]
+fn serena_environment(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let setup = &candidate_report(world, "fixture-serena")?.setup;
+    assert_eq!(
+        setup.environment.get("python").map(String::as_str),
+        Some("3.13"),
+        "Serena Python version"
+    );
+    for tool in ["pyright", "typescript-language-server", "rust-analyzer"] {
+        match setup.environment.get(tool) {
+            Some(version) if !version.trim().is_empty() => {}
+            _ => return Err(format!("Serena does not record the {tool} version")),
+        }
+    }
+    Ok(())
+}
+
+#[then(
+    regex = r#"^open-codebase-index records embeddingProvider "([^"]+)" and the recorder base URL$"#
+)]
+fn ocbi_embedding_provider(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [provider] = captures else {
+        return Err("embedding provider step needs one capture".into());
+    };
+    let embedding = candidate_report(world, "fixture-ocbi")?
+        .setup
+        .embedding
+        .as_ref()
+        .ok_or("open-codebase-index does not record its embedding configuration")?;
+    assert_eq!(&embedding.provider, provider, "embeddingProvider");
+    if !embedding.base_url.starts_with("http://127.0.0.1") {
+        return Err(format!(
+            "open-codebase-index embedding base URL {} is not the loopback recorder",
+            embedding.base_url
+        ));
+    }
+    Ok(())
+}
+
+#[then(regex = r#"^every candidate copy records git_metadata "([^"]+)"$"#)]
+fn candidate_git_metadata(
+    world: &mut BenchmarkWorld,
+    captures: &[String],
+) -> Result<(), String> {
+    let [metadata] = captures else {
+        return Err("git metadata step needs one capture".into());
+    };
+    for candidate in &report(world).candidates {
+        assert_eq!(
+            &candidate.setup.git_metadata, metadata,
+            "{} git_metadata",
+            candidate.id
+        );
+    }
+    Ok(())
+}
+
+#[then("every candidate records a per-repository index status and duration")]
+fn candidate_index_status(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = report(world);
+    let repositories: Vec<&str> = report
+        .inputs
+        .repositories
+        .iter()
+        .map(|repository| repository.id.as_str())
+        .collect();
+    for candidate in &report.candidates {
+        if candidate.setup.indexes.is_empty() {
+            return Err(format!("{} records no index status", candidate.id));
+        }
+        for index in &candidate.setup.indexes {
+            if index.status.trim().is_empty() {
+                return Err(format!(
+                    "{} records no index status for {}",
+                    candidate.id, index.repository
+                ));
+            }
+            if index.seconds < 0.0 {
+                return Err(format!(
+                    "{} records a negative index duration for {}",
+                    candidate.id, index.repository
+                ));
+            }
+            if !repositories.contains(&index.repository.as_str()) {
+                return Err(format!(
+                    "{} records an index for unknown repository {}",
+                    candidate.id, index.repository
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[when("the maintainer reads the report")]
 fn the_maintainer_reads_the_report(world: &mut BenchmarkWorld) -> Result<(), String> {
     world.report = world.first_report.clone();

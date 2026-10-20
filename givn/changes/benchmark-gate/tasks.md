@@ -567,12 +567,56 @@
 
 ## S13 — Report records candidate setup, index status, and timeouts
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
-  - RED output:
-  - GREEN production files:
-  - GREEN output:
-  - REFACTOR output:
-  - Commit:
+- [x] RED — remove `@wip` from S13 only; run targeted; paste non-zero output.
+  - Output:
+    ```text
+    Scenario: Report records candidate setup, index status, and timeouts
+     ✔  Given the fixture benchmark inputs
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✘  Then every candidate records its install command, version, commit, and adapter version
+        Step panicked. Captured output: not implemented: benchmark-comparison: candidate identity record
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    3 steps (2 passed, 1 failed)
+    EXIT=101
+    ```
+- [x] GREEN — add the candidate setup record (indexers, doctor output,
+  environment, language support, embedding boundary, git metadata, index
+  status/duration) to the manifest and report; implement the steps; list
+  production files; run targeted; paste zero output.
+  - Production files: `benchmark/src/manifest.rs`,
+    `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`,
+    `benchmark/src/runner.rs`,
+    `benchmark/tests/fixtures/e2e/manifest.yaml`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output:
+    ```text
+    Scenario: Report records candidate setup, index status, and timeouts
+     ✔  Given the fixture benchmark inputs
+     ✔  When the maintainer runs the benchmark in replay mode
+     ✔  Then every candidate records its install command, version, commit, and adapter version
+     ✔  And CKB records the pinned scip-typescript, scip-python, and rust-analyzer indexer versions and its doctor output
+     ✔  And CKB records Rust language support as Tier 3 in its capability note
+     ✔  And Serena records its Python 3.13 environment and the pyright, typescript-language-server, and rust-analyzer versions
+     ✔  And open-codebase-index records embeddingProvider "custom" and the recorder base URL
+     ✔  And every candidate copy records git_metadata "present"
+     ✔  And every candidate records a per-repository index status and duration
+    [Summary]
+    1 feature
+    1 scenario (1 passed)
+    9 steps (9 passed)
+    EXIT=0
+    ```
+- [x] REFACTOR — run targeted; paste zero output.
+  - Output:
+    ```text
+    1 feature
+    1 scenario (1 passed)
+    9 steps (9 passed)
+    EXIT=0
+    ```
+- [x] COMMIT — hash: `PENDING_S13`
 - Design constraints: install/version/commit/adapter; CKB indexers + doctor
   output + Rust Tier 3; Serena Python 3.13 + language servers; ocbi custom
   embedding URL; `git_metadata: present`; per-repository index status/duration.

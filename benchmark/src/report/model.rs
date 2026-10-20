@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::manifest::{RunMode, Target, TargetStatus};
+use crate::manifest::{CandidateSetup, RunMode, Target, TargetStatus};
 
 pub const SCHEMA_VERSION: u32 = 1;
 
@@ -90,6 +90,9 @@ pub struct CandidateReport {
     pub install: String,
     pub adapter: String,
     pub adapter_version: u32,
+    /// Pinned indexers, environment versions, embedding boundary, the
+    /// `.git` presence, and the per-repository index outcome.
+    pub setup: CandidateSetup,
 }
 
 /// Measurement status of one metric cell.

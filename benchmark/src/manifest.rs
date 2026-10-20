@@ -61,6 +61,69 @@ pub struct Candidate {
     pub adapter_version: u32,
     #[serde(default)]
     pub capabilities: BTreeMap<String, Capability>,
+    #[serde(default)]
+    pub setup: CandidateSetup,
+    /// Present when the candidate cannot be started at all; every metric
+    /// cell for it is then unavailable with the reason.
+    #[serde(default)]
+    pub unavailable: Option<Unavailable>,
+}
+
+/// Recorded candidate setup normalization. Each field is optional because the
+/// candidates expose different setup surfaces.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct CandidateSetup {
+    /// Runtime environment versions (for example the Serena Python version).
+    #[serde(default)]
+    pub environment: BTreeMap<String, String>,
+    /// Pinned indexer versions (for example CKB's SCIP indexers).
+    #[serde(default)]
+    pub indexers: BTreeMap<String, String>,
+    /// Documented doctor/help output recorded before indexing.
+    #[serde(default)]
+    pub doctor: Option<String>,
+    /// Language support tiers (CKB records Rust as Tier 3).
+    #[serde(default)]
+    pub language_support: BTreeMap<String, String>,
+    /// Embedding boundary configuration (open-codebase-index).
+    #[serde(default)]
+    pub embedding: Option<EmbeddingConfig>,
+    /// `present` when the candidate copy keeps its `.git` directory.
+    #[serde(default = "unknown_git_metadata")]
+    pub git_metadata: String,
+    /// Per-repository index outcome and duration.
+    #[serde(default)]
+    pub indexes: Vec<IndexRecord>,
+}
+
+fn unknown_git_metadata() -> String {
+    "unknown".to_string()
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EmbeddingConfig {
+    pub provider: String,
+    pub base_url: String,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct IndexRecord {
+    pub repository: String,
+    pub status: String,
+    pub seconds: f64,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// Candidate-level unavailability. A candidate that cannot be installed or
+/// started is recorded and the run continues with the others.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Unavailable {
+    pub reason: String,
+    #[serde(default)]
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

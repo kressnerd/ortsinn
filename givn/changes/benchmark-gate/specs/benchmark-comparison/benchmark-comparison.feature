@@ -127,7 +127,7 @@ Feature: Benchmark comparison
     And the report states the toolchain environment prefix used by the command
     And the report states the manifest, gold, model-cassette, and result-cassette fingerprints
 
-  @givn.added @wip
+  @givn.added
   Scenario: Report records candidate setup, index status, and timeouts
     Given the fixture benchmark inputs
     When the maintainer runs the benchmark in replay mode

@@ -134,6 +134,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
                 install: candidate.install.clone(),
                 adapter: candidate.adapter.clone(),
                 adapter_version: candidate.adapter_version,
+                setup: candidate.setup.clone(),
             })
             .collect(),
         metrics,

@@ -27,6 +27,14 @@ candidates:
       concept: {status: measured}
       concept_equivalence: {status: measured}
       expansion: {status: measured}
+    setup:
+      embedding:
+        provider: custom
+        base_url: "http://127.0.0.1:43117/v1"
+        model: nomic-embed-text
+      git_metadata: present
+      indexes:
+        - {repository: fixture-repo, status: indexed, seconds: 2.5}
   - id: fixture-ckb
     version: fixture-1
     commit: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -40,6 +48,19 @@ candidates:
       concept: {status: not_applicable, reason: fixture_family_not_measured}
       concept_equivalence: {status: not_applicable, reason: fixture_family_not_measured}
       expansion: {status: not_applicable, reason: no_expansion_switch}
+    setup:
+      indexers:
+        scip-typescript: "0.4.0"
+        scip-python: "0.4.0"
+        rust-analyzer: "2026-10-19"
+      doctor: "ckb doctor --tier standard: ok (typescript tier 2, python tier 2, rust tier 3)"
+      language_support:
+        typescript: "tier 2"
+        python: "tier 2"
+        rust: "tier 3"
+      git_metadata: present
+      indexes:
+        - {repository: fixture-repo, status: indexed, seconds: 3.1}
   - id: fixture-serena
     version: fixture-1
     commit: "cccccccccccccccccccccccccccccccccccccccc"
@@ -53,6 +74,15 @@ candidates:
       concept: {status: not_applicable, reason: fixture_family_not_measured}
       concept_equivalence: {status: not_applicable, reason: fixture_family_not_measured}
       expansion: {status: not_applicable, reason: no_expansion_switch}
+    setup:
+      environment:
+        python: "3.13"
+        pyright: "1.1.400"
+        typescript-language-server: "5.0.0"
+        rust-analyzer: "2026-10-19"
+      git_metadata: present
+      indexes:
+        - {repository: fixture-repo, status: indexed, seconds: 1.4}
 targets:
   typo_recall_at_1: {value: 0.90, status: proposed, source: "proposal attachments 1/7 (AC-01); not confirmed"}
   typo_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
