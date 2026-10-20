@@ -321,12 +321,35 @@
 
 ## S7 — A missing recorded response stops the run
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: A missing recorded response stops the run
+     ✘  Given a benchmark run that needs a model response absent from the recording
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/tests/benchmark_features.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`; the replay boundary and
+    model-cassette failure path are in `benchmark/src/runner.rs` and
+    `benchmark/src/record/cassette.rs`.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
-  - Commit:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+  - Commit: `08f7b8d5f53cde6777f7083a8d4f24305588ba63`
 - Design constraints: exit code 2; error names the missing input and candidate;
   no `report.json`/`report.md`.
 
