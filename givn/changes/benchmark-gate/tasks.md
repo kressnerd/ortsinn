@@ -240,7 +240,7 @@
     7 steps (7 passed)
     EXIT=0
     ```
-  - Commit:
+  - Commit: `23d118270b10308ef1621bd68ae9d0696c938cf1`
 - Design constraints: default concept 0.40 (2/5), no-expansion 0.20 (1/5);
   concept-equivalence 0.50 (2/4) and 0.25 (1/4); fixture-serena no-expansion
   `not_applicable` reason `no_expansion_switch`.
