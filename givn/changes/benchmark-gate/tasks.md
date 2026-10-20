@@ -284,12 +284,38 @@
 
 ## S6 — Replay rerun reproduces the report without an external model call
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: Replay rerun reproduces the report without an external model call
+     ✘  Given a completed benchmark run with recorded model responses
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/report/model.rs`,
+    `benchmark/src/record/cassette.rs`, `benchmark/src/runner.rs`,
+    `benchmark/src/report/render.rs`,
+    `benchmark/tests/benchmark_features.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`,
+    `benchmark/tests/fixtures/e2e/cassettes/results/results.jsonl`,
+    `benchmark/tests/fixtures/e2e/cassettes/model/model.jsonl`.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
   - REFACTOR output:
-  - Commit:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+  - Commit: `a9385214870cc6d624354f90448cff505ec9dcba`
 - Design constraints: normalized result cassettes; model cassette fingerprint
   `sha256:fixture-model-v1`; no candidate start; no external request.
 
