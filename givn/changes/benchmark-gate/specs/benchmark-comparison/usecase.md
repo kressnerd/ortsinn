@@ -46,52 +46,23 @@ replay of a completed run.
 
 ## Extensions
 
-- 1 (main flow step 2): A fixed-input mismatch fails the run with a non-zero
-  exit, names the mismatched input, and publishes no complete report.
-- 2 (main flow step 3): A candidate recorded as uninstallable or unstartable
-  is recorded as unavailable with its reason and the run continues with the
-  others.
-- 3 (main flow step 3): A candidate that exceeded its index deadline is
-  unavailable for every metric for that candidate and repository, with the
-  reason, and is never scored as zero.
-- 4 (main flow step 4): A missing required operation marks the metric
-  unavailable with a capability reason and lists it as a capability gap.
-- 5 (main flow step 6): A query error counts as a miss for that candidate and
-  repository, and the error count is reported separately.
-- 6 (main flow step 5): A candidate without a query-expansion switch marks the
-  no-expansion arm not applicable with the reason; it is never reported as
-  zero.
-- 7 (main flow step 6): A metric without a stated target reports its measured
-  value and the best measured value and marks the target unstated.
-- 8 (main flow step 6): A metric with a stated target reports its signed
-  measured gap; a proposed target is labelled as proposed, never as
-  confirmed.
-- 9 (main flow step 2): Replay uses recorded model responses, makes no
-  external call, and reproduces the measurements and ordering; a missing
-  response fails the run and names the request and candidate.
-- 10 (main flow step 6): When no candidate has a measured value for a metric,
-  its to-best and to-target gaps are unavailable with the reason
-  `no_measured_candidate` and carry no numeric value; the report is still
-  complete.
-- 11 (main flow step 2): A gold task whose expected path is absent from the
-  fixed checkout fails the run with exit code 2, names the task and path, and
-  publishes no report.
-- 12 (main flow step 2): A gold task whose line range exceeds the file fails
-  the run with exit code 2, names the task and range, and publishes no report.
-- 13 (main flow step 2): A gold file whose content no longer matches its
-  declared fingerprint fails the run with exit code 2, names the gold set and
-  both fingerprints, and publishes no report.
-- 14 (main flow step 2): A cassette whose content no longer matches its
-  declared fingerprint fails the run with exit code 2, names the cassette and
-  both fingerprints, and publishes no report.
-- 15 (main flow step 2): A recorded result from a different candidate version
-  fails the run with exit code 2, names the candidate and both versions, and
-  publishes no report.
-- 16 (main flow step 6): A multi-repository run reports each repository's
-  value separately and combines them into the aggregate instead of collapsing
-  the repositories.
-- 17 (main flow step 7): The report states its limitations, and an
-  inconsistent report is rejected before either report file is written.
+- 1 (main flow step 2): A fixed-input mismatch fails the run with a non-zero exit, names the mismatched input, and publishes no complete report.
+- 2 (main flow step 3): A candidate recorded as uninstallable or unstartable is recorded as unavailable with its reason and the run continues with the others.
+- 3 (main flow step 3): A candidate that exceeded its index deadline is unavailable for every metric for that candidate and repository, with the reason, and is never scored as zero.
+- 4 (main flow step 4): A missing required operation marks the metric unavailable with a capability reason and lists it as a capability gap.
+- 5 (main flow step 6): A query error counts as a miss for that candidate and repository, and the error count is reported separately.
+- 6 (main flow step 5): A candidate without a query-expansion switch marks the no-expansion arm not applicable with the reason; it is never reported as zero.
+- 7 (main flow step 6): A metric without a stated target reports its measured value and the best measured value and marks the target unstated.
+- 8 (main flow step 6): A metric with a stated target reports its signed measured gap; a proposed target is labelled as proposed, never as confirmed.
+- 9 (main flow step 2): Replay uses recorded model responses, makes no external call, and reproduces the measurements and ordering; a missing response fails the run and names the request and candidate.
+- 10 (main flow step 6): When no candidate has a measured value for a metric, its to-best and to-target gaps are unavailable with the reason `no_measured_candidate` and carry no numeric value; the report is still complete.
+- 11 (main flow step 2): A gold task whose expected path is absent from the fixed checkout fails the run with exit code 2, names the task and path, and publishes no report.
+- 12 (main flow step 2): A gold task whose line range exceeds the file fails the run with exit code 2, names the task and range, and publishes no report.
+- 13 (main flow step 2): A gold file whose content no longer matches its declared fingerprint fails the run with exit code 2, names the gold set and both fingerprints, and publishes no report.
+- 14 (main flow step 2): A cassette whose content no longer matches its declared fingerprint fails the run with exit code 2, names the cassette and both fingerprints, and publishes no report.
+- 15 (main flow step 2): A recorded result from a different candidate version fails the run with exit code 2, names the candidate and both versions, and publishes no report.
+- 16 (main flow step 6): A multi-repository run reports each repository's value separately and combines them into the aggregate instead of collapsing the repositories.
+- 17 (main flow step 7): The report states its limitations, and an inconsistent report is rejected before either report file is written.
 
 ## Rules
 
@@ -108,15 +79,8 @@ replay of a completed run.
 
 ## Examples
 
-- Example 1 — an unavailable capability is not zero: `fixture-ocbi` has no
-  explanation operation; its typo, natural-language, and concept cells are
-  measured, its explanation cell is unavailable with
-  `no_explanation_operation`, and the capability-gap list names the candidate.
-- Example 2 — a replay rerun: the maintainer records a fixture run against
-  the loopback endpoint and reruns the same manifest in replay mode; the
-  metric values, ordering, candidate identities, repository revisions, and
-  measured gaps match, the recording fingerprint is unchanged, and no request
-  leaves the local recording boundary.
+- Example 1 — an unavailable capability is not zero: `fixture-ocbi` has no explanation operation; its typo, natural-language, and concept cells are measured, its explanation cell is unavailable with `no_explanation_operation`, and the capability-gap list names the candidate.
+- Example 2 — a replay rerun: the maintainer records a fixture run against the loopback endpoint and reruns the same manifest in replay mode; the metric values, ordering, candidate identities, repository revisions, and measured gaps match, the recording fingerprint is unchanged, and no request leaves the local recording boundary.
 
 ## Minimal guarantee
 
