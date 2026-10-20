@@ -355,14 +355,46 @@
 
 ## S8 — The synthetic monorepo is regenerated to the same content fingerprint
 
-- [ ] RED / GREEN / REFACTOR / COMMIT
+- [x] RED / GREEN / REFACTOR / COMMIT
   - RED output:
-  - GREEN production files:
+    ```text
+    Scenario: The synthetic monorepo is regenerated to the same content fingerprint
+     ✘  Given the fixed synthetic seed and generator version
+        Step doesn't match any function
+    [Summary]
+    1 feature
+    1 scenario (1 failed)
+    1 step (1 failed)
+    EXIT=101
+    ```
+  - GREEN production files: `benchmark/src/gen/synthetic_repo.rs`,
+    `benchmark/src/gen/mod.rs`, `benchmark/src/lib.rs`, `Cargo.toml`,
+    `benchmark/tests/benchmark_features.rs`,
+    `benchmark/tests/steps/benchmark_comparison.rs`.
   - GREEN output:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+    (two full 10M-line generations; ~42 s of test time)
   - REFACTOR output:
-  - Commit:
+    ```text
+    1 scenario (1 passed)
+    5 steps (5 passed)
+    EXIT=0
+    ```
+    (two full 10M-line generations; ~35 s of test time)
+  - Commit: `b8632dcc6e509b05f0618b9308ae7554d0e7d407`
 - Design constraints: `benchmark/src/gen/synthetic_repo.rs`; 10,000,000 code
   lines; fingerprint `sha256:synthetic-demo-v1`; gold locations match.
+  The scenario's `sha256:synthetic-demo-v1` string is the recorded fixed-input
+  identifier (like the fixture gold/cassette identifiers), not a hex digest.
+  The generator also computes `content_digest`, the SHA-256 over the sorted
+  `(path, file content digest)` list; the Then-step proves two independent full
+  regenerations produce the same digest and the same gold locations. The
+  digest dependency is optimized in dev/test builds in the workspace
+  `Cargo.toml` so the full generation stays a reasonable test-time operation.
 
 ## S9 — Report separates wrong rank from no match in typo recall
 
