@@ -1,5 +1,7 @@
 //! Gold-set loading. The fixture gold files are committed and fixed.
 
+pub mod propose;
+
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -8,6 +10,41 @@ use serde::Deserialize;
 
 use crate::adapters::NormalizedLocation;
 use crate::manifest::{GoldSet, Manifest};
+
+/// A manifest-referenced gold set the maintainer has not reviewed. The run
+/// stops before any task is scored or any report is written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnreviewedGoldSet {
+    pub repository: String,
+    pub metric: String,
+}
+
+impl std::fmt::Display for UnreviewedGoldSet {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "unreviewed gold set {} {}: the manifest references it without a reviewed_by entry",
+            self.repository, self.metric
+        )
+    }
+}
+
+impl std::error::Error for UnreviewedGoldSet {}
+
+/// Only a reviewed set the manifest references may be scored. A draft under
+/// the drafts directory that the manifest does not reference never reaches
+/// this loader.
+fn ensure_reviewed(set: &GoldSet) -> Result<()> {
+    let reviewed = set.reviewed_by.as_deref().unwrap_or_default().trim();
+    anyhow::ensure!(
+        !reviewed.is_empty(),
+        UnreviewedGoldSet {
+            repository: set.repository.clone(),
+            metric: set.metric.clone(),
+        }
+    );
+    Ok(())
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoldTask {
@@ -77,6 +114,7 @@ impl Gold {
                     set.metric, set.repository
                 )
             })?;
+            ensure_reviewed(set)?;
             let root = base.join(&repository.checkout);
             anyhow::ensure!(
                 root.is_dir(),
@@ -334,4 +372,38 @@ pub fn matches(candidate: &NormalizedLocation, expected: &NormalizedLocation) ->
         && candidate.start_line == expected.start_line
         && candidate.end_line == expected.end_line
         && candidate.symbol == expected.symbol
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gold_set(reviewed_by: Option<&str>) -> GoldSet {
+        GoldSet {
+            repository: "fixture-repo".to_string(),
+            metric: "typo".to_string(),
+            version: 1,
+            tasks: 5,
+            fingerprint: "sha256:00".to_string(),
+            reviewed_by: reviewed_by.map(str::to_string),
+            path: "gold/typo.jsonl".to_string(),
+        }
+    }
+
+    #[test]
+    fn s10_unreviewed_referenced_gold_set_is_typed_and_specifically_named() {
+        for missing in [None, Some(""), Some("   ")] {
+            let error = ensure_reviewed(&gold_set(missing))
+                .expect_err("a manifest-referenced set without a reviewer must fail");
+            let typed = error
+                .downcast_ref::<UnreviewedGoldSet>()
+                .expect("the failure is the typed unreviewed gold set error");
+            assert_eq!(typed.repository, "fixture-repo");
+            assert_eq!(typed.metric, "typo");
+            assert!(error.to_string().contains("unreviewed gold set"));
+            assert!(error.to_string().contains("fixture-repo"));
+            assert!(error.to_string().contains("typo"));
+        }
+        assert!(ensure_reviewed(&gold_set(Some("maintainer--ortsinn"))).is_ok());
+    }
 }

@@ -329,6 +329,10 @@ pub struct GoldSet {
     pub version: u32,
     pub tasks: u64,
     pub fingerprint: String,
+    /// Reviewer of the gold tasks. A manifest-referenced set without one is
+    /// unreviewed and stops the run before scoring.
+    #[serde(default)]
+    pub reviewed_by: Option<String>,
     pub path: String,
 }
 

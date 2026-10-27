@@ -68,6 +68,11 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) adapter_endpoint: Option<benchmark::record::proxy::FakeOpenAiEndpoint>,
     /// Gold explanation query the changed-query scenario edits and replays.
     pub(crate) changed_query: Option<ChangedQuery>,
+    /// Unreviewed gold set fixture: repository and metric.
+    pub(crate) unreviewed_gold: Option<(String, String)>,
+    /// Draft task written under `gold/drafts/` but not referenced by the
+    /// manifest.
+    pub(crate) draft_task: Option<String>,
 }
 
 impl Default for BenchmarkWorld {
@@ -103,6 +108,8 @@ impl Default for BenchmarkWorld {
             setup_deviation: None,
             adapter_endpoint: None,
             changed_query: None,
+            unreviewed_gold: None,
+            draft_task: None,
         }
     }
 }

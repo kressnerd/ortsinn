@@ -2215,13 +2215,21 @@ fn refresh_cassette_fingerprint(
 }
 
 fn write_variant_manifest(root: &Path, manifest: &serde_yaml_ng::Value) -> Result<PathBuf, String> {
-    let path = root.join("manifest.yaml");
+    write_named_manifest(root, "manifest.yaml", manifest)
+}
+
+fn write_named_manifest(
+    root: &Path,
+    name: &str,
+    manifest: &serde_yaml_ng::Value,
+) -> Result<PathBuf, String> {
+    let path = root.join(name);
     fs::write(
         &path,
         serde_yaml_ng::to_string(manifest)
             .map_err(|error| format!("serialize variant manifest: {error}"))?,
     )
-    .map_err(|error| format!("write variant manifest: {error}"))?;
+    .map_err(|error| format!("write variant manifest {}: {error}", path.display()))?;
     Ok(path)
 }
 
@@ -2983,7 +2991,7 @@ fn second_repository_fixture(world: &mut BenchmarkWorld) -> Result<(), String> {
         .ok_or("fixture manifest has no repositories sequence")?
         .push(repository);
     let gold: serde_yaml_ng::Value = serde_yaml_ng::from_str(&format!(
-        "{{repository: fixture-extra, metric: typo, version: 1, tasks: 5, fingerprint: \"{fingerprint}\", path: gold/extra/typo.jsonl}}"
+        "{{repository: fixture-extra, metric: typo, version: 1, tasks: 5, reviewed_by: maintainer--ortsinn, fingerprint: \"{fingerprint}\", path: gold/extra/typo.jsonl}}"
     ))
     .map_err(|error| format!("parse extra gold entry: {error}"))?;
     manifest
@@ -4446,5 +4454,129 @@ fn no_affected_cell_is_zero(world: &mut BenchmarkWorld) -> Result<(), String> {
             }
         }
     }
+    Ok(())
+}
+
+// --- S10: an unreviewed manifest-referenced gold set stops the run --------
+
+const DRAFT_TASK_ID: &str = "draft-typo-extra";
+
+#[given("a real manifest that references a gold set with no reviewed_by")]
+fn a_manifest_references_an_unreviewed_gold_set(
+    world: &mut BenchmarkWorld,
+) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-unreviewed-gold")?;
+    let draft = benchmark::gold::propose::write_draft(
+        &root.join("gold"),
+        "fixture-repo",
+        "typo",
+        &[serde_json::json!({
+            "id": DRAFT_TASK_ID,
+            "query": "add_numbrs_draft",
+            "expected": [{
+                "path": "src/math_utils.py",
+                "start_line": 10,
+                "end_line": 10,
+                "symbol": "helper_10"
+            }]
+        })],
+    )
+    .map_err(|error| format!("write unreferenced draft: {error:#}"))?;
+    if !draft.is_file() {
+        return Err(format!("the draft was not written: {}", draft.display()));
+    }
+
+    let mut unreviewed = read_fixture_manifest()?;
+    let explanation = unreviewed
+        .get_mut("gold")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no gold sequence")?
+        .iter_mut()
+        .find(|set| set["metric"] == "explanation")
+        .ok_or("fixture manifest has no explanation gold entry")?;
+    if let Some(mapping) = explanation.as_mapping_mut() {
+        mapping.remove("reviewed_by");
+    }
+    world.manifest_path = write_variant_manifest(&root, &unreviewed)?;
+    write_named_manifest(&root, "manifest-reviewed.yaml", &read_fixture_manifest()?)?;
+    world.out_dir = root.join("out");
+    world.unreviewed_gold = Some(("fixture-repo".to_string(), "explanation".to_string()));
+    world.draft_task = Some(DRAFT_TASK_ID.to_string());
+    load_fixture(world)
+}
+
+#[when("the benchmark loads the gold sets")]
+fn the_benchmark_loads_the_gold_sets(world: &mut BenchmarkWorld) -> Result<(), String> {
+    run_replay(world)
+}
+
+#[then(r#"the error is the typed "unreviewed gold set" error naming the set and metric"#)]
+fn the_error_is_a_typed_unreviewed_gold_set(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let (repository, metric) = world
+        .unreviewed_gold
+        .clone()
+        .ok_or("the unreviewed-gold fixture was not prepared")?;
+    let failure = world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; a report was produced")?;
+    for expected in [
+        "unreviewed gold set".to_string(),
+        repository.clone(),
+        metric.clone(),
+    ] {
+        if !failure.message.contains(&expected) {
+            return Err(format!(
+                "error does not name `{expected}`: {}",
+                failure.message
+            ));
+        }
+    }
+    let manifest = Manifest::load(&world.manifest_path)
+        .map_err(|error| format!("load unreviewed manifest: {error:#}"))?;
+    let error = benchmark::gold::Gold::load(&manifest, &Manifest::base_dir(&world.manifest_path))
+        .err()
+        .ok_or("the unreviewed gold set loaded without an error")?;
+    let typed = error
+        .downcast_ref::<benchmark::gold::UnreviewedGoldSet>()
+        .ok_or_else(|| format!("gold load failed with an untyped error: {error:#}"))?;
+    assert_eq!(
+        typed.repository.as_str(),
+        repository.as_str(),
+        "unreviewed set repository"
+    );
+    assert_eq!(typed.metric.as_str(), metric.as_str(), "unreviewed set metric");
+    Ok(())
+}
+
+#[then("a draft gold file that the manifest does not reference is not loaded")]
+fn an_unreferenced_draft_is_not_loaded(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let draft_task = world
+        .draft_task
+        .clone()
+        .ok_or("the unreviewed-gold fixture did not record its draft task")?;
+    let root = world
+        .out_dir
+        .parent()
+        .ok_or("the unreviewed-gold fixture has no root")?
+        .to_path_buf();
+    let draft = benchmark::gold::propose::draft_path(&root.join("gold"), "fixture-repo", "typo");
+    if !draft.is_file() {
+        return Err(format!(
+            "the unreferenced draft is missing: {}",
+            draft.display()
+        ));
+    }
+    let reviewed_path = root.join("manifest-reviewed.yaml");
+    let manifest = Manifest::load(&reviewed_path)
+        .map_err(|error| format!("load reviewed manifest: {error:#}"))?;
+    let gold = benchmark::gold::Gold::load(&manifest, &root)
+        .map_err(|error| format!("load reviewed gold sets: {error:#}"))?;
+    if gold.typo.iter().any(|task| task.id == draft_task) {
+        return Err(format!(
+            "the unreferenced draft task {draft_task} was loaded into the gold set"
+        ));
+    }
+    assert_eq!(gold.typo.len(), 5, "reviewed typo task count");
     Ok(())
 }

@@ -75,7 +75,7 @@ Feature: Benchmark comparison
     And  the recorded response for the original query is not used
     And  no report.json or report.md is published
 
-  @givn.added @wip
+  @givn.added
   Scenario: An unreviewed gold set referenced by the manifest stops before scoring
     Given  a real manifest that references a gold set with no reviewed_by
     When  the benchmark loads the gold sets
