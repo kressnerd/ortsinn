@@ -12,6 +12,7 @@ pub mod metrics;
 pub mod record;
 pub mod report;
 pub mod runner;
+pub mod setup;
 
 /// Harness version recorded in the report.
 pub const HARNESS_VERSION: &str = env!("CARGO_PKG_VERSION");

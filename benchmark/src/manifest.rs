@@ -24,11 +24,47 @@ pub struct Manifest {
     pub mode: RunMode,
     pub repositories: Vec<Repository>,
     pub candidates: Vec<Candidate>,
+    /// Inline targets for manifests that do not reference a targets file.
+    #[serde(default)]
     pub targets: BTreeMap<String, Target>,
+    /// Real target file, relative to the manifest. Mutually exclusive with
+    /// inline targets; `--targets` overrides both.
+    #[serde(default)]
+    pub targets_file: Option<String>,
+    /// Published gold minima by repository power. The fixture manifest omits
+    /// this and keeps the loader's fixture semantics.
+    #[serde(default)]
+    pub gold_minimums: Option<GoldMinimums>,
+    #[serde(default)]
     pub gold: Vec<GoldSet>,
     pub cassettes: Cassettes,
     #[serde(default)]
     pub index_deadlines: BTreeMap<String, u64>,
+}
+
+/// Repository power label. A primary repository carries the full published
+/// gold minima; a secondary repository is rendered lower-power and excluded
+/// from cross-repository aggregate claims.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Power {
+    Primary,
+    Secondary,
+}
+
+/// Per-power published gold minima, declared by a real manifest.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GoldMinimums {
+    pub mode: GoldMinimumsMode,
+    pub primary: BTreeMap<String, u64>,
+    pub secondary: BTreeMap<String, u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GoldMinimumsMode {
+    Published,
+    Fixture,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -38,10 +74,34 @@ pub struct Repository {
     pub revision: String,
     pub commit: String,
     pub language: String,
+    /// `primary` or `secondary` for a real fixed input. Fixture manifests
+    /// leave it unset.
+    #[serde(default)]
+    pub power: Option<Power>,
+    /// Minimum reference-language code lines the input must provide.
+    #[serde(default)]
+    pub minimum_code_lines: Option<u64>,
     pub loc: LineCount,
     /// Path to the fixed checkout, relative to the manifest directory. Gold
     /// tasks are validated against this checkout before any score runs.
     pub checkout: String,
+    /// Present for the generated synthetic monorepo, whose pin is the seed,
+    /// generator version, and content fingerprint rather than a git commit.
+    #[serde(default)]
+    pub synthetic: Option<SyntheticInput>,
+}
+
+/// The synthetic input's fixed identity. The monorepo is generated, never
+/// committed; this record is the pin a checkout must reproduce.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SyntheticInput {
+    pub seed: u64,
+    pub generator_version: u32,
+    /// Recorded fixed-input identifier carried by the generator.
+    pub recorded_fingerprint: String,
+    /// SHA-256 over the sorted `(relative path, file content digest)` list.
+    pub content_fingerprint: String,
+    pub code_lines: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -62,6 +122,10 @@ pub struct Candidate {
     pub install: String,
     pub adapter: String,
     pub adapter_version: u32,
+    /// Where the authored version and commit were observed. Required by the
+    /// real manifest; fixture candidates may omit it.
+    #[serde(default)]
+    pub evidence: Option<CandidateEvidence>,
     #[serde(default)]
     pub capabilities: BTreeMap<String, Capability>,
     #[serde(default)]
@@ -74,6 +138,14 @@ pub struct Candidate {
     /// cell for it is then unavailable with the reason.
     #[serde(default)]
     pub unavailable: Option<Unavailable>,
+}
+
+/// Evidence citation for an authored candidate pin. Both values name the
+/// source the maintainer observed: the release and the commit.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CandidateEvidence {
+    pub version: String,
+    pub commit: String,
 }
 
 impl Candidate {
@@ -255,11 +327,31 @@ impl Manifest {
         );
         anyhow::ensure!(!self.candidates.is_empty(), "manifest has no candidates");
         for repository in &self.repositories {
-            anyhow::ensure!(
-                repository.commit.len() == 40,
-                "repository {} commit must be 40 hex characters",
-                repository.id
-            );
+            match &repository.synthetic {
+                Some(synthetic) => {
+                    anyhow::ensure!(
+                        synthetic.code_lines > 0,
+                        "synthetic repository {} has no code lines",
+                        repository.id
+                    );
+                    anyhow::ensure!(
+                        !synthetic.content_fingerprint.is_empty(),
+                        "synthetic repository {} has no content fingerprint",
+                        repository.id
+                    );
+                    anyhow::ensure!(
+                        repository.commit.is_empty()
+                            || repository.commit.len() == 40,
+                        "repository {} commit must be empty or 40 hex characters",
+                        repository.id
+                    );
+                }
+                None => anyhow::ensure!(
+                    repository.commit.len() == 40,
+                    "repository {} commit must be 40 hex characters",
+                    repository.id
+                ),
+            }
         }
         for candidate in &self.candidates {
             anyhow::ensure!(

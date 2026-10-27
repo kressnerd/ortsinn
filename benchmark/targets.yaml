@@ -1,0 +1,27 @@
+# Real targets referenced by benchmark/manifest.yaml through `targets_file`.
+# AC-01's 0.90 is the only numeric target in the confirmed records; it is
+# proposed, never confirmed. AC-03/12/21/22 have no confirmed numeric target.
+typo_recall_at_1:
+  value: 0.90
+  status: proposed
+  source: "proposal attachments 1/7 (AC-01); not confirmed"
+typo_recall_at_5:
+  value: null
+  status: unstated
+  source: "unstated in confirmed records (AC-03)"
+natural_language_recall_at_5:
+  value: null
+  status: unstated
+  source: "unstated in confirmed records (AC-12)"
+explanation_correctness:
+  value: null
+  status: unstated
+  source: "unstated in confirmed records"
+concept_recall_at_5:
+  value: null
+  status: unstated
+  source: "unstated in confirmed records (AC-21)"
+concept_equivalence_recall_at_5:
+  value: null
+  status: unstated
+  source: "unstated in confirmed records (AC-22)"

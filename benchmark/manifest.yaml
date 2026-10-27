@@ -1,0 +1,109 @@
+schema_version: 1
+run_id: real-benchmark-2026-10-27
+mode: record
+targets_file: targets.yaml
+repositories:
+  - id: typescript-reference
+    url: https://github.com/microsoft/TypeScript
+    revision: v7.0.2
+    commit: "1e4744d68260a7cb91b62b12edc3f6a2187faaf1"
+    language: typescript
+    power: primary
+    minimum_code_lines: 200000
+    checkout: work/repos/typescript-reference
+    loc:
+      language_code_lines: 731537
+      total_code_lines: 731537
+      tool: tokei 15.0.0
+      command: "tokei -t TypeScript --streaming json benchmark/work/repos/typescript-reference"
+      exclusions: []
+  - id: python-reference
+    url: https://github.com/python/cpython
+    revision: v3.15.0
+    commit: "d220409a13b77de7a6c30abe16ea90db01528edc"
+    language: python
+    power: secondary
+    minimum_code_lines: 200000
+    checkout: work/repos/python-reference
+    loc:
+      language_code_lines: 918945
+      total_code_lines: 918945
+      tool: tokei 15.0.0
+      command: "tokei -t Python --streaming json benchmark/work/repos/python-reference"
+      exclusions: []
+  - id: rust-reference
+    url: https://github.com/rust-lang/rust
+    revision: 1.99.1
+    commit: "58cf8f9c35b355199727627d07ae34a4e2846d67"
+    language: rust
+    power: secondary
+    minimum_code_lines: 200000
+    checkout: work/repos/rust-reference
+    loc:
+      language_code_lines: 2919114
+      total_code_lines: 2919114
+      tool: tokei 15.0.0
+      command: "tokei -t Rust --streaming json benchmark/work/repos/rust-reference"
+      exclusions: []
+  - id: synthetic-monorepo
+    url: "generated://synthetic-monorepo"
+    revision: "seed=20261020/generator=1"
+    commit: ""
+    language: synthetic
+    power: secondary
+    minimum_code_lines: 10000000
+    checkout: work/synthetic
+    synthetic:
+      seed: 20261020
+      generator_version: 1
+      recorded_fingerprint: "sha256:synthetic-demo-v1"
+      content_fingerprint: "sha256:799817ea60833ed4f0686e7446c104c8b5a640d74c849150905901b102c50e58"
+      code_lines: 10000000
+    loc:
+      language_code_lines: 10000000
+      total_code_lines: 10000000
+      tool: "benchmark synthetic generator 1"
+      command: "cargo run -p benchmark --bin generate-synthetic -- --root benchmark/work/synthetic"
+      exclusions: []
+candidates:
+  - id: ocbi
+    version: v0.37.0
+    commit: "573b71c3d5cfaba3a83d602f7534605047a01363"
+    install: work/tools/ocbi/bin/ocbi
+    adapter: ocbi
+    adapter_version: 1
+    evidence:
+      version: "https://github.com/Helweg/open-codebase-index/releases/tag/v0.37.0"
+      commit: "https://github.com/Helweg/open-codebase-index/commit/573b71c3d5cfaba3a83d602f7534605047a01363"
+  - id: ckb
+    version: v9.3.1
+    commit: "5ff375db862c17dbf40168fa3924696baf1839a6"
+    install: work/tools/go/bin/ckb
+    adapter: ckb
+    adapter_version: 1
+    evidence:
+      version: "https://github.com/SimplyLiz/ckb/releases/tag/v9.3.1"
+      commit: "https://github.com/SimplyLiz/ckb/commit/5ff375db862c17dbf40168fa3924696baf1839a6"
+  - id: serena
+    version: v2.1.0
+    commit: "5e4f5cd173c7ff3eed37ee3f1de6c266b937c5dc"
+    install: work/tools/uv/bin/serena
+    adapter: serena
+    adapter_version: 1
+    evidence:
+      version: "https://github.com/oraios/serena/releases/tag/v2.1.0"
+      commit: "https://github.com/oraios/serena/commit/5e4f5cd173c7ff3eed37ee3f1de6c266b937c5dc"
+targets: {}
+gold_minimums:
+  mode: published
+  primary: {typo: 50, natural_language: 30, explanation: 20, concept: 50, concept_equivalence: 20}
+  secondary: {typo: 25, natural_language: 15, explanation: 10, concept: 25, concept_equivalence: 10}
+# The reviewed gold files are authored by their own evidence task; the record
+# task adds the entries and fingerprints once they exist.
+gold: []
+cassettes:
+  results: {path: cassettes/results/results.jsonl, fingerprint: ""}
+  model: {path: cassettes/model/model.jsonl, fingerprint: ""}
+index_deadlines:
+  public_repository_seconds: 14400
+  synthetic_seconds: 1800
