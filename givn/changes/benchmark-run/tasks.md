@@ -1,0 +1,303 @@
+# Tasks: benchmark-run
+
+## Shared design constraints
+
+- Harness: Rust workspace member `benchmark/`; binary `benchmark`; edition 2024; `Cargo.lock` committed. No product code.
+- Toolchain: `RUSTUP_TOOLCHAIN=stable-x86_64-unknown-linux-gnu`; `env.sh` resolves `libz.so.1` and LLVM 23.
+- Runner: `benchmark/tests/benchmark_features.rs`; cucumber-rs; `.fail_on_skipped()` plus `filter_run_and_exit()`; default filter `not @wip`; `--name`/`--tags` supplied by the caller bypass that default.
+- Feature paths: `GIVN_FEATURES` newline-separated; `env.sh`'s `givn_resolve_features` supplies the absolute list; runner fails when empty.
+- Single scenario: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "<exact title>"`.
+- E2E: `./run-tests.sh --e2e` → `cargo test --test benchmark_features -- --tags @e2e`; distinct from `./run-tests.sh`. No new `@e2e` scenario in this change; the two permanent CLI scenarios remain.
+- Strictness: undefined, pending, skipped, and failed steps must exit non-zero; every new step starts with `unimplemented!("benchmark-comparison: <step>")`.
+- Manifest pins: `benchmark/manifest.yaml` is the only origin of candidate and repository pins (resolved at implementation with evidence); `benchmark/setup.lock.json` records toolchains and probe results, never the origin of pins; `--refresh` is a new record run.
+- Fixed inputs: `typescript-reference` (primary), `python-reference` and `rust-reference` (secondary), each ≥200,000 reference-language code lines; `synthetic-monorepo` (secondary) 10,000,000 code lines, seed `20261020`, generator `1`. Public index deadline 14,400 s; synthetic 1,800 s.
+- Gold: primary minimum 50 typo / 30 natural-language / 20 explanation / 50 concept / 20 concept-equivalence; secondary minimum 25 / 15 / 10 / 25 / 10. `gold_minimums.mode: fixture` in the fixture manifest; `published` in the real manifest. Manifest-referenced gold requires `reviewed_by: maintainer--ortsinn`; unreferenced drafts are never loaded.
+- Publication floor: at least one measured candidate cell for each of typo, natural-language, explanation, and concept, and at least one measured cell for every manifest repository; otherwise exit 2 before either report file is written.
+- Recorded model keys include the SHA-256 query digest: `model:explanation:<candidate>:<task>:sha256:<digest>` and `model:embedding:<candidate>:<model>:sha256:<digest>`. A changed query is a missing response, never reuse.
+- Hybrid endpoints: loopback embedding endpoint for benchmark embeddings and candidate-internal embeddings; external OpenAI-compatible explanation endpoint only for the at-most-80 reviewed gold explanation queries. Record both localities, model names, and the explanation budget in setup lock, provenance, and report.
+- Targets: `benchmark/targets.yaml`; precedence `--targets` > manifest `targets_file` > inline; SHA-256 fingerprint in report and provenance. AC-01 0.90 is `proposed`; AC-03/12/21/22 are `unstated`.
+- Provenance: `benchmark/evidence/real-run/provenance.json` records command, UTC start/end, host/toolchain, endpoint localities/models, candidate pins, per-candidate/repository index outcomes, and cassette digests; scenarios cross-check it.
+- Report schema: version 2; `reproduction.gold_fingerprints` keyed `<repository>/<metric>`; `inputs.repositories[].power`; `reproduction.targets_fingerprint`, `reproduction.provenance_fingerprint`; candidate setup deviations.
+- Fixture migration: one-shot result-cassette key rewrite, model-cassette regeneration, manifest fingerprint update; the `@givn.modified` scenario updates the permanent replay-fingerprint assertion.
+- Evidence run input: `BENCHMARK_EXPLANATION_ENDPOINT` plus its key, and a loopback `BENCHMARK_EMBEDDING_ENDPOINT` serving the embedding model. Do not fabricate cassettes or reports if either is unavailable; record the task as blocked.
+
+## Setup — runner, strict mode, and baseline
+
+- [ ] Prove strict mode and record the baseline.
+  - Command: `source ./env.sh && ./run-tests.sh`
+  - Baseline output: _(paste)_; expected `28 scenarios (28 passed)`, exit 0.
+  - Strict probe: create a temporary feature with one undefined step and run `GIVN_FEATURES=<probe> ./run-tests.sh`; expected non-zero. Output: _(paste)_.
+  - Remove the probe and rerun `./run-tests.sh`; expected 28 passed, exit 0. Output: _(paste)_.
+  - Confirm `givn/commands.yaml` still declares `verify.command: ./run-tests.sh` and `verify.e2e_command: ./run-tests.sh --e2e`.
+  - Production files: none unless the baseline or strict configuration needs repair.
+  - COMMIT: _(hash)_
+
+- [ ] E2E setup check (no new e2e scenario).
+  - Command: `./run-tests.sh` → full count 28; `./run-tests.sh --e2e` → 2 scenarios; e2e count is strictly less than full.
+  - Output: _(paste both counts)_.
+  - Confirm the e2e step file remains `benchmark/tests/steps/e2e/benchmark_cli.rs` and the local fake endpoint starts on loopback.
+  - COMMIT: _(hash)_
+
+## Evidence preparation (prerequisites for S7/S11/S12/S15)
+
+- [ ] Resolve and commit the real fixed inputs and candidate pins.
+  - Author `benchmark/manifest.yaml` with the three reference repository URLs/commits/languages/LOC, the synthetic seed/version/fingerprint, candidate versions/commits, adapters, power labels, deadlines, and gold/cassette references.
+  - Author `benchmark/targets.yaml` and `benchmark/setup.lock.json` (toolchains/probes only; pins stay in the manifest).
+  - Run `benchmark/fetch-repos.sh` and `benchmark/setup.sh`; prove pins match and no drift. Output: _(paste)_.
+  - Production files: `benchmark/manifest.yaml`, `benchmark/targets.yaml`, `benchmark/setup.lock.json`, scripts, `benchmark/src/setup.rs` as required.
+  - COMMIT: _(hash)_
+
+- [ ] Author and review the real gold sets.
+  - Primary repository: 50 typo, 30 natural-language, 20 explanation, 50 concept, 20 concept-equivalence reviewed tasks. Each secondary: 25/15/10/25/10. Synthetic gold generated and reviewed with the generator.
+  - Drafts live under `benchmark/gold/drafts/`; reviewed files under `benchmark/gold/<repository>/<metric>.jsonl`; manifest entries carry `version`, `tasks`, `fingerprint`, `reviewed_by`.
+  - Run `benchmark/src/gold/propose.rs` and the review checks; output the counts and fingerprints. Output: _(paste)_.
+  - COMMIT: _(hash)_
+
+- [ ] Record the real run and commit provenance, cassettes, and report.
+  - Requires the hybrid endpoints named above; if unavailable, mark blocked and do not fabricate evidence.
+  - Command: `./benchmark/run-real.sh` (fetch/setup/record/replay/provenance).
+  - Assert the per-family floor and every manifest cell; commit `benchmark/evidence/real-run/provenance.json`, `benchmark/cassettes/results/results.jsonl`, `benchmark/cassettes/model/model.jsonl`, and `benchmark/reports/report.json`/`report.md`; update manifest fingerprints.
+  - Output: _(paste provenance summary and report path)_.
+  - COMMIT: _(hash)_
+
+## S1 — Real manifest pins every reference repository and the synthetic monorepo
+
+- [ ] RED — remove `@wip` from S1 only; targeted run; paste non-zero output.
+  - Command: single-scenario command above with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — implement the real manifest/repository identity assertions; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/manifest.rs`, `benchmark/src/setup.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed `benchmark/manifest.yaml`/`targets.yaml` as required.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: manifest IDs and languages; primary/secondary; 200k minimum; synthetic seed/generator/10M; checkouts under `benchmark/work`; 14,400/1,800-second deadlines; read the committed manifest and setup lock, not a live network call.
+
+## S2 — Real manifest pins every candidate version and commit
+
+- [ ] RED — remove `@wip` from S2 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — assert open-codebase-index, CKB, and Serena version plus 40-hex commit from the manifest; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed real manifest.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: manifest is the only pin origin; setup lock must not write pins; candidate adapters `ocbi`/`ckb`/`serena`; 40-character commits.
+
+## S3 — The real manifest and setup lock agree on every pin
+
+- [ ] RED — remove `@wip` from S3 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — implement `setup.rs` pin/lock/probe agreement; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/setup.rs`, `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed setup lock.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: setup lock records probe/toolchain records only; no pin origin; checkout and install paths resolve; probe records exist for every candidate.
+
+## S4 — A real fixed input that differs from its pin stops before scoring
+
+- [ ] RED — remove `@wip` from S4 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — drive `setup.rs` validation against a temporary manifest/checkout with a wrong commit or missing installation; exit 2, named input, no report; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/setup.rs`, `benchmark/src/runner.rs`/`cli.rs` as required, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: no network; temp copy; exit 2; error names the mismatched fixed input; no report files; the run never starts when preparation is invalid.
+
+## S5 — A documented setup deviation is recorded on every affected cell
+
+- [ ] RED — remove `@wip` from S5 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — implement setup-deviation recording and cell labelling through `FakeSession`; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/adapters/session.rs`, `benchmark/src/adapters/*.rs`, `benchmark/src/manifest.rs`, `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: setup deviation names dependency, reason, affected capabilities/repositories; affected measured cells keep their value; no affected cell is zero; candidate remains in the report.
+
+## S6 — A candidate that fails its setup probe is unavailable, not zero
+
+- [ ] RED — remove `@wip` from S6 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — implement probe failure → candidate unavailable, other candidates measured, report lists it; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/adapters/session.rs`, `benchmark/src/adapters/*.rs`, `benchmark/src/runner.rs`, `benchmark/src/report/model.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: candidate-level `unavailable` with probe reason; other installed candidates measured; run continues; never zero.
+
+## S7 — The committed real run records its recording mode, cassette fingerprints, and model dependencies
+
+- [ ] RED — remove `@wip` from S7 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — assert the committed provenance, cassette fingerprints, recording mode, and model dependencies; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/provenance.rs`, `benchmark/src/runner.rs`, `benchmark/src/report/model.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed evidence.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: read committed provenance/cassettes/report; mode `record`; model and result fingerprints; every measured cell's model dependency present; provenance command/UTC/pins/digests/index outcomes cross-check. Do not run a live record in this scenario.
+
+## S8 — A real replay reproduces the report without an external call
+
+- [ ] RED — remove `@wip` from S8 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — `run_replay` over the committed real cassettes; assert measurements, ordering, no candidate process, no external request; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/runner.rs`, `benchmark/src/record/*`, `benchmark/tests/steps/benchmark_comparison.rs`, committed evidence.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: committed manifest/cassettes; no candidate/endpoint; result and model fingerprints; replay probe for installed candidates.
+
+## S9 — A changed query does not reuse a recorded model response
+
+- [ ] RED — remove `@wip` from S9 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — implement the S9 recipe and typed missing-response behavior; list production files; targeted run; paste zero output.
+  - Recipe: copy fixture dir → edit one explanation query → recompute and write its fingerprint in the temp manifest → replay → assert exit 2, missing response for the new digest, old key absent.
+  - Production files: `benchmark/src/record/*`, `benchmark/src/runner.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, fixture migration as required.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: query digest in the key; no fallback; exit 2; no report; gold fingerprint recomputed before replay.
+
+## S10 — An unreviewed gold set referenced by the manifest stops before scoring
+
+- [ ] RED — remove `@wip` from S10 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — implement `reviewed_by` enforcement and typed `unreviewed gold set` failure; unreferenced drafts are not loaded; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/gold/mod.rs`, `benchmark/src/manifest.rs`, `benchmark/src/gold/propose.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: manifest-referenced unreviewed set fails before scoring; no report; drafts under `gold/drafts/` excluded; no change-ID vocabulary.
+
+## S11 — The real record run covers every manifest candidate and repository
+
+- [ ] RED — remove `@wip` from S11 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — audit candidate × repository × metric over the committed result cassette and `inputs.*`; assert floor/provenance/index outcomes; replay installed slices; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/runner.rs`, `benchmark/src/report/model.rs`, `benchmark/src/provenance.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed evidence.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: every manifest cell measured/unavailable/not-applicable; synthetic timeout carries elapsed time; replay probe per installed candidate; no omission.
+
+## S12 — The real gold sets declare reviewed task counts
+
+- [ ] RED — remove `@wip` from S12 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — assert per-power minima, reviewers, versions, fingerprints, synthetic generation/review; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/gold/minimums.rs`, `benchmark/src/gold/mod.rs`, `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed gold.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: primary 170; secondary 85; synthetic generated; lower-power label; `reviewed_by`; typed below-minimum failure.
+
+## S13 — A real candidate's evidence keeps its order and resolution
+
+- [ ] RED — remove `@wip` from S13 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — drive adapter normalization via `FakeSession` for duplicate and file-only answers; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/adapters/session.rs`, `benchmark/src/adapters/*.rs`, `benchmark/src/adapters/mod.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: preserve candidate order; deduplicate by `(path, start_line, end_line, symbol)` without reordering; file-only remains a file resolution; no capability inference.
+
+## S14 — A real candidate without an operation is unavailable with the capability reason
+
+- [ ] RED — remove `@wip` from S14 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — drive `FakeSession` missing explanation; assert unavailable cell, measured families, capability gap; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/adapters/session.rs`, `benchmark/src/adapters/*.rs`, `benchmark/src/runner.rs`, `benchmark/src/report/model.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: missing operation → `unavailable` with capability reason; measured families remain; gap listed; never zero.
+
+## S15 — The real report publishes the measured comparison and defers the product path
+
+- [ ] RED — remove `@wip` from S15 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — `run_replay` over committed real cassettes; assert four families/gaps, no-expansion arm, identities/fingerprints, targets labels/sources/fingerprint, provenance, endpoint localities/models/budget, power labels, deferred decision; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`, `benchmark/src/runner.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed evidence.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: report schema 2; `<repository>/<metric>` fingerprint keys; primary aggregate excludes secondary; lower-power label; external explanation budget recorded; path decision deferred.
+
+## S16 — A real run below the per-family measurement floor publishes no report
+
+- [ ] RED — remove `@wip` from S16 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — implement the floor check; temp manifest/cassette with one family or repository unmeasured → exit 2, no report files; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/runner.rs`, `benchmark/src/report/model.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: per-family measured cell; every repository; exit 2 before report write; unavailable candidates remain in a published report when the floor is met.
+
+## S17 — A real gold set below the published minimum stops before scoring
+
+- [ ] RED — remove `@wip` from S17 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — implement `gold_below_minimum`; temp real manifest/gold below the per-power minimum → exit 2, no report; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/gold/minimums.rs`, `benchmark/src/gold/mod.rs`, `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: fixture `mode: fixture`; real `mode: published`; per-power minima; typed failure; no report; no fixture regression.
+
+## S18 — Replay rerun reproduces the report without an external model call (`@givn.modified`)
+
+- [ ] RED — remove `@wip` from S18 only (modified scenario); targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title.
+  - Output: _(paste)_
+- [ ] GREEN — migrate the fixture result/model cassettes and manifest fingerprint; assert the report's model fingerprint and every model key's query digest; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/record/*`, `benchmark/src/runner.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, `benchmark/tests/fixtures/e2e/cassettes/*`, fixture manifest.
+  - Output: _(paste)_
+- [ ] REFACTOR — targeted run; paste zero output.
+  - Output: _(paste)_
+- [ ] COMMIT: _(hash)_
+- Design constraints: one-shot result-cassette key rewrite; model-cassette regeneration; fingerprint update; permanent replay scenario's literal digest updated; no query-free key remains.
+
+## Closeout
+
+- [ ] Every delta step phrase is bound in the permanent `benchmark/tests/steps/benchmark_comparison.rs`; no delta step copy remains.
+- [ ] `./run-tests.sh` exits 0 with all 18 delta scenarios green and the 28 permanent scenarios green; `./run-tests.sh --e2e` exits 0 with 2 scenarios.
+- [ ] `givn lint --change benchmark-run` has no findings beyond expected `@wip`/advisory while work is open; before archive, no `@wip` remains.
+- [ ] The committed real evidence (provenance, cassettes, report, gold review records) is present and cross-checked; the evidence run was not fabricated.

@@ -15,8 +15,8 @@ The maintainer gets a reproducible benchmark harness and report contract that
 verifies fixed inputs, replays recorded candidate results, scores typo,
 natural-language, explanation, and concept recall with coverage and measured
 gaps, and publishes a report whose values and limitations are checkable, so
-the real comparison can be published by `benchmark-run` and the product path
-decided after that report.
+the real measured comparison can be published and the product path decided
+after that report.
 
 ## Trigger
 
@@ -28,7 +28,8 @@ replay of a completed run.
 - Record mode — the committed fixture manifest fixes the repository, the fixture candidate identities, the target records, the gold sets, and the cassettes.
 - Record mode — the fixture checkout, gold sets, and recorded result cassette exist at the fixed revision.
 - Record mode — a local OpenAI-compatible model endpoint is available; the fixture record boundary runs against a loopback fake endpoint.
-- Record mode — no real candidate install is required; real candidate installs are `benchmark-run`'s precondition.
+- Record mode — no real candidate install is required; real candidate installs
+  are outside this fixture contract.
 - Replay mode — a benchmark manifest fixes the inputs, candidate identities, target records, gold sets, and cassettes.
 - Replay mode — recorded result and model cassettes exist for the manifest, gold, and candidate set, and the manifest records each repository's fixed checkout.
 - Replay mode — no candidate install and no model endpoint are required; replay starts no candidate process.
@@ -42,7 +43,9 @@ replay of a completed run.
 5. Where a candidate supports disabling query expansion, the benchmark scores the concept-recall queries without expansion and records a separate arm.
 6. The benchmark scores each metric and each arm, records coverage and any unavailable capability with its reason, and computes the measured gaps.
 7. The benchmark writes a machine-readable report and a human-readable report, prints a concise summary, and states that the product-path decision is deferred to the maintainer and the named decision record.
-8. The maintainer reads the report and records the build/contribute/compose decision in the post-report decision record after `benchmark-run` publishes the real measured report.
+8. The maintainer reads the report and records the build/contribute/compose
+   decision in the post-report decision record after the real measured report
+   is published.
 
 ## Extensions
 
@@ -74,7 +77,7 @@ replay of a completed run.
 - R6. The report states the recording mode, the recorded-response fingerprint, and the exact command that reproduces the run; replay makes no external model call and can be rerun without cost.
 - R7. The report contains no pre-registered build threshold and no chosen product path; it names the maintainer and the post-report decision record as the owner and artifact of that decision.
 - R8. The same fixed inputs, candidate identities, gold-set versions, and recorded responses produce the same measurements and ordering; timestamps and run metadata are excluded from measurement identity.
-- R9. Candidate results enter the harness as normalized records produced through the candidate's own documented interface; the harness normalizes and scores them and never synthesizes a capability the candidate does not expose. The real adapters are `benchmark-run`'s.
+- R9. Candidate results enter the harness as normalized records produced through the candidate's own documented interface; the harness normalizes and scores them and never synthesizes a capability the candidate does not expose. Real adapters follow the same contract when the real path is enabled.
 - R10. The benchmark's recording and report are project artifacts, not product runtime behavior; no product MCP tool is added or changed.
 
 ## Examples
@@ -101,10 +104,9 @@ maintainer and the named decision record. The regular scenarios and the two
 `@e2e` CLI scenarios assert the exact fixture values and the record→replay
 boundary.
 
-The real-candidate comparison and its committed record-run evidence are
-`benchmark-run`'s success guarantee; this change guarantees the harness and
-report contract that report uses, and the fixture evidence that the contract
-behaves as specified.
+The real-candidate comparison and its committed record-run evidence extend
+this guarantee when the real path is enabled; the real-run scenarios assert
+that extension, and the fixture evidence asserts the report contract it uses.
 
 ## Personas
 
@@ -120,7 +122,7 @@ behaves as specified.
 | Capability | Consumer action | E2E scenario |
 |---|---|---|
 | benchmark-comparison | Run the benchmark in replay mode on the fixed inputs and read the measured report | Maintainer runs the benchmark and reads the measured report |
-| benchmark-comparison | Record a benchmark run against a local model endpoint and replay the recorded run | Maintainer records a run and replays it without an external call |
+| benchmark-comparison | Record a benchmark run against a model endpoint and replay the recorded run | Maintainer records a run and replays it without an external call |
 
 ## Includes
 
@@ -133,7 +135,9 @@ behaves as specified.
 ## Out of scope
 
 - The product's runtime MCP surface and any product use case.
-- The real candidate adapters, fixed reference repositories, real gold sets, fetch script, candidate installs, and the real record run; `benchmark-run` owns them.
+- The real candidate adapters, fixed reference repositories, real gold sets,
+  fetch script, candidate installs, and the real record run; they are outside
+  the fixture contract and are covered by the real-run scenarios.
 - The build/contribute/compose decision; the post-report decision record owns it.
 - Patching or optimizing a candidate.
 - Measuring metrics other than the four named acceptance families; index time is recorded only to explain availability.
@@ -162,5 +166,5 @@ sequenceDiagram
     end
     B->>B: score, apply deadlines and coverage, compute gaps
     B-->>M: report, measured gaps, deferred path decision
-    M->>M: record product path after benchmark-run
+    M->>M: record product path after the report
 ```

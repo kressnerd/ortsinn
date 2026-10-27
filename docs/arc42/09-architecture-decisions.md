@@ -18,15 +18,18 @@ second MADR section into this file.
 
 | ADR | Title | Status | Date | File |
 |---|---|---|---|---|
+| ADR-0001 | Query digest in the model-cassette key | accepted | 2026-10-27 | [ADR-0001-query-digest-model-cassette-key.md](adr/ADR-0001-query-digest-model-cassette-key.md) |
 
 ## Decision register status (benchmark-gate, 2026-10-20)
 
-No architecture decision record is registered for the benchmark harness. The
-harness language, workspace membership, recording/replay boundary, and
-no-container isolation have real alternatives, but they are single-component,
-single-change decisions with no durable product boundary; their complete
-rationale is owned by `givn/changes/benchmark-gate/design.md` (after archive,
-the design is the canonical change record).
+No architecture decision record was registered for the benchmark harness at
+this archive. The harness language, workspace membership, recording/replay
+boundary, and no-container isolation have real alternatives, but they are
+single-component, single-change decisions with no durable product boundary;
+their complete rationale is owned by `givn/changes/benchmark-gate/design.md`
+(after archive, the design is the canonical change record). `benchmark-run`
+later registered ADR-0001 for the query-digest cassette-key format; that
+decision did not exist in `benchmark-gate` and supersedes nothing.
 
 `ADR action: NONE`
 
@@ -53,6 +56,82 @@ The decision is not a product-behavior decision owned by a use case either: the
 benchmark is a project gate outside product runtime, and its observable
 behaviour is owned by the `benchmark-comparison` Gherkin specification.
 
+
+## Decision register status (benchmark-run, 2026-10-27)
+
+Five candidate decisions were tested independently. Candidate setup and
+manifest pins, per-power gold minimums and review, the record gate and
+publication floor, and the adapter/session boundary each have real
+alternatives, but each is reversible within this change and/or its complete
+rationale belongs to the change's `design.md`; they route there. The
+query-digest cassette-key format additionally fixes a durable on-disk contract
+with a migration boundary shared by record, replay, committed cassettes, and
+future gold versions, so it qualifies as ADR-0001.
+
+`ADR action: NEW_ADR`
+
+```text
+qualification: QUALIFIED
+alternatives: PASS
+architectural_impact: PASS
+durable_consequence: PASS
+lower_level_artifact: PASS
+existing_adr_check: PASS
+must_be_shared: SUPPORTING
+routing: NEW_ADR
+canonical_artifact: null
+target_adr: null
+replacement_adr: null
+```
+
+Non-qualifying candidates:
+
+```text
+candidate: candidate setup and manifest pins
+qualification: NOT_QUALIFIED
+alternatives: PASS
+architectural_impact: FAIL
+durable_consequence: FAIL
+lower_level_artifact: FAIL
+existing_adr_check: PASS
+routing: CANONICAL_ARTIFACT
+canonical_artifact: design.md
+
+candidate: per-power gold minimums and review
+qualification: NOT_QUALIFIED
+alternatives: PASS
+architectural_impact: FAIL
+durable_consequence: FAIL
+lower_level_artifact: FAIL
+existing_adr_check: PASS
+routing: CANONICAL_ARTIFACT
+canonical_artifact: design.md
+
+candidate: record gate and per-family publication floor
+qualification: NOT_QUALIFIED
+alternatives: PASS
+architectural_impact: FAIL
+durable_consequence: FAIL
+lower_level_artifact: FAIL
+existing_adr_check: PASS
+routing: CANONICAL_ARTIFACT
+canonical_artifact: design.md
+
+candidate: adapter/session boundary
+qualification: NOT_QUALIFIED
+alternatives: PASS
+architectural_impact: PASS
+durable_consequence: FAIL
+lower_level_artifact: FAIL
+existing_adr_check: PASS
+routing: CANONICAL_ARTIFACT
+canonical_artifact: design.md
+```
+
+Existing-ADR check: the register and `docs/arc42/adr/` were searched; no prior
+ADR covers the benchmark adapters, setup lock, gold review, record gate, or
+cassette key. ADR-0001 is the only record for the query-digest format, and no
+duplicate or refinement exists to amend.
 
 ## Individual ADR contract
 

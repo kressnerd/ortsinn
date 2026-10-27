@@ -29,11 +29,12 @@ flowchart TB
 | Fixture | `benchmark/tests/fixtures/e2e/manifest.yaml`, `repo/`, `gold/`, and `cassettes/`; committed and fixed. |
 | Report output | The caller's `--out` directory (default `reports/benchmark`), not committed. |
 | Recordings | The returned-temporary record scenario writes model and result cassettes under its output directory; the committed fixture cassettes are read-only input. |
-| Model endpoint | The `@e2e` scenario's fake OpenAI-compatible endpoint on an ephemeral loopback port; used in record mode only. |
+| Model endpoint | The `@e2e` scenario's fake OpenAI-compatible endpoint on an ephemeral loopback port, used for both fixture endpoint roles in record mode only. |
 
-The real candidate installs and tool prefixes (`benchmark/.tools/`), the
-public repository work area (`benchmark/.work/`), and the committed public
-cassettes are `benchmark-run`'s deployment, not this change's.
+The real candidate installs and tool prefixes, the public repository work
+area, the per-candidate checkouts, the setup lock, and the committed public
+cassettes and report are this change's evidence deployment. The fixture
+deployment above remains the CI and replay path.
 
 ## Infrastructure level 2
 
@@ -66,3 +67,26 @@ cassettes are `benchmark-run`'s deployment, not this change's.
 into `GIVN_COVERAGE_OUTPUT_PATH` and probes production files. Visual
 transcripts are written to `${GIVN_EVIDENCE_DIR:-benchmark/evidence/visual}` so
 they survive change archival.
+
+### Real evidence deployment
+
+| Path | Content | Pin / identity |
+|---|---|---|
+| `benchmark/work/repos/<repository>` | Pinned public reference checkout | URL, revision, commit, language, measured size |
+| `benchmark/work/synthetic` | Generated 10M-line monorepo | Seed `20261020`, generator `1`, content fingerprint |
+| `benchmark/work/<candidate>/<repository>` | Writable per-candidate copy with `.git` where required | Candidate version/commit and repository commit |
+| `benchmark/work/tools` | Installed candidate binaries, SCIP indexers, language servers, Serena environment | Entries in `benchmark/setup.lock.json` |
+| `benchmark/setup.lock.json` | Probe results, resolved toolchain versions, setup deviations, and endpoint/model records | Written by `setup.sh`; committed evidence; never the candidate-pin origin |
+| `benchmark/evidence/real-run/provenance.json` | Command, UTC start/end, host/toolchain, endpoint localities/models and explanation budget, manifest pins, index outcomes, targets fingerprint, cassette digests | Committed evidence; cross-checked by the real-run scenarios |
+| `benchmark/cassettes/results` and `benchmark/cassettes/model` | Committed normalized results and model responses | SHA-256 fingerprints in the manifest |
+| `benchmark/reports` | Committed `report.json` and `report.md` | Manifest, targets, cassette, and provenance fingerprints |
+| `benchmark/evidence/visual` | Committed terminal transcripts | Two `@e2e` scenario transcripts |
+| Loopback embedding endpoint | Local OpenAI-compatible embedding server (`nomic-embed-text`) | Locality/model in the setup lock, provenance, and report |
+| External explanation endpoint | Provider OpenAI-compatible endpoint used only for at most 80 reviewed explanation queries | Locality/model/budget in the setup lock, provenance, and report; recorded operator decision |
+
+`env.sh` supplies the toolchain, zlib, and LLVM 23 environment to
+`run-tests.sh`, `setup.sh`, `measure-coverage.sh`, and `merge-coverages.sh`.
+Candidate pins come from the committed manifest; the setup lock records only
+what was probed and installed. The embedding endpoint stays on loopback, and
+only the reviewed explanation queries leave the machine; replay and the fixture
+suite make no external call. The real record run is not a CI deployment step.

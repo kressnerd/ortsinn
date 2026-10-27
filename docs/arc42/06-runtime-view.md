@@ -77,8 +77,73 @@ sequenceDiagram
 
 **Notes:** the `@e2e` record scenario starts the endpoint on an ephemeral
 loopback port and compares the replay report with the recorded one. The
-committed fixture cassettes are never overwritten. The real record run is
-`benchmark-run`'s.
+committed fixture cassettes are never overwritten. The real record run uses
+the same runner with the real adapters and the hybrid endpoints; it is a
+manual evidence task, not part of the fixture suite. The model key includes
+the query digest, so a changed query is a missing response.
+
+## Scenario: real record and replay
+
+**Trigger:** the maintainer runs `benchmark/run-real.sh` after fetch and setup,
+then replays the committed evidence.
+
+```mermaid
+sequenceDiagram
+    actor M as Maintainer
+    participant R as Runner
+    participant A as Candidate adapters
+    participant C as Installed candidates
+    participant P as Recording proxy
+    participant EL as Loopback embedding endpoint
+    participant EE as External explanation endpoint
+    M->>R: run --mode record --manifest benchmark/manifest.yaml
+    R->>R: verify fixed inputs, gold review/minimums, setup lock, targets
+    R->>A: probe every manifest candidate
+    A->>C: documented CLI or MCP stdio
+    C-->>A: capability and index answers
+    A-->>R: normalized results and setup deviations
+    R->>P: benchmark model-request dependencies
+    P->>EL: embedding requests
+    P->>EE: at most 80 explanation queries
+    EL-->>P: embedding response
+    EE-->>P: explanation response
+    P->>P: write model cassette with query digest
+    R->>R: score, check per-family floor, write report, result cassette, provenance
+    M->>R: run --mode replay
+    R->>R: read cassettes; start no candidate and call no endpoint
+```
+
+**Steps:**
+
+1. The project setup scripts have prepared and validated the
+   manifest-authored reference checkouts, the synthetic monorepo, the
+   installed candidates, and the setup lock probes.
+2. The runner verifies every fixed input it can check, loads only
+   manifest-referenced gold sets with a reviewer, and enforces the per-power
+   minimums; a below-minimum or unreviewed referenced set exits 2.
+3. Each adapter probes its candidate, runs the declared operations, and
+   produces normalized results plus setup deviations; an unstartable candidate
+   is unavailable and the run continues. The synthetic monorepo is attempted
+   within its 1,800-second deadline.
+4. The recorder writes every benchmark model request/response under the
+   query-digest key: embeddings through the loopback endpoint, explanations
+   through the external endpoint within the at-most-80-query budget. The result
+   cassette, report, and provenance record are written under the caller's
+   output only after the per-family floor is met.
+5. The evidence task copies the cassettes, report, and provenance record into
+   `benchmark/` and commits them; replay uses the committed manifest and
+   cassettes, starts no candidate, and makes no external call.
+6. The report names every manifest candidate/repository, the measured or
+   unavailable cells, the gold reviewers and power labels, the setup
+   deviations, both endpoint localities and models, the gaps, and the deferred
+   path decision.
+
+**Notes:** the real run is a manual evidence task; the fixture suite remains
+the CI gate. A candidate that fails its setup probe or exceeds its index
+deadline is unavailable with its reason, never zero. Candidate-internal
+embedding calls stay on loopback and are not benchmark model dependencies. A
+query change produces a different model key and a typed missing-response
+failure.
 
 ## Scenario: index timeout or unavailable candidate
 
@@ -111,8 +176,9 @@ flowchart TD
    never converts any of them to zero.
 
 **Notes:** a per-query error counts as a miss and increments the separate error
-total; there are no automatic retries. A fixed-input mismatch or a replay miss
-is the only failure that stops the run.
+total; there are no automatic retries. A real candidate that fails its setup
+probe is unavailable before indexing and remains in the report. A fixed-input
+mismatch or a replay miss is the only failure that stops the run.
 
 ## Scenario: fixed-input mismatch or missing recorded response
 

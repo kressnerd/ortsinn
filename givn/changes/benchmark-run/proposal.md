@@ -9,7 +9,7 @@
 - Use-case ID: `benchmark-comparison` (the real-candidate measurement; the
   fixture harness and replay contract were delivered by `benchmark-gate`).
 - Ideation topic: `repository-orientation`
-- Seed path: `givn/ideation/repository-orientation/changes/benchmark-gate.md`
+- Seed path: `givn/ideation/repository-orientation/changes/benchmark-run.md`
   (split: this change owns the real-candidate portion).
 - Confirmed Personas: `maintainer--ortsinn`; `upstream--maintainer` is
   conditional on the benchmark leading to a contribution.
@@ -63,7 +63,7 @@ local question IDs are their new owners:
 |---|---|
 | D2 (reference repositories and gold sets) | D2 (gold set production) |
 | D3 (competitor versions and setup normalization) | D1 (real candidate setup and availability) |
-| D4 (fuzzy behavior of open-codebase-index) | D1 and D3 (measurement and record evidence) |
+| D4 (fuzzy behavior of open-codebase-index) | D4 (single ledger entry; fuzzy behavior decided once) |
 
 ## Out of Scope
 
