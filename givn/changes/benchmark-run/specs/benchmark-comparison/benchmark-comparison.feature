@@ -10,7 +10,7 @@ Feature: Benchmark comparison
     And  it sets the public repository index deadline to 14400 seconds
     And  it sets the synthetic monorepo index deadline to 1800 seconds
 
-  @givn.added @wip
+  @givn.added
   Scenario: Real manifest pins every candidate version and commit
     Given  the real benchmark manifest
     Then  it pins open-codebase-index, CKB, and Serena at a candidate version and source commit

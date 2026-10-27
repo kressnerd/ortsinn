@@ -85,20 +85,20 @@
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
-- [x] COMMIT: __S1_COMMIT__
+- [x] COMMIT: 09f2ed7
 - Design constraints: manifest IDs and languages; primary/secondary; 200k minimum; synthetic seed/generator/10M; checkouts under `benchmark/work`; 14,400/1,800-second deadlines; read the committed manifest and setup lock, not a live network call.
 
 ## S2 — Real manifest pins every candidate version and commit
 
-- [ ] RED — remove `@wip` from S2 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — assert open-codebase-index, CKB, and Serena version plus 40-hex commit from the manifest; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed real manifest.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S2 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title (step bindings temporarily absent).
+  - Output: `1 scenario (1 failed)`, `2 steps (1 passed, 1 failed)`, `Step doesn't match any function`, `EXIT=101`.
+- [x] GREEN — assert open-codebase-index, CKB, and Serena version plus 40-hex commit from the manifest; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/tests/steps/benchmark_comparison.rs` (S2 candidate/evidence assertions), committed `benchmark/manifest.yaml` (`ocbi`/`ckb`/`serena` pins and evidence URLs; schema in `benchmark/src/manifest.rs`).
+  - Output: `1 scenario (1 passed)`, `3 steps (3 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `3 steps (3 passed)`, `EXIT=0`.
+- [x] COMMIT: __S2_COMMIT__
 - Design constraints: manifest is the only pin origin; setup lock must not write pins; candidate adapters `ocbi`/`ckb`/`serena`; 40-character commits.
 
 ## S3 — The real manifest and setup lock agree on every pin
