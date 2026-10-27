@@ -25,7 +25,7 @@ Feature: Benchmark comparison
     And  the setup lock records no candidate pin as its origin
     And  the setup lock records both endpoint localities, both model names, and the explanation-query budget
 
-  @givn.added @wip
+  @givn.added
   Scenario: A real fixed input that differs from its pin stops before scoring
     Given  a real fixed input whose checkout or candidate installation does not match the manifest
     When  the benchmark validates the fixed inputs

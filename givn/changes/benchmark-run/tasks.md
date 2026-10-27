@@ -111,20 +111,20 @@
   - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
-- [x] COMMIT: __S3_COMMIT__
+- [x] COMMIT: cc21032
 - Design constraints: setup lock records probe/toolchain records only; no pin origin; checkout and install paths resolve; probe records exist for every candidate.
 
 ## S4 — A real fixed input that differs from its pin stops before scoring
 
-- [ ] RED — remove `@wip` from S4 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — drive `setup.rs` validation against a temporary manifest/checkout with a wrong commit or missing installation; exit 2, named input, no report; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/setup.rs`, `benchmark/src/runner.rs`/`cli.rs` as required, `benchmark/tests/steps/benchmark_comparison.rs`.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S4 only; targeted run; paste non-zero output.
+  - Command: single-scenario command with the exact title (step bindings temporarily absent).
+  - Output: `1 scenario (1 failed)`, `1 step (1 failed)`, `Step doesn't match any function`, `EXIT=101`.
+- [x] GREEN — drive `setup.rs` validation against a temporary manifest/checkout with a wrong commit or missing installation; exit 2, named input, no report; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/setup.rs` (`validate_fixed_inputs`: checkout `HEAD` vs pinned commit, candidate install path, synthetic checkout), `benchmark/tests/steps/benchmark_comparison.rs` (temporary one-repository-permutation manifest with a real wrong git commit).
+  - Output: `1 scenario (1 passed)`, `4 steps (4 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `4 steps (4 passed)`, `EXIT=0`.
+- [x] COMMIT: __S4_COMMIT__
 - Design constraints: no network; temp copy; exit 2; error names the mismatched fixed input; no report files; the run never starts when preparation is invalid.
 
 ## S5 — A documented setup deviation is recorded on every affected cell
