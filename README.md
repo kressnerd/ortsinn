@@ -1,5 +1,7 @@
 # ortsinn
 
+<img src="branding/ortsinn.svg" alt="Ortsinn" width="112">
+
 <!-- givn:begin:coverage-badge -->
 [![Line Coverage: 94%](https://img.shields.io/badge/line%20coverage-94%25-brightgreen)](coverage/cobertura-coverage.xml)
 [![Branch Coverage: n/a](https://img.shields.io/badge/branch%20coverage-n--a-brightgreen)](coverage/cobertura-coverage.xml)
