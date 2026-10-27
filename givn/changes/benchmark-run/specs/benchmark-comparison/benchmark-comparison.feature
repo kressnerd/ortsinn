@@ -147,7 +147,7 @@ Feature: Benchmark comparison
     And  the error names the gold set, the metric, the published minimum, and the reviewed count
     And  no report.json or report.md is published
 
-  @givn.modified @wip
+  @givn.modified
   Scenario: Replay rerun reproduces the report without an external model call
     Given  a completed benchmark run with recorded model responses
     When  the maintainer reruns the same fixed inputs in replay mode

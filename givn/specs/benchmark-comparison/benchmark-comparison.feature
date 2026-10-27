@@ -52,7 +52,7 @@ Feature: Benchmark comparison
     When  the maintainer reruns the same fixed inputs in replay mode
     Then  the measurements and their order match the first run
     And  no request leaves the local recording boundary
-    And  the report states the replay mode and the recording fingerprint "sha256:d27ff044ae13826d1c006fb34c34d39895a3600f1b6ecd98e5a4921d147535a5"
+    And  the report states the replay mode and the recording fingerprint "sha256:d670b52080d9b09c8f251e24860ff038bd652a995ebffd1984e153312ded8aa7"
 
   Scenario: A missing recorded response stops the run
     Given  a benchmark run that needs a model response absent from the recording

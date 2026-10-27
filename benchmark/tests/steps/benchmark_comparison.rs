@@ -799,6 +799,95 @@ fn replay_mode_and_recording_fingerprint(
         &report.reproduction.model_cassette_fingerprint, fingerprint,
         "recording fingerprint"
     );
+    let manifest = world
+        .manifest
+        .as_ref()
+        .ok_or("fixture manifest was not loaded")?;
+    assert_eq!(
+        &manifest.cassettes.model.fingerprint, fingerprint,
+        "declared model cassette fingerprint"
+    );
+    let path = benchmark::manifest::Manifest::base_dir(&world.manifest_path)
+        .join(&manifest.cassettes.model.path);
+    assert_eq!(
+        benchmark::record::cassette::fingerprint(&path)
+            .map_err(|error| format!("fingerprint committed model cassette: {error:#}"))?,
+        *fingerprint,
+        "recomputed committed model cassette digest"
+    );
+    Ok(())
+}
+
+// --- S18: the regenerated fixture carries query-digest model keys ---------
+
+fn committed_cassettes(world: &BenchmarkWorld) -> Result<(&Manifest, PathBuf), String> {
+    let manifest = world
+        .manifest
+        .as_ref()
+        .ok_or("fixture manifest was not loaded")?;
+    let base = benchmark::manifest::Manifest::base_dir(&world.manifest_path);
+    Ok((manifest, base))
+}
+
+#[then(
+    "the report states the replay mode and the model cassette fingerprint declared by the fixture manifest"
+)]
+fn replay_mode_and_declared_model_fingerprint(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let (manifest, _) = committed_cassettes(world)?;
+    let report = report(world);
+    assert_eq!(
+        report.run.mode,
+        benchmark::manifest::RunMode::Replay,
+        "run mode"
+    );
+    assert_eq!(
+        report.reproduction.model_cassette_fingerprint,
+        manifest.cassettes.model.fingerprint,
+        "declared model cassette fingerprint"
+    );
+    Ok(())
+}
+
+#[then("the committed model cassette's recomputed digest equals that declared fingerprint")]
+fn committed_model_digest_matches_declaration(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let (manifest, base) = committed_cassettes(world)?;
+    let path = base.join(&manifest.cassettes.model.path);
+    let recomputed = benchmark::record::cassette::fingerprint(&path)
+        .map_err(|error| format!("fingerprint committed model cassette: {error:#}"))?;
+    assert_eq!(
+        recomputed, manifest.cassettes.model.fingerprint,
+        "recomputed committed model cassette digest"
+    );
+    assert_eq!(
+        report(world).reproduction.model_cassette_fingerprint, recomputed,
+        "report model cassette fingerprint"
+    );
+    Ok(())
+}
+
+#[then("every model-cassette key carries the query's SHA-256 digest")]
+fn every_model_key_carries_the_query_digest(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let (manifest, base) = committed_cassettes(world)?;
+    let models = ModelCassette::load(&base.join(&manifest.cassettes.model.path))
+        .map_err(|error| format!("load committed model cassette: {error:#}"))?;
+    if models.entry_count() == 0 {
+        return Err("committed model cassette is empty".into());
+    }
+    for record in models.entries() {
+        if !record.carries_query_digest() {
+            return Err(format!(
+                "model cassette key {} does not carry the SHA-256 digest of query {:?}",
+                record.key, record.query
+            ));
+        }
+        let digest = benchmark::record::cassette::query_digest(&record.query);
+        if !record.key.ends_with(&format!("sha256:{digest}")) {
+            return Err(format!(
+                "model cassette key {} does not end with the query digest sha256:{digest}",
+                record.key
+            ));
+        }
+    }
     Ok(())
 }
 

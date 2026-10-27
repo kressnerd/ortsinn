@@ -265,3 +265,60 @@ pub fn fingerprint(path: &Path) -> Result<String> {
     let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
     Ok(format!("sha256:{hex}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gold::Gold;
+    use crate::manifest::Manifest;
+    use crate::record::keys;
+
+    fn fixture_manifest() -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/e2e/manifest.yaml")
+    }
+
+    #[test]
+    fn s18_committed_fixture_declares_and_carries_query_digests() {
+        let manifest_path = fixture_manifest();
+        let manifest = Manifest::load(&manifest_path).expect("load fixture manifest");
+        let base = Manifest::base_dir(&manifest_path);
+        let model_path = base.join(&manifest.cassettes.model.path);
+        assert_eq!(
+            fingerprint(&model_path).expect("fingerprint committed model cassette"),
+            manifest.cassettes.model.fingerprint,
+            "recomputed model cassette digest"
+        );
+
+        let models = ModelCassette::load(&model_path).expect("load committed model cassette");
+        assert!(models.entry_count() > 0, "model cassette is empty");
+        for record in models.entries() {
+            assert!(
+                record.carries_query_digest(),
+                "model cassette key {} does not carry the digest of its query",
+                record.key
+            );
+        }
+
+        let results = ResultCassette::load(&base.join(&manifest.cassettes.results.path))
+            .expect("load committed result cassette");
+        let gold = Gold::load(&manifest, &base).expect("load fixture gold");
+        for result in results.entries() {
+            for dependency in &result.model_requests {
+                let resolved = keys::resolve(
+                    &gold,
+                    &result.repository,
+                    &result.metric,
+                    &result.candidate,
+                    &result.task,
+                    &dependency.key,
+                )
+                .expect("resolve the recorded model dependency");
+                assert_eq!(
+                    resolved.key, dependency.key,
+                    "result cassette key for {}/{} is not the query-digest key",
+                    result.candidate, result.task
+                );
+            }
+        }
+    }
+}
