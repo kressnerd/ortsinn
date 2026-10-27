@@ -50,6 +50,8 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) adapter_answers: Option<Vec<benchmark::adapters::session::CandidateAnswer>>,
     /// Normalized results produced through the candidate session boundary.
     pub(crate) adapter_results: Option<Vec<benchmark::adapters::NormalizedLocation>>,
+    /// Candidate the adapter scenario drives, so the Then-steps name it.
+    pub(crate) focus_candidate: Option<String>,
 }
 
 impl Default for BenchmarkWorld {
@@ -81,6 +83,7 @@ impl Default for BenchmarkWorld {
             e2e_record_requests: 0,
             adapter_answers: None,
             adapter_results: None,
+            focus_candidate: None,
         }
     }
 }

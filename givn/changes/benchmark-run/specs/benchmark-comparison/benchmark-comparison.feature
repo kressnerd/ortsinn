@@ -111,7 +111,7 @@ Feature: Benchmark comparison
     And  duplicate locations are removed without reordering
     And  the file-only answer remains a file resolution
 
-  @givn.added @wip
+  @givn.added
   Scenario: A real candidate without an operation is unavailable with the capability reason
     Given  a real candidate whose documented interface has no explanation operation
     When  the maintainer runs the real benchmark

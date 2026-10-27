@@ -5,7 +5,7 @@
 //! infers a capability from documentation, and it never turns a file-only
 //! answer into a symbol resolution.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use crate::adapters::{dedup_locations, ExplanationResponse, NormalizedLocation};
@@ -42,6 +42,14 @@ impl Operation {
             Operation::ConceptEquivalence => "concept_equivalence",
             Operation::Explanation => "explanation",
             Operation::Expansion => "expansion",
+        }
+    }
+
+    /// The closed reason recorded when the operation is missing.
+    pub fn missing_reason(self) -> String {
+        match self {
+            Operation::Expansion => "no_expansion_switch".to_string(),
+            other => format!("no_{}_operation", other.capability()),
         }
     }
 }
@@ -298,6 +306,60 @@ impl CandidateSession for FakeSession {
     }
 }
 
+/// The capability map declared by the probed operations. A family whose
+/// operation is missing is unavailable with its capability reason; a family
+/// is never inferred or scored as zero from documentation.
+pub fn capabilities_from_operations(
+    operations: &[Operation],
+) -> BTreeMap<String, crate::manifest::Capability> {
+    let present: BTreeSet<Operation> = operations.iter().copied().collect();
+    Operation::ALL
+        .iter()
+        .map(|operation| {
+            let capability = if present.contains(operation) {
+                crate::manifest::Capability {
+                    status: crate::manifest::CapabilityStatus::Measured,
+                    reason: None,
+                }
+            } else {
+                crate::manifest::Capability {
+                    status: crate::manifest::CapabilityStatus::Unavailable,
+                    reason: Some(operation.missing_reason()),
+                }
+            };
+            (operation.capability().to_string(), capability)
+        })
+        .collect()
+}
+
+/// Record the probed operations, setup, and probe outcome on the manifest
+/// candidate before scoring. A failed probe marks the whole candidate
+/// unavailable with its reason and the run continues with the others; it is
+/// never scored as zero.
+pub fn apply_session(
+    manifest: &mut crate::manifest::Manifest,
+    candidate_id: &str,
+    session: &mut dyn CandidateSession,
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+
+    let probe = session.probe();
+    let operations = session.operations();
+    let setup = session.setup();
+    let candidate = manifest
+        .candidates
+        .iter_mut()
+        .find(|candidate| candidate.id == candidate_id)
+        .with_context(|| format!("manifest does not fix candidate {candidate_id}"))?;
+    candidate.setup = setup;
+    candidate.capabilities = capabilities_from_operations(&operations);
+    candidate.unavailable = probe.err().map(|error| crate::manifest::Unavailable {
+        reason: error.reason,
+        detail: error.detail,
+    });
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -328,6 +390,37 @@ mod tests {
         assert_eq!(normalized[1].end_line, 0);
         assert!(normalized[1].symbol.is_empty());
         assert_eq!(normalized[2].symbol, "helper_30");
+    }
+
+    /// S14: a missing explanation operation is unavailable with the
+    /// capability reason; the declared families stay measured.
+    #[test]
+    fn s14_missing_operation_is_unavailable_with_capability_reason() {
+        let capabilities = capabilities_from_operations(&[
+            Operation::Typo,
+            Operation::NaturalLanguage,
+            Operation::Concept,
+        ]);
+        assert_eq!(
+            capabilities["typo"].status,
+            crate::manifest::CapabilityStatus::Measured
+        );
+        assert_eq!(
+            capabilities["explanation"].status,
+            crate::manifest::CapabilityStatus::Unavailable
+        );
+        assert_eq!(
+            capabilities["explanation"].reason.as_deref(),
+            Some("no_explanation_operation")
+        );
+        assert_eq!(
+            capabilities["concept_equivalence"].reason.as_deref(),
+            Some("no_concept_equivalence_operation")
+        );
+        assert_eq!(
+            capabilities["expansion"].reason.as_deref(),
+            Some("no_expansion_switch")
+        );
     }
 
     /// The fake session returns the candidate's answers unchanged; the

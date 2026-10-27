@@ -2,10 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use benchmark::adapters::session::{
-    CandidateAnswer, CandidateSession, FakeSession, Operation, QueryRequest, normalize_answers,
+    CandidateAnswer, CandidateSession, FakeSession, Operation, QueryRequest, apply_session,
+    normalize_answers,
 };
 use benchmark::adapters::NormalizedLocation;
-use benchmark::manifest::Manifest;
+use benchmark::manifest::{Candidate, Manifest};
 use benchmark::report::model::Report;
 use cucumber::{given, then, when};
 
@@ -3605,6 +3606,187 @@ fn file_only_answer_remains_a_file_resolution(world: &mut BenchmarkWorld) -> Res
         return Err(
             "the file-only answer was promoted to a line/symbol resolution".to_string(),
         );
+    }
+    Ok(())
+}
+
+// --- Shared adapter scenario fixtures ---------------------------------------
+
+fn fixture_manifest_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/e2e/manifest.yaml")
+}
+
+fn fixture_candidate(id: &str, version: &str, commit: &str) -> Candidate {
+    Candidate {
+        id: id.to_string(),
+        version: version.to_string(),
+        commit: commit.to_string(),
+        install: "fixture adapter".to_string(),
+        adapter: "fixture".to_string(),
+        adapter_version: 1,
+        evidence: None,
+        capabilities: std::collections::BTreeMap::new(),
+        setup: benchmark::manifest::CandidateSetup::default(),
+        index_deadline_seconds: None,
+        unavailable: None,
+    }
+}
+
+fn write_typed_manifest(root: &Path, manifest: &Manifest) -> Result<PathBuf, String> {
+    let path = root.join("manifest.yaml");
+    let text = serde_yaml_ng::to_string(manifest)
+        .map_err(|error| format!("serialize variant manifest: {error}"))?;
+    fs::write(&path, text).map_err(|error| format!("write {}: {error}", path.display()))?;
+    Ok(path)
+}
+
+fn refresh_results_cassette(manifest: &mut Manifest, root: &Path) -> Result<(), String> {
+    let relative = manifest.cassettes.results.path.clone();
+    let fingerprint = benchmark::record::cassette::fingerprint(&root.join(relative))
+        .map_err(|error| format!("fingerprint variant results cassette: {error:#}"))?;
+    manifest.cassettes.results.fingerprint = fingerprint;
+    Ok(())
+}
+
+/// Duplicate one candidate's recorded results under another candidate id so a
+/// scenario can drive a differently-probed candidate without a candidate
+/// process. The duplicated entries keep their recorded order.
+fn duplicate_results(root: &Path, from: &str, to: &str) -> Result<(), String> {
+    let path = root.join("cassettes/results/results.jsonl");
+    let text = fs::read_to_string(&path)
+        .map_err(|error| format!("read variant results {}: {error}", path.display()))?;
+    let mut out = String::new();
+    for line in text.lines() {
+        out.push_str(line);
+        out.push('\n');
+        let mut value: serde_json::Value =
+            serde_json::from_str(line).map_err(|error| format!("parse variant result: {error}"))?;
+        if value["candidate"] == from {
+            value["candidate"] = serde_json::Value::String(to.to_string());
+            out.push_str(
+                &serde_json::to_string(&value)
+                    .map_err(|error| format!("serialize duplicated result: {error}"))?,
+            );
+            out.push('\n');
+        }
+    }
+    fs::write(&path, out).map_err(|error| format!("write variant results {}: {error}", path.display()))
+}
+
+fn focus_candidate(world: &BenchmarkWorld) -> Result<String, String> {
+    world
+        .focus_candidate
+        .clone()
+        .ok_or_else(|| "no candidate is under test".to_string())
+}
+
+// --- S14: a missing operation is unavailable with its capability reason ---
+
+#[given("a real candidate whose documented interface has no explanation operation")]
+fn a_candidate_without_an_explanation_operation(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-capability-gap")?;
+    let mut manifest = Manifest::load(&fixture_manifest_path())
+        .map_err(|error| format!("load fixture manifest: {error:#}"))?;
+    let id = "fixture-partial";
+    manifest.candidates.push(fixture_candidate(
+        id,
+        "fixture-1",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ));
+    duplicate_results(&root, "fixture-ocbi", id)?;
+    refresh_results_cassette(&mut manifest, &root)?;
+    let mut session = FakeSession::exposing(
+        id,
+        vec![
+            Operation::Typo,
+            Operation::NaturalLanguage,
+            Operation::Concept,
+            Operation::ConceptEquivalence,
+            Operation::Expansion,
+        ],
+    );
+    apply_session(&mut manifest, id, &mut session)
+        .map_err(|error| format!("apply candidate session: {error:#}"))?;
+    let path = write_typed_manifest(&root, &manifest)?;
+
+    world.manifest_path = path;
+    world.out_dir = root.join("out");
+    world.report = None;
+    world.run_failure = None;
+    world.adapter_answers = None;
+    world.adapter_results = None;
+    world.focus_candidate = Some(id.to_string());
+    Ok(())
+}
+
+#[then("its explanation cell is unavailable with the capability reason")]
+fn explanation_cell_is_unavailable(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let id = focus_candidate(world)?;
+    let cell = report(world)
+        .metrics
+        .explanation
+        .per_candidate
+        .get(&id)
+        .ok_or_else(|| format!("the report has no explanation cell for {id}"))?;
+    if cell.status != benchmark::report::model::CellStatus::Unavailable {
+        return Err(format!(
+            "explanation cell for {id} is {:?}, expected unavailable",
+            cell.status
+        ));
+    }
+    if cell.value.is_some() {
+        return Err(format!("unavailable explanation cell for {id} carries a value"));
+    }
+    if cell.reason.as_deref() != Some("no_explanation_operation") {
+        return Err(format!(
+            "explanation cell reason is {:?}, expected no_explanation_operation",
+            cell.reason
+        ));
+    }
+    Ok(())
+}
+
+#[then("its measured families remain measured")]
+fn measured_families_remain_measured(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let id = focus_candidate(world)?;
+    let report = report(world);
+    let cells = [
+        ("typo", report.metrics.typo.per_candidate.get(&id)),
+        (
+            "natural-language",
+            report.metrics.natural_language.per_candidate.get(&id),
+        ),
+        ("concept", report.metrics.concept.per_candidate.get(&id)),
+    ];
+    for (family, cell) in cells {
+        let cell = cell.ok_or_else(|| format!("the report has no {family} cell for {id}"))?;
+        if cell.status != benchmark::report::model::CellStatus::Measured {
+            return Err(format!(
+                "{family} cell for {id} is {:?}, expected measured",
+                cell.status
+            ));
+        }
+        if cell.value.is_none() || cell.denominator == 0 {
+            return Err(format!("measured {family} cell for {id} has no value"));
+        }
+    }
+    Ok(())
+}
+
+#[then("the report lists the missing operation as a capability gap")]
+fn missing_operation_is_a_capability_gap(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let id = focus_candidate(world)?;
+    let gap = report(world)
+        .gaps
+        .capability_gaps
+        .iter()
+        .find(|gap| gap.candidate == id && gap.capability == "explanation")
+        .ok_or_else(|| format!("the report does not list the explanation gap for {id}"))?;
+    if gap.reason != "no_explanation_operation" {
+        return Err(format!(
+            "capability gap reason is {:?}, expected no_explanation_operation",
+            gap.reason
+        ));
     }
     Ok(())
 }

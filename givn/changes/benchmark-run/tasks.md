@@ -258,15 +258,23 @@
 
 ## S14 — A real candidate without an operation is unavailable with the capability reason
 
-- [ ] RED — remove `@wip` from S14 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — drive `FakeSession` missing explanation; assert unavailable cell, measured families, capability gap; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/adapters/session.rs`, `benchmark/src/adapters/*.rs`, `benchmark/src/runner.rs`, `benchmark/src/report/model.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S14 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^A real candidate without an operation is unavailable with the capability reason$"` (step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — drive `FakeSession` missing explanation; assert unavailable cell, measured families, capability gap; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/adapters/session.rs` (`capabilities_from_operations`, `Operation::missing_reason`, `apply_session`), `benchmark/tests/steps/benchmark_comparison.rs` (S14 steps and a temporary candidate whose results are duplicated from `fixture-ocbi`), `benchmark/tests/benchmark_features.rs` (focused candidate).
+  - Regression test: `adapters::session::tests::s14_missing_operation_is_unavailable_with_capability_reason` → `1 passed`.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] COMMIT: __S14_NEW__
 - Design constraints: missing operation → `unavailable` with capability reason; measured families remain; gap listed; never zero.
 
 ## S15 — The real report publishes the measured comparison and defers the product path
