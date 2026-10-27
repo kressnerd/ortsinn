@@ -3192,52 +3192,21 @@ fn synthetic_deadline(world: &mut BenchmarkWorld) -> Result<(), String> {
 fn candidates_are_pinned(world: &mut BenchmarkWorld) -> Result<(), String> {
     let manifest = load_real_manifest(world)?;
     for (id, name) in [("ocbi", "open-codebase-index"), ("ckb", "CKB"), ("serena", "Serena")] {
-        let candidate = manifest
-            .candidate(id)
-            .ok_or_else(|| format!("real manifest does not pin {name} ({id})"))?;
-        if candidate.version.is_empty() {
-            return Err(format!("{name} has no version"));
-        }
-        if candidate.commit.len() != 40
-            || !candidate.commit.chars().all(|c| c.is_ascii_hexdigit())
-        {
-            return Err(format!(
-                "{name} commit is not a 40-character commit: {}",
-                candidate.commit
-            ));
-        }
-        if candidate.adapter.is_empty() {
-            return Err(format!("{name} has no adapter"));
+        if manifest.candidate(id).is_none() {
+            return Err(format!("real manifest does not pin {name} ({id})"));
         }
     }
-    Ok(())
+    manifest
+        .validate_candidate_pins()
+        .map_err(|error| format!("{error:#}"))
 }
 
 #[then("each candidate pin records the evidence for its version and commit")]
 fn candidate_evidence_is_recorded(world: &mut BenchmarkWorld) -> Result<(), String> {
     let manifest = load_real_manifest(world)?;
-    for candidate in &manifest.candidates {
-        let evidence = candidate
-            .evidence
-            .as_ref()
-            .ok_or_else(|| format!("candidate {} has no evidence record", candidate.id))?;
-        if evidence.version.is_empty() || evidence.commit.is_empty() {
-            return Err(format!("candidate {} evidence is incomplete", candidate.id));
-        }
-        if !evidence.version.contains(candidate.version.trim_start_matches('v')) {
-            return Err(format!(
-                "candidate {} version evidence does not name {}: {}",
-                candidate.id, candidate.version, evidence.version
-            ));
-        }
-        if !evidence.commit.contains(&candidate.commit) {
-            return Err(format!(
-                "candidate {} commit evidence does not name {}: {}",
-                candidate.id, candidate.commit, evidence.commit
-            ));
-        }
-    }
-    Ok(())
+    manifest
+        .validate_candidate_pins()
+        .map_err(|error| format!("{error:#}"))
 }
 
 #[given("the real benchmark manifest and the committed setup lock")]

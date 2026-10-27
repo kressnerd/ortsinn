@@ -363,6 +363,55 @@ impl Manifest {
         Ok(())
     }
 
+    /// Validate the authored candidate pins and their evidence citations.
+    /// Fixture candidates omit evidence, so this check is separate from
+    /// `load`/`validate` and is run for the real manifest.
+    pub fn validate_candidate_pins(&self) -> Result<()> {
+        for candidate in &self.candidates {
+            anyhow::ensure!(
+                !candidate.version.is_empty(),
+                "candidate {} has no version",
+                candidate.id
+            );
+            anyhow::ensure!(
+                is_commit(&candidate.commit),
+                "candidate {} commit {} is not a 40-character commit",
+                candidate.id,
+                candidate.commit
+            );
+            anyhow::ensure!(
+                !candidate.adapter.is_empty(),
+                "candidate {} has no adapter",
+                candidate.id
+            );
+            let evidence = candidate.evidence.as_ref().with_context(|| {
+                format!("candidate {} has no evidence record", candidate.id)
+            })?;
+            anyhow::ensure!(
+                !evidence.version.is_empty() && !evidence.commit.is_empty(),
+                "candidate {} evidence is incomplete",
+                candidate.id
+            );
+            anyhow::ensure!(
+                evidence
+                    .version
+                    .contains(candidate.version.trim_start_matches('v')),
+                "candidate {} version evidence does not name {}: {}",
+                candidate.id,
+                candidate.version,
+                evidence.version
+            );
+            anyhow::ensure!(
+                evidence.commit.contains(&candidate.commit),
+                "candidate {} commit evidence does not name {}: {}",
+                candidate.id,
+                candidate.commit,
+                evidence.commit
+            );
+        }
+        Ok(())
+    }
+
     pub fn repository(&self, id: &str) -> Option<&Repository> {
         self.repositories
             .iter()
@@ -390,6 +439,11 @@ impl Manifest {
             .unwrap_or_else(|| Path::new("."))
             .to_path_buf()
     }
+}
+
+/// A 40-character hexadecimal git commit, as authored in the manifest.
+pub fn is_commit(value: &str) -> bool {
+    value.len() == 40 && value.chars().all(|character| character.is_ascii_hexdigit())
 }
 
 /// Content fingerprint of a fixed input file, in the report's `sha256:<hex>`
@@ -425,4 +479,123 @@ pub fn hex(bytes: &[u8]) -> String {
         out.push(DIGITS[(byte & 0x0f) as usize] as char);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const COMMIT: &str = "573b71c3d5cfaba3a83d602f7534605047a01363";
+
+    fn candidate(
+        id: &str,
+        version: &str,
+        commit: &str,
+        evidence: Option<CandidateEvidence>,
+    ) -> Candidate {
+        Candidate {
+            id: id.to_string(),
+            version: version.to_string(),
+            commit: commit.to_string(),
+            install: "work/tools/candidate".to_string(),
+            adapter: "ocbi".to_string(),
+            adapter_version: 1,
+            evidence,
+            capabilities: BTreeMap::new(),
+            setup: CandidateSetup::default(),
+            index_deadline_seconds: None,
+            unavailable: None,
+        }
+    }
+
+    fn manifest(candidates: Vec<Candidate>) -> Manifest {
+        Manifest {
+            schema_version: 1,
+            run_id: "test".to_string(),
+            mode: RunMode::Replay,
+            repositories: Vec::new(),
+            candidates,
+            targets: BTreeMap::new(),
+            targets_file: None,
+            gold_minimums: None,
+            gold: Vec::new(),
+            cassettes: Cassettes {
+                results: CassetteRef {
+                    path: "results.jsonl".to_string(),
+                    fingerprint: String::new(),
+                },
+                model: CassetteRef {
+                    path: "model.jsonl".to_string(),
+                    fingerprint: String::new(),
+                },
+            },
+            index_deadlines: BTreeMap::new(),
+        }
+    }
+
+    fn evidence(version: &str, commit: &str) -> Option<CandidateEvidence> {
+        Some(CandidateEvidence {
+            version: version.to_string(),
+            commit: commit.to_string(),
+        })
+    }
+
+    /// S2: candidate pins require a version, a 40-hex commit, an adapter, and
+    /// evidence naming both. A mismatched pin is rejected.
+    #[test]
+    fn s2_candidate_pins_require_evidence_and_40_hex_commits() {
+        let good = manifest(vec![candidate(
+            "ocbi",
+            "v0.37.0",
+            COMMIT,
+            evidence(
+                "https://github.com/Helweg/open-codebase-index/releases/tag/v0.37.0",
+                "https://github.com/Helweg/open-codebase-index/commit/573b71c3d5cfaba3a83d602f7534605047a01363",
+            ),
+        )]);
+        good.validate_candidate_pins().expect("valid candidate pin");
+
+        let short = manifest(vec![candidate("ocbi", "v0.37.0", "573b71c3", evidence("v0.37.0", COMMIT))]);
+        let error = short.validate_candidate_pins().expect_err("short commit must fail");
+        assert!(format!("{error:#}").contains("40-character commit"), "{error:#}");
+
+        let no_evidence = manifest(vec![candidate("ocbi", "v0.37.0", COMMIT, None)]);
+        let error = no_evidence
+            .validate_candidate_pins()
+            .expect_err("missing evidence must fail");
+        assert!(format!("{error:#}").contains("no evidence record"), "{error:#}");
+
+        let version_mismatch = manifest(vec![candidate(
+            "ocbi",
+            "v0.37.0",
+            COMMIT,
+            evidence("releases/tag/v0.38.2", COMMIT),
+        )]);
+        let error = version_mismatch
+            .validate_candidate_pins()
+            .expect_err("mismatched evidence version must fail");
+        assert!(format!("{error:#}").contains("does not name v0.37.0"), "{error:#}");
+
+        let commit_mismatch = manifest(vec![candidate(
+            "ocbi",
+            "v0.37.0",
+            COMMIT,
+            evidence("v0.37.0", "5ff375db862c17dbf40168fa3924696baf1839a6"),
+        )]);
+        let error = commit_mismatch
+            .validate_candidate_pins()
+            .expect_err("mismatched evidence commit must fail");
+        assert!(format!("{error:#}").contains("does not name"), "{error:#}");
+
+        let pin_mismatch = manifest(vec![candidate(
+            "ocbi",
+            "v0.37.0",
+            "5ff375db862c17dbf40168fa3924696baf1839a6",
+            evidence("v0.37.0", COMMIT),
+        )]);
+        let error = pin_mismatch
+            .validate_candidate_pins()
+            .expect_err("candidate commit/evidence mismatch must fail");
+        assert!(format!("{error:#}").contains("does not name"), "{error:#}");
+    }
 }

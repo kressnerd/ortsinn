@@ -94,11 +94,12 @@
   - Command: single-scenario command with the exact title (step bindings temporarily absent).
   - Output: `1 scenario (1 failed)`, `2 steps (1 passed, 1 failed)`, `Step doesn't match any function`, `EXIT=101`.
 - [x] GREEN — assert open-codebase-index, CKB, and Serena version plus 40-hex commit from the manifest; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/tests/steps/benchmark_comparison.rs` (S2 candidate/evidence assertions), committed `benchmark/manifest.yaml` (`ocbi`/`ckb`/`serena` pins and evidence URLs; schema in `benchmark/src/manifest.rs`).
-  - Output: `1 scenario (1 passed)`, `3 steps (3 passed)`, `EXIT=0`.
+  - Production files: `benchmark/src/manifest.rs` (`Manifest::validate_candidate_pins`, used by both S2 steps), `benchmark/tests/steps/benchmark_comparison.rs`, committed `benchmark/manifest.yaml` (`ocbi`/`ckb`/`serena` pins and evidence URLs).
+  - Regression test: `manifest::tests::s2_candidate_pins_require_evidence_and_40_hex_commits` (valid pin, short commit, missing evidence, mismatched evidence version/commit, mismatched pin) → `1 passed`.
+  - Output: `1 scenario (1 passed)`, `3 steps (3 passed)`, `EXIT=0` (re-run after moving the assertions into production code).
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `3 steps (3 passed)`, `EXIT=0`.
-- [x] COMMIT: db9b03a
+- [x] COMMIT: __S2_NEW__
 - Design constraints: manifest is the only pin origin; setup lock must not write pins; candidate adapters `ocbi`/`ckb`/`serena`; 40-character commits.
 
 ## S3 — The real manifest and setup lock agree on every pin
