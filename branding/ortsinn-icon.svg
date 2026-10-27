@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Ortsinn">
+  <rect width="1024" height="1024" rx="224" fill="#F5F0E6"/>
+  <path fill="none" stroke="#111111" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" d="M513 209 L161 815 L864 815 Z"/>
+  <path fill="#0F5E63" d="M511 317 L573 484 L421 572 Z"/>
+  <path fill="#111111" d="M422 573 L468 573 L567 660 L511 787 Z"/>
+  <path fill="#111111" d="M582 516 L602 569 L577 625 L518 573 Z"/>
+  <circle fill="#0F5E63" cx="513" cy="209" r="63"/>
+  <circle fill="#111111" cx="161" cy="815" r="63"/>
+  <circle fill="#111111" cx="864" cy="815" r="63"/>
+</svg>
