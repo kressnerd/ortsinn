@@ -345,15 +345,23 @@
 
 ## S17 — A real gold set below the published minimum stops before scoring
 
-- [ ] RED — remove `@wip` from S17 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — implement `gold_below_minimum`; temp real manifest/gold below the per-power minimum → exit 2, no report; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/gold/minimums.rs`, `benchmark/src/gold/mod.rs`, `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S17 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^A real gold set below the published minimum stops before scoring$"` (step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — implement `gold_below_minimum`; temp real manifest/gold below the per-power minimum → exit 2, no report; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/gold/minimums.rs` (`PRIMARY_MINIMUMS`/`SECONDARY_MINIMUMS`, typed `GoldBelowMinimum`, `ensure_published` reading the manifest minima for the repository power), `benchmark/src/gold/mod.rs` (per-set reviewed count, non-empty count, minimum check after the declared-count check), `benchmark/src/manifest.rs` (`GoldMinimums.primary`/`secondary` default to empty so `mode: fixture` needs no counts), `benchmark/tests/fixtures/e2e/manifest.yaml` (`gold_minimums: {mode: fixture}`), `benchmark/tests/benchmark_features.rs` (below-minimum state), `benchmark/tests/steps/benchmark_comparison.rs` (S17 steps; the S16 temp real manifest gains a power label because published minimums now require one).
+  - Regression test: `gold::minimums::tests::s17_below_minimum_is_typed_for_the_repository_power_and_fixture_mode_is_exempt` (declared tables match the published constants; primary 49/50 and secondary 24/25; fixture mode exempt) → `1 passed`; `cargo test -p benchmark --lib` → `14 passed`.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`; bundle suites: `./run-tests.sh` → `2 features / 41 scenarios (41 passed) / 238 steps (238 passed)`, exit 0; permanent-only → `1 feature / 28 scenarios (28 passed) / 171 steps (171 passed)`, exit 0; `./run-tests.sh --e2e` → `1 feature / 2 scenarios (2 passed) / 14 steps (14 passed)`, exit 0.
+- [x] COMMIT: e19df2a
 - Design constraints: fixture `mode: fixture`; real `mode: published`; per-power minima; typed failure; no report; no fixture regression.
 
 ## S18 — Replay rerun reproduces the report without an external model call (`@givn.modified`)
