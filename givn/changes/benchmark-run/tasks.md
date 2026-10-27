@@ -23,14 +23,21 @@
 
 ## Setup — runner, strict mode, and baseline
 
-- [ ] Prove strict mode and record the baseline.
+- [x] Prove strict mode and record the baseline.
   - Command: `source ./env.sh && ./run-tests.sh`
-  - Baseline output: _(paste)_; expected `28 scenarios (28 passed)`, exit 0.
-  - Strict probe: create a temporary feature with one undefined step and run `GIVN_FEATURES=<probe> ./run-tests.sh`; expected non-zero. Output: _(paste)_.
-  - Remove the probe and rerun `./run-tests.sh`; expected 28 passed, exit 0. Output: _(paste)_.
-  - Confirm `givn/commands.yaml` still declares `verify.command: ./run-tests.sh` and `verify.e2e_command: ./run-tests.sh --e2e`.
-  - Production files: none unless the baseline or strict configuration needs repair.
-  - COMMIT: _(hash)_
+  - Baseline output: `1 feature / 28 scenarios (28 passed) / 171 steps (171 passed)`, exit 0.
+  - Strict probe: temporary `/tmp/benchmark-strict-probe.feature` with one undefined step, run with `GIVN_FEATURES=/tmp/benchmark-strict-probe.feature ./run-tests.sh`. Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+  - Removed the probe and reran `./run-tests.sh`: `28 scenarios (28 passed)`, `171 steps (171 passed)`, exit 0.
+  - Confirmed `givn/commands.yaml` declares `verify.command: ./run-tests.sh` and `verify.e2e_command: ./run-tests.sh --e2e`.
+  - Production files: none; no repair was needed.
+  - COMMIT: __SETUP_COMMIT__
 
 - [ ] E2E setup check (no new e2e scenario).
   - Command: `./run-tests.sh` → full count 28; `./run-tests.sh --e2e` → 2 scenarios; e2e count is strictly less than full.
