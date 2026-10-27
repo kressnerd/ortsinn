@@ -161,7 +161,7 @@
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
-- [x] COMMIT: __S6_NEW__
+- [x] COMMIT: 3ccbe6c
 - Design constraints: candidate-level `unavailable` with probe reason; other installed candidates measured; run continues; never zero.
 
 ## S7 — The committed real run records its recording mode, cassette fingerprints, and model dependencies
