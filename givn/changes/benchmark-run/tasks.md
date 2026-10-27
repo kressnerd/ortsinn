@@ -274,7 +274,7 @@
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
-- [x] COMMIT: __S14_NEW__
+- [x] COMMIT: 5c87c75
 - Design constraints: missing operation → `unavailable` with capability reason; measured families remain; gap listed; never zero.
 
 ## S15 — The real report publishes the measured comparison and defers the product path
