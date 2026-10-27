@@ -342,15 +342,24 @@
 
 ## S18 — Replay rerun reproduces the report without an external model call (`@givn.modified`)
 
-- [ ] RED — remove `@wip` from S18 only (modified scenario); targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — migrate the fixture result/model cassettes and manifest fingerprint; assert the report's model fingerprint and every model key's query digest; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/record/*`, `benchmark/src/runner.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, `benchmark/tests/fixtures/e2e/cassettes/*`, fixture manifest.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S18 only (modified scenario); targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^Replay rerun reproduces the report without an external model call$"` (S18 step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    5 steps (4 passed, 1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — migrate the fixture result/model cassettes and manifest fingerprint; assert the report's model fingerprint and every model key's query digest; list production files; targeted run; paste zero output.
+  - Migration: the result cassette's `model_requests` keys were rewritten once by `migrate-cassettes` in the S9 commit (the committed fixture must stay replayable as soon as the key format changes); this scenario regenerates the model cassette through the record path (`target/benchmark-e2e/s21-run` from the e2e record scenario), so it now carries digest keys, the recorded request bodies, and the fixture-ocbi embedding record.
+  - Production files: `benchmark/src/record/cassette.rs` (S18 committed-fixture regression test), `benchmark/src/record/keys.rs` and `benchmark/src/runner.rs` (canonical digest keys enforced on every replay, delivered with S9), `benchmark/tests/fixtures/e2e/cassettes/model/model.jsonl` (regenerated), `benchmark/tests/fixtures/e2e/manifest.yaml` (recomputed model fingerprint), `benchmark/tests/steps/benchmark_comparison.rs` (S18 steps; the permanent fingerprint step now also checks the declared fingerprint and the recomputed file digest), `givn/specs/benchmark-comparison/benchmark-comparison.feature` (permanent expectation updated to the regenerated digest).
+  - Regression test: `record::cassette::tests::s18_committed_fixture_declares_and_carries_query_digests` → `1 passed`; `cargo test -p benchmark --lib` → `11 passed`.
+  - Output: `1 scenario (1 passed)`, `7 steps (7 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `7 steps (7 passed)`, `EXIT=0`.
+- [x] COMMIT: ebef948
 - Design constraints: one-shot result-cassette key rewrite; model-cassette regeneration; fingerprint update; permanent replay scenario's literal digest updated; no query-free key remains.
 
 ## Closeout
