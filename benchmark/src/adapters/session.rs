@@ -423,6 +423,36 @@ mod tests {
         );
     }
 
+    /// S6: a failing setup probe marks the whole candidate unavailable with
+    /// the probe reason, and the run keeps the other candidates.
+    #[test]
+    fn s6_probe_failure_marks_candidate_unavailable() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/e2e/manifest.yaml");
+        let mut manifest = crate::manifest::Manifest::load(&path).expect("fixture manifest");
+        let mut session = FakeSession::failing_probe(
+            "fixture-ocbi",
+            "candidate_probe_failed",
+            "no startup handshake",
+        );
+        apply_session(&mut manifest, "fixture-ocbi", &mut session).expect("apply session");
+        let candidate = manifest.candidate("fixture-ocbi").expect("fixture candidate");
+        let unavailable = candidate
+            .unavailable
+            .as_ref()
+            .expect("a failed probe must mark the candidate unavailable");
+        assert_eq!(unavailable.reason, "candidate_probe_failed");
+        assert_eq!(unavailable.detail.as_deref(), Some("no startup handshake"));
+        assert!(
+            manifest
+                .candidate("fixture-ckb")
+                .expect("other fixture candidate")
+                .unavailable
+                .is_none(),
+            "other installed candidates stay available"
+        );
+    }
+
     /// The fake session returns the candidate's answers unchanged; the
     /// normalization boundary is what preserves order and resolution.
     #[test]

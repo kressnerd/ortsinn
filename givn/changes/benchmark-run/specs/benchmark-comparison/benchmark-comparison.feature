@@ -40,7 +40,7 @@ Feature: Benchmark comparison
     And  every cell affected by the deviation is measured and labelled with the deviation
     And  no affected cell is reported as zero
 
-  @givn.added @wip
+  @givn.added
   Scenario: A candidate that fails its setup probe is unavailable, not zero
     Given  a real candidate whose documented interface cannot be started
     When  the maintainer runs the real benchmark

@@ -145,15 +145,23 @@
 
 ## S6 — A candidate that fails its setup probe is unavailable, not zero
 
-- [ ] RED — remove `@wip` from S6 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — implement probe failure → candidate unavailable, other candidates measured, report lists it; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/adapters/session.rs`, `benchmark/src/adapters/*.rs`, `benchmark/src/runner.rs`, `benchmark/src/report/model.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S6 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^A candidate that fails its setup probe is unavailable, not zero$"` (step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — implement probe failure → candidate unavailable, other candidates measured, report lists it; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/adapters/session.rs` (`FakeSession::failing_probe` consumers; `apply_session` records the probe outcome as the candidate-level `unavailable` reason), `benchmark/tests/steps/benchmark_comparison.rs` (S6 steps drive a temporary manifest and replay the committed fixture cassettes), `benchmark/tests/benchmark_features.rs` (focused candidate).
+  - Regression test: `adapters::session::tests::s6_probe_failure_marks_candidate_unavailable` → `1 passed`.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] COMMIT: __S6_NEW__
 - Design constraints: candidate-level `unavailable` with probe reason; other installed candidates measured; run continues; never zero.
 
 ## S7 — The committed real run records its recording mode, cassette fingerprints, and model dependencies

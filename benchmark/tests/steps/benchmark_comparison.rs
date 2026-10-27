@@ -3790,3 +3790,145 @@ fn missing_operation_is_a_capability_gap(world: &mut BenchmarkWorld) -> Result<(
     }
     Ok(())
 }
+
+// --- S6: a failed setup probe is unavailable, never zero -------------------
+
+#[given("a real candidate whose documented interface cannot be started")]
+fn a_candidate_whose_interface_cannot_start(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-probe-failure")?;
+    let mut manifest = Manifest::load(&fixture_manifest_path())
+        .map_err(|error| format!("load fixture manifest: {error:#}"))?;
+    let id = "fixture-failed-probe";
+    manifest.candidates.push(fixture_candidate(
+        id,
+        "fixture-1",
+        "dddddddddddddddddddddddddddddddddddddddd",
+    ));
+    let mut session = FakeSession::failing_probe(
+        id,
+        "candidate_probe_failed",
+        "the documented interface did not complete its startup handshake",
+    );
+    apply_session(&mut manifest, id, &mut session)
+        .map_err(|error| format!("apply candidate session: {error:#}"))?;
+    let path = write_typed_manifest(&root, &manifest)?;
+
+    world.manifest_path = path;
+    world.out_dir = root.join("out");
+    world.report = None;
+    world.run_failure = None;
+    world.adapter_answers = None;
+    world.adapter_results = None;
+    world.focus_candidate = Some(id.to_string());
+    Ok(())
+}
+
+#[then("every metric cell for that candidate is unavailable with its setup reason")]
+fn every_cell_for_the_candidate_is_unavailable(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let id = focus_candidate(world)?;
+    let report = report(world);
+    let cells = [
+        ("typo", report.metrics.typo.per_candidate.get(&id)),
+        (
+            "typo recall @5",
+            report.metrics.typo.recall_at_5_per_candidate.get(&id),
+        ),
+        (
+            "natural-language",
+            report.metrics.natural_language.per_candidate.get(&id),
+        ),
+        (
+            "explanation",
+            report.metrics.explanation.per_candidate.get(&id),
+        ),
+        ("concept", report.metrics.concept.per_candidate.get(&id)),
+        (
+            "concept-equivalence",
+            report.metrics.concept_equivalence.per_candidate.get(&id),
+        ),
+    ];
+    for (family, cell) in cells {
+        let cell = cell.ok_or_else(|| format!("the report omits the {family} cell for {id}"))?;
+        if cell.status != benchmark::report::model::CellStatus::Unavailable {
+            return Err(format!(
+                "{family} cell for {id} is {:?}, expected unavailable",
+                cell.status
+            ));
+        }
+        if cell.value.is_some() {
+            return Err(format!(
+                "unavailable {family} cell for {id} carries a value"
+            ));
+        }
+        if cell.reason.as_deref() != Some("candidate_probe_failed") {
+            return Err(format!(
+                "{family} cell reason is {:?}, expected candidate_probe_failed",
+                cell.reason
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("the other installed candidates are measured")]
+fn other_installed_candidates_are_measured(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = report(world);
+    for id in ["fixture-ocbi", "fixture-ckb", "fixture-serena"] {
+        let candidate = report
+            .candidates
+            .iter()
+            .find(|candidate| candidate.id == id)
+            .ok_or_else(|| format!("the report omits candidate {id}"))?;
+        if candidate.status != benchmark::report::model::CandidateStatus::Available {
+            return Err(format!(
+                "{id} is {:?}, expected available",
+                candidate.status
+            ));
+        }
+    }
+    let ocbi_typo = report
+        .metrics
+        .typo
+        .per_candidate
+        .get("fixture-ocbi")
+        .ok_or("the report omits fixture-ocbi typo")?;
+    let ckb_explanation = report
+        .metrics
+        .explanation
+        .per_candidate
+        .get("fixture-ckb")
+        .ok_or("the report omits fixture-ckb explanation")?;
+    for (label, cell) in [("fixture-ocbi typo", ocbi_typo), ("fixture-ckb explanation", ckb_explanation)] {
+        if cell.status != benchmark::report::model::CellStatus::Measured {
+            return Err(format!(
+                "{label} is {:?}, expected measured",
+                cell.status
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("the report lists the candidate as unavailable")]
+fn report_lists_the_candidate_unavailable(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let id = focus_candidate(world)?;
+    let report = report(world);
+    let candidate = report
+        .candidates
+        .iter()
+        .find(|candidate| candidate.id == id)
+        .ok_or_else(|| format!("the report omits candidate {id}"))?;
+    if candidate.status != benchmark::report::model::CandidateStatus::Unavailable {
+        return Err(format!(
+            "{id} is {:?}, expected unavailable",
+            candidate.status
+        ));
+    }
+    if candidate.unavailable_reason.as_deref() != Some("candidate_probe_failed") {
+        return Err(format!(
+            "unavailable reason is {:?}, expected candidate_probe_failed",
+            candidate.unavailable_reason
+        ));
+    }
+    Ok(())
+}
