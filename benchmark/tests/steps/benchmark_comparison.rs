@@ -4608,6 +4608,7 @@ fn a_run_below_the_publication_floor(world: &mut BenchmarkWorld) -> Result<(), S
         .and_then(serde_yaml_ng::Value::as_sequence_mut)
         .ok_or("fixture manifest has no repositories sequence")?
         .push(extra);
+    manifest["repositories"][0]["power"] = serde_yaml_ng::Value::String("secondary".to_string());
     manifest["gold_minimums"] = serde_yaml_ng::from_str(
         "mode: published\nprimary: {typo: 0, natural_language: 0, explanation: 0, concept: 0, concept_equivalence: 0}\nsecondary: {typo: 0, natural_language: 0, explanation: 0, concept: 0, concept_equivalence: 0}",
     )
@@ -4643,5 +4644,64 @@ fn the_error_names_the_missing_family_and_repository(
             ));
         }
     }
+    Ok(())
+}
+
+// --- S17: a real gold set below its published minimum stops the run -------
+
+#[given("a real gold set whose reviewed count is below the published minimum for its repository power")]
+fn a_gold_set_below_its_published_minimum(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-gold-minimum")?;
+    let mut manifest = read_fixture_manifest()?;
+    manifest["repositories"][0]["power"] = serde_yaml_ng::Value::String("primary".to_string());
+    manifest["gold_minimums"] = serde_yaml_ng::from_str(
+        "mode: published\nprimary: {typo: 50, natural_language: 30, explanation: 20, concept: 50, concept_equivalence: 20}\nsecondary: {typo: 25, natural_language: 15, explanation: 10, concept: 25, concept_equivalence: 10}",
+    )
+    .map_err(|error| format!("parse published minimums: {error}"))?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    world.out_dir = root.join("out");
+    world.gold_minimum = Some(("fixture-repo".to_string(), "typo".to_string(), 50, 5));
+    load_fixture(world)
+}
+
+#[then("the error names the gold set, the metric, the published minimum, and the reviewed count")]
+fn the_error_names_the_gold_minimum(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let (repository, metric, minimum, reviewed) = world
+        .gold_minimum
+        .clone()
+        .ok_or("the below-minimum gold fixture was not prepared")?;
+    let failure = world
+        .run_failure
+        .as_ref()
+        .ok_or("the below-minimum gold set was scored and produced a report")?;
+    for expected in [
+        "gold_below_minimum".to_string(),
+        format!("gold set {repository} {metric}"),
+        format!("{reviewed} reviewed tasks"),
+        format!("minimum {minimum}"),
+    ] {
+        if !failure.message.contains(&expected) {
+            return Err(format!(
+                "error does not name `{expected}`: {}",
+                failure.message
+            ));
+        }
+    }
+    let manifest = Manifest::load(&world.manifest_path)
+        .map_err(|error| format!("load below-minimum manifest: {error:#}"))?;
+    let error = benchmark::gold::Gold::load(&manifest, &Manifest::base_dir(&world.manifest_path))
+        .err()
+        .ok_or("the below-minimum gold set loaded without an error")?;
+    let typed = error
+        .downcast_ref::<benchmark::gold::minimums::GoldBelowMinimum>()
+        .ok_or_else(|| format!("gold load failed with an untyped error: {error:#}"))?;
+    assert_eq!(
+        typed.repository.as_str(),
+        repository.as_str(),
+        "below-minimum set repository"
+    );
+    assert_eq!(typed.metric.as_str(), metric.as_str(), "below-minimum metric");
+    assert_eq!(typed.minimum, minimum, "published minimum");
+    assert_eq!(typed.reviewed, reviewed, "reviewed count");
     Ok(())
 }

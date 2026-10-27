@@ -75,6 +75,8 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) draft_task: Option<String>,
     /// Publication-floor fixture: missing family and missing repository.
     pub(crate) floor: Option<(String, String)>,
+    /// Below-minimum gold fixture: repository, metric, minimum, reviewed count.
+    pub(crate) gold_minimum: Option<(String, String, u64, u64)>,
 }
 
 impl Default for BenchmarkWorld {
@@ -113,6 +115,7 @@ impl Default for BenchmarkWorld {
             unreviewed_gold: None,
             draft_task: None,
             floor: None,
+            gold_minimum: None,
         }
     }
 }

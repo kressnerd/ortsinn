@@ -1,5 +1,6 @@
 //! Gold-set loading. The fixture gold files are committed and fixed.
 
+pub mod minimums;
 pub mod propose;
 
 use std::fs;
@@ -192,8 +193,53 @@ impl Gold {
             "concept_equivalence",
             gold.concept_equivalence.len(),
         )?;
+        for set in &manifest.gold {
+            let reviewed = reviewed_count(&gold, set);
+            anyhow::ensure!(
+                reviewed > 0,
+                "gold set {} {} has no reviewed tasks",
+                set.repository,
+                set.metric
+            );
+            minimums::ensure_published(manifest, set, reviewed)?;
+        }
         Ok(gold)
     }
+}
+
+/// Reviewed tasks loaded from one manifest-referenced set. The loader assigns
+/// each task the set's repository, so a multi-repository manifest never
+/// confuses two sets' counts.
+fn reviewed_count(gold: &Gold, set: &GoldSet) -> u64 {
+    let count = match set.metric.as_str() {
+        "typo" => gold
+            .typo
+            .iter()
+            .filter(|task| task.repository == set.repository)
+            .count(),
+        "natural_language" => gold
+            .natural_language
+            .iter()
+            .filter(|task| task.repository == set.repository)
+            .count(),
+        "explanation" => gold
+            .explanation
+            .iter()
+            .filter(|task| task.repository == set.repository)
+            .count(),
+        "concept" => gold
+            .concept
+            .iter()
+            .filter(|task| task.repository == set.repository)
+            .count(),
+        "concept_equivalence" => gold
+            .concept_equivalence
+            .iter()
+            .filter(|task| task.repository == set.repository)
+            .count(),
+        _ => 0,
+    };
+    count as u64
 }
 
 /// The manifest declares each gold set's reviewed task count. A gold file

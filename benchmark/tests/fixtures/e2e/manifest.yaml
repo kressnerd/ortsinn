@@ -92,6 +92,8 @@ targets:
   explanation_correctness: {value: null, status: unstated, source: "unstated in confirmed records"}
   concept_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
   concept_equivalence_recall_at_5: {value: null, status: unstated, source: "unstated in confirmed records"}
+gold_minimums:
+  mode: fixture
 gold:
   - {repository: fixture-repo, metric: typo, version: 1, tasks: 5, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:67ec379202d8eebfcebb689b0e7d05742c8fcf06a1bcb1cde10681145681aded", path: gold/typo.jsonl}
   - {repository: fixture-repo, metric: natural_language, version: 1, tasks: 4, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:dbdb526ab70d8553352b4a44256bc295dfdae9a8fa08a8841995bbfefeb924b9", path: gold/natural_language.jsonl}

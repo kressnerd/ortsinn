@@ -139,7 +139,7 @@ Feature: Benchmark comparison
     And  the error names the missing measurement family and repository
     And  no report.json or report.md is published
 
-  @givn.added @wip
+  @givn.added
   Scenario: A real gold set below the published minimum stops before scoring
     Given  a real gold set whose reviewed count is below the published minimum for its repository power
     When  the benchmark loads the gold sets

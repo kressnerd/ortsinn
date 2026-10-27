@@ -56,7 +56,11 @@ pub enum Power {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GoldMinimums {
     pub mode: GoldMinimumsMode,
+    /// Metric to minimum reviewed task count. Empty in fixture mode, which
+    /// opts out of the published counts.
+    #[serde(default)]
     pub primary: BTreeMap<String, u64>,
+    #[serde(default)]
     pub secondary: BTreeMap<String, u64>,
 }
 
