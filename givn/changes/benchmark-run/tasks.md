@@ -127,7 +127,7 @@
   - Output: `1 scenario (1 passed)`, `4 steps (4 passed)`, `EXIT=0` (re-run after adding the regression test).
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `4 steps (4 passed)`, `EXIT=0`.
-- [x] COMMIT: __S4_NEW__
+- [x] COMMIT: be497dd
 - Design constraints: no network; temp copy; exit 2; error names the mismatched fixed input; no report files; the run never starts when preparation is invalid.
 
 ## S5 — A documented setup deviation is recorded on every affected cell
