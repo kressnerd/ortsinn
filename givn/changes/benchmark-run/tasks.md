@@ -253,7 +253,7 @@
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
-- [x] COMMIT: __S13_NEW__
+- [x] COMMIT: b2ed60f
 - Design constraints: preserve candidate order; deduplicate by `(path, start_line, end_line, symbol)` without reordering; file-only remains a file resolution; no capability inference.
 
 ## S14 — A real candidate without an operation is unavailable with the capability reason
