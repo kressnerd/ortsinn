@@ -148,7 +148,7 @@
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
-- [x] COMMIT: __S5_NEW__
+- [x] COMMIT: 59582dc
 - Design constraints: setup deviation names dependency, reason, affected capabilities/repositories; affected measured cells keep their value; no affected cell is zero; candidate remains in the report.
 
 ## S6 — A candidate that fails its setup probe is unavailable, not zero
