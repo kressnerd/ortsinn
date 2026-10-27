@@ -357,3 +357,198 @@ fn pin_origin_is_manifest(origin: &str, manifest_path: &Path) -> bool {
 pub fn is_primary(power: Option<Power>) -> bool {
     matches!(power, Some(Power::Primary))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::manifest::{
+        Candidate, CandidateEvidence, CandidateSetup, CassetteRef, Cassettes, LineCount, Power,
+        Repository, RunMode,
+    };
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "benchmark-{name}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create temp directory");
+        dir
+    }
+
+    fn manifest() -> Manifest {
+        Manifest {
+            schema_version: 1,
+            run_id: "test".to_string(),
+            mode: RunMode::Replay,
+            repositories: vec![Repository {
+                id: "typescript-reference".to_string(),
+                url: "https://example.invalid/typescript-reference".to_string(),
+                revision: "v1".to_string(),
+                commit: "1e4744d68260a7cb91b62b12edc3f6a2187faaf1".to_string(),
+                language: "typescript".to_string(),
+                power: Some(Power::Primary),
+                minimum_code_lines: Some(200_000),
+                loc: LineCount {
+                    language_code_lines: 731_537,
+                    total_code_lines: 731_537,
+                    tool: "tokei".to_string(),
+                    command: "tokei -t TypeScript".to_string(),
+                    exclusions: Vec::new(),
+                },
+                checkout: "checkout".to_string(),
+                synthetic: None,
+            }],
+            candidates: vec![Candidate {
+                id: "ocbi".to_string(),
+                version: "v0.37.0".to_string(),
+                commit: "573b71c3d5cfaba3a83d602f7534605047a01363".to_string(),
+                install: "work/tools/ocbi".to_string(),
+                adapter: "ocbi".to_string(),
+                adapter_version: 1,
+                evidence: Some(CandidateEvidence {
+                    version: "https://example.invalid/v0.37.0".to_string(),
+                    commit:
+                        "https://example.invalid/573b71c3d5cfaba3a83d602f7534605047a01363"
+                            .to_string(),
+                }),
+                capabilities: BTreeMap::new(),
+                setup: CandidateSetup::default(),
+                index_deadline_seconds: None,
+                unavailable: None,
+            }],
+            targets: BTreeMap::new(),
+            targets_file: None,
+            gold_minimums: None,
+            gold: Vec::new(),
+            cassettes: Cassettes {
+                results: CassetteRef {
+                    path: "results.jsonl".to_string(),
+                    fingerprint: String::new(),
+                },
+                model: CassetteRef {
+                    path: "model.jsonl".to_string(),
+                    fingerprint: String::new(),
+                },
+            },
+            index_deadlines: BTreeMap::new(),
+        }
+    }
+
+    fn lock(manifest_path: &Path) -> SetupLock {
+        let mut candidates = BTreeMap::new();
+        candidates.insert(
+            "ocbi".to_string(),
+            LockedCandidate {
+                version: "v0.37.0".to_string(),
+                commit: "573b71c3d5cfaba3a83d602f7534605047a01363".to_string(),
+                pinned_by: manifest_path.to_string_lossy().to_string(),
+                probe: Probe {
+                    status: "ok".to_string(),
+                    command: "ocbi --help".to_string(),
+                    detail: Some("Usage".to_string()),
+                },
+                toolchain: BTreeMap::from([("node".to_string(), "v24.21.0".to_string())]),
+            },
+        );
+        let mut repositories = BTreeMap::new();
+        repositories.insert(
+            "typescript-reference".to_string(),
+            LockedRepository {
+                commit: Some("1e4744d68260a7cb91b62b12edc3f6a2187faaf1".to_string()),
+                pinned_by: manifest_path.to_string_lossy().to_string(),
+                synthetic: None,
+            },
+        );
+        SetupLock {
+            schema_version: 1,
+            manifest: manifest_path.to_string_lossy().to_string(),
+            recorded_at: "2026-10-27T00:00:00Z".to_string(),
+            toolchains: BTreeMap::from([("rustc".to_string(), "rustc 1.99.1".to_string())]),
+            candidates,
+            repositories,
+            endpoints: Endpoints {
+                embedding: Endpoint {
+                    configured: true,
+                    locality: "loopback".to_string(),
+                    base_url: Some("http://127.0.0.1:11434/v1".to_string()),
+                    model: Some("nomic-embed-text".to_string()),
+                    query_budget: None,
+                },
+                explanation: Endpoint {
+                    configured: false,
+                    locality: "external".to_string(),
+                    base_url: None,
+                    model: Some("unconfigured".to_string()),
+                    query_budget: Some(80),
+                },
+            },
+        }
+    }
+
+    /// S3: the setup lock must agree with the manifest pins, record probes and
+    /// toolchains, keep the manifest as the only pin origin, and record both
+    /// endpoint localities/models and the explanation budget.
+    #[test]
+    fn s3_setup_lock_agrees_with_pins_and_records_endpoints() {
+        let dir = temp_dir("s3");
+        let manifest_path = dir.join("manifest.yaml");
+        fs::write(
+            &manifest_path,
+            serde_yaml_ng::to_string(&manifest()).expect("serialize manifest"),
+        )
+        .expect("write manifest");
+        let lock_path = dir.join("setup.lock.json");
+        let valid = lock(&manifest_path);
+        fs::write(
+            &lock_path,
+            serde_json::to_string_pretty(&valid).expect("serialize lock"),
+        )
+        .expect("write lock");
+        validate_pins(&manifest_path, &lock_path).expect("valid pins agree");
+
+        let mut pin_mismatch = valid.clone();
+        pin_mismatch
+            .candidates
+            .get_mut("ocbi")
+            .expect("candidate")
+            .commit = "5ff375db862c17dbf40168fa3924696baf1839a6".to_string();
+        fs::write(
+            &lock_path,
+            serde_json::to_string_pretty(&pin_mismatch).expect("serialize lock"),
+        )
+        .expect("write lock");
+        let error = validate_pins(&manifest_path, &lock_path).expect_err("pin mismatch must fail");
+        assert!(format!("{error:#}").contains("candidate pin mismatch"), "{error:#}");
+
+        let mut self_origin = valid.clone();
+        self_origin
+            .candidates
+            .get_mut("ocbi")
+            .expect("candidate")
+            .pinned_by = "benchmark/setup.lock.json".to_string();
+        fs::write(
+            &lock_path,
+            serde_json::to_string_pretty(&self_origin).expect("serialize lock"),
+        )
+        .expect("write lock");
+        let error = validate_pins(&manifest_path, &lock_path).expect_err("self origin must fail");
+        assert!(format!("{error:#}").contains("not the manifest"), "{error:#}");
+
+        let mut no_explanation_model = valid;
+        no_explanation_model.endpoints.explanation.model = None;
+        fs::write(
+            &lock_path,
+            serde_json::to_string_pretty(&no_explanation_model).expect("serialize lock"),
+        )
+        .expect("write lock");
+        let error =
+            validate_pins(&manifest_path, &lock_path).expect_err("missing endpoint model must fail");
+        assert!(
+            format!("{error:#}").contains("explanation model name"),
+            "{error:#}"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

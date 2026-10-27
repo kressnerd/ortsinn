@@ -99,7 +99,7 @@
   - Output: `1 scenario (1 passed)`, `3 steps (3 passed)`, `EXIT=0` (re-run after moving the assertions into production code).
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `3 steps (3 passed)`, `EXIT=0`.
-- [x] COMMIT: __S2_NEW__
+- [x] COMMIT: 6c7d70a
 - Design constraints: manifest is the only pin origin; setup lock must not write pins; candidate adapters `ocbi`/`ckb`/`serena`; 40-character commits.
 
 ## S3 — The real manifest and setup lock agree on every pin
@@ -109,10 +109,11 @@
   - Output: `1 scenario (1 failed)`, `1 step (1 failed)`, `Step doesn't match any function`, `EXIT=101`.
 - [x] GREEN — implement `setup.rs` pin/lock/probe agreement; list production files; targeted run; paste zero output.
   - Production files: `benchmark/src/setup.rs` (`validate_pins`: pin equality, 40-hex, probes/toolchains, manifest-only pin origin, endpoints), `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed `benchmark/setup.lock.json`.
-  - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
+  - Regression test: `setup::tests::s3_setup_lock_agrees_with_pins_and_records_endpoints` (valid agreement, candidate pin mismatch, self pin origin, missing explanation model) → `1 passed`.
+  - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0` (re-run after adding the regression test).
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
-- [x] COMMIT: cc21032
+- [x] COMMIT: __S3_NEW__
 - Design constraints: setup lock records probe/toolchain records only; no pin origin; checkout and install paths resolve; probe records exist for every candidate.
 
 ## S4 — A real fixed input that differs from its pin stops before scoring
