@@ -113,7 +113,7 @@
   - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0` (re-run after adding the regression test).
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
-- [x] COMMIT: __S3_NEW__
+- [x] COMMIT: 8c7c5af
 - Design constraints: setup lock records probe/toolchain records only; no pin origin; checkout and install paths resolve; probe records exist for every candidate.
 
 ## S4 — A real fixed input that differs from its pin stops before scoring
@@ -122,11 +122,12 @@
   - Command: single-scenario command with the exact title (step bindings temporarily absent).
   - Output: `1 scenario (1 failed)`, `1 step (1 failed)`, `Step doesn't match any function`, `EXIT=101`.
 - [x] GREEN — drive `setup.rs` validation against a temporary manifest/checkout with a wrong commit or missing installation; exit 2, named input, no report; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/setup.rs` (`validate_fixed_inputs`: checkout `HEAD` vs pinned commit, candidate install path, synthetic checkout), `benchmark/tests/steps/benchmark_comparison.rs` (temporary one-repository-permutation manifest with a real wrong git commit).
-  - Output: `1 scenario (1 passed)`, `4 steps (4 passed)`, `EXIT=0`.
+  - Production files: `benchmark/src/setup.rs` (`validate_fixed_inputs`: checkout `HEAD` vs pinned commit, candidate install path, synthetic checkout), `benchmark/tests/steps/benchmark_comparison.rs` (temporary wrong-commit manifest).
+  - Regression test: `setup::tests::s4_fixed_input_drift_is_named_and_stops_before_report` (wrong checkout names repository and expected/actual commits, missing install names candidate, exit code 2, no report files, matching inputs pass) → `1 passed`.
+  - Output: `1 scenario (1 passed)`, `4 steps (4 passed)`, `EXIT=0` (re-run after adding the regression test).
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `4 steps (4 passed)`, `EXIT=0`.
-- [x] COMMIT: 350fa03
+- [x] COMMIT: __S4_NEW__
 - Design constraints: no network; temp copy; exit 2; error names the mismatched fixed input; no report files; the run never starts when preparation is invalid.
 
 ## S5 — A documented setup deviation is recorded on every affected cell

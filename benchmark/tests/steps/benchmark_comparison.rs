@@ -3409,7 +3409,7 @@ fn a_fixed_input_mismatch(world: &mut BenchmarkWorld) -> Result<(), String> {
         };
     }
     for candidate in &mut manifest.candidates {
-        candidate.install = "/bin/true".to_string();
+        candidate.install = "/bin/sh".to_string();
     }
     let manifest_path = root.join("manifest.yaml");
     let text = serde_yaml_ng::to_string(&manifest)

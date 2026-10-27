@@ -551,4 +551,82 @@ mod tests {
 
         let _ = fs::remove_dir_all(&dir);
     }
+
+    fn git_commit(checkout: &Path) -> String {
+        let run = |args: &[&str]| {
+            let output = Command::new("git")
+                .arg("-C")
+                .arg(checkout)
+                .args(["-c", "user.name=benchmark", "-c", "user.email=benchmark@example.invalid"])
+                .args(args)
+                .output()
+                .expect("run git");
+            assert!(output.status.success(), "git {args:?} failed");
+            String::from_utf8_lossy(&output.stdout).trim().to_string()
+        };
+        run(&["init", "-q"]);
+        run(&["add", "file.ts"]);
+        run(&["commit", "-q", "-m", "checkout"]);
+        run(&["rev-parse", "HEAD"])
+    }
+
+    /// S4: a checkout whose HEAD differs from the manifest pin stops
+    /// validation with exit code 2 and the input's name; a missing candidate
+    /// installation does the same, and no report is written.
+    #[test]
+    fn s4_fixed_input_drift_is_named_and_stops_before_report() {
+        let dir = temp_dir("s4");
+        let checkout = dir.join("checkout");
+        fs::create_dir_all(&checkout).expect("create checkout");
+        fs::write(checkout.join("file.ts"), "export const value = 1;\n").expect("write file");
+        let actual = git_commit(&checkout);
+
+        let mut manifest = manifest();
+        manifest.repositories[0].checkout = checkout.to_string_lossy().to_string();
+        manifest.candidates[0].install = "/bin/sh".to_string();
+        let manifest_path = dir.join("manifest.yaml");
+        fs::write(
+            &manifest_path,
+            serde_yaml_ng::to_string(&manifest).expect("serialize manifest"),
+        )
+        .expect("write manifest");
+
+        let error = validate_fixed_inputs(&manifest_path).expect_err("wrong checkout must fail");
+        let message = format!("{error:#}");
+        assert!(message.contains("typescript-reference"), "{message}");
+        assert!(message.contains("expected commit"), "{message}");
+        assert!(message.contains("actual commit"), "{message}");
+        assert!(message.contains(&actual), "{message}");
+        assert_eq!(EXIT_INPUT_ERROR, 2);
+        let out = dir.join("out");
+        for name in ["report.json", "report.md"] {
+            assert!(!out.join(name).exists(), "drift wrote {name}");
+        }
+
+        manifest.repositories[0].commit = actual;
+        manifest.candidates[0].install = dir.join("missing-tool").to_string_lossy().to_string();
+        fs::write(
+            &manifest_path,
+            serde_yaml_ng::to_string(&manifest).expect("serialize manifest"),
+        )
+        .expect("write manifest");
+        let error = validate_fixed_inputs(&manifest_path).expect_err("missing install must fail");
+        let message = format!("{error:#}");
+        assert!(message.contains("ocbi"), "{message}");
+        assert!(message.contains("installation"), "{message}");
+        assert!(message.contains("does not exist"), "{message}");
+        for name in ["report.json", "report.md"] {
+            assert!(!out.join(name).exists(), "missing install wrote {name}");
+        }
+
+        manifest.candidates[0].install = "/bin/sh".to_string();
+        fs::write(
+            &manifest_path,
+            serde_yaml_ng::to_string(&manifest).expect("serialize manifest"),
+        )
+        .expect("write manifest");
+        validate_fixed_inputs(&manifest_path).expect("matching checkout and install pass");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
