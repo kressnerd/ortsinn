@@ -200,9 +200,7 @@ pub trait CandidateSession {
 
     /// Index one fixed repository. A candidate without a working index fails
     /// with its typed reason and the run continues.
-    fn index(&mut self, _repository: &str) -> Result<(), SessionError> {
-        Ok(())
-    }
+    fn index(&mut self, repository: &str) -> Result<(), SessionError>;
 
     /// Run one documented query operation.
     fn query(&mut self, request: &QueryRequest) -> Result<Vec<CandidateAnswer>, SessionError>;
@@ -253,16 +251,6 @@ impl FakeSession {
         self
     }
 
-    /// Declare a documented setup deviation. Every affected cell keeps its
-    /// measured value and carries the deviation label.
-    pub fn with_setup_deviation(
-        mut self,
-        deviation: crate::manifest::SetupDeviation,
-    ) -> Self {
-        self.setup.setup_deviations.push(deviation);
-        self
-    }
-
     pub fn answering(mut self, task: &str, answers: Vec<CandidateAnswer>) -> Self {
         self.answers.insert(task.to_string(), answers);
         self
@@ -289,6 +277,10 @@ impl CandidateSession for FakeSession {
 
     fn setup(&self) -> crate::manifest::CandidateSetup {
         self.setup.clone()
+    }
+
+    fn index(&mut self, _repository: &str) -> Result<(), SessionError> {
+        Ok(())
     }
 
     fn query(&mut self, request: &QueryRequest) -> Result<Vec<CandidateAnswer>, SessionError> {
