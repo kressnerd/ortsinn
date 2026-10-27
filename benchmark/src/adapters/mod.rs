@@ -3,6 +3,8 @@
 //! The real candidate adapters are delivered by the `benchmark-run` change.
 //! This change proves the contract with recorded normalized results.
 
+pub mod session;
+
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};

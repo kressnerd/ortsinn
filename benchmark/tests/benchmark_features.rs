@@ -46,6 +46,10 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) e2e_record_report: Option<serde_json::Value>,
     /// Endpoint request count observed before the replay.
     pub(crate) e2e_record_requests: usize,
+    /// Candidate answers returned by the adapter test double.
+    pub(crate) adapter_answers: Option<Vec<benchmark::adapters::session::CandidateAnswer>>,
+    /// Normalized results produced through the candidate session boundary.
+    pub(crate) adapter_results: Option<Vec<benchmark::adapters::NormalizedLocation>>,
 }
 
 impl Default for BenchmarkWorld {
@@ -75,6 +79,8 @@ impl Default for BenchmarkWorld {
             e2e_endpoint: None,
             e2e_record_report: None,
             e2e_record_requests: 0,
+            adapter_answers: None,
+            adapter_results: None,
         }
     }
 }

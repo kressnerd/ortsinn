@@ -103,7 +103,7 @@ Feature: Benchmark comparison
     And  each secondary repository is labelled lower-power
     And  the synthetic monorepo's gold is generated and reviewed with its generator
 
-  @givn.added @wip
+  @givn.added
   Scenario: A real candidate's evidence keeps its order and resolution
     Given  a real candidate that returns duplicate answers and a file-only answer
     When  the maintainer runs the real benchmark

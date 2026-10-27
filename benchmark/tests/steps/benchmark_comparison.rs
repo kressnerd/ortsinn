@@ -1,6 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use benchmark::adapters::session::{
+    CandidateAnswer, CandidateSession, FakeSession, Operation, QueryRequest, normalize_answers,
+};
+use benchmark::adapters::NormalizedLocation;
 use benchmark::manifest::Manifest;
 use benchmark::report::model::Report;
 use cucumber::{given, then, when};
@@ -3475,6 +3479,132 @@ fn no_benchmark_run_starts(world: &mut BenchmarkWorld) -> Result<(), String> {
         if path.exists() {
             return Err(format!("invalid preparation wrote {}", path.display()));
         }
+    }
+    Ok(())
+}
+
+// --- S13: normalized evidence keeps the candidate's order and resolution ---
+
+fn adapter_answers(world: &BenchmarkWorld) -> Result<&Vec<CandidateAnswer>, String> {
+    world
+        .adapter_answers
+        .as_ref()
+        .ok_or_else(|| "the candidate session returned no answers".to_string())
+}
+
+fn adapter_results(world: &BenchmarkWorld) -> Result<&Vec<NormalizedLocation>, String> {
+    world
+        .adapter_results
+        .as_ref()
+        .ok_or_else(|| "the candidate answers were not normalized".to_string())
+}
+
+#[given("a real candidate that returns duplicate answers and a file-only answer")]
+fn a_candidate_returns_duplicate_and_file_answers(world: &mut BenchmarkWorld) -> Result<(), String> {
+    world.adapter_answers = Some(vec![
+        CandidateAnswer::symbol("src/math_utils.py", 10, 10, "helper_10"),
+        CandidateAnswer::symbol("src/math_utils.py", 10, 10, "helper_10"),
+        CandidateAnswer::file("src/text_utils.py"),
+        CandidateAnswer::symbol("src/math_utils.py", 30, 30, "helper_30"),
+    ]);
+    world.adapter_results = None;
+    Ok(())
+}
+
+#[when("the maintainer runs the real benchmark")]
+fn the_maintainer_runs_the_real_benchmark(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let Some(answers) = world.adapter_answers.clone() else {
+        return run_replay(world);
+    };
+    let mut session = FakeSession::exposing("fixture-ocbi", vec![Operation::Typo])
+        .answering("typo-1", answers);
+    let returned = session
+        .query(&QueryRequest {
+            repository: "fixture-repo".to_string(),
+            metric: "typo".to_string(),
+            task: "typo-1".to_string(),
+            query: "helper_10".to_string(),
+        })
+        .map_err(|error| format!("query candidate session: {error}"))?;
+    world.adapter_answers = Some(returned.clone());
+    world.adapter_results = Some(normalize_answers(&returned));
+    Ok(())
+}
+
+#[then("the normalized results keep the candidate's order")]
+fn normalized_results_keep_candidate_order(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let raw = adapter_answers(world)?;
+    let normalized = adapter_results(world)?;
+    if normalized.len() != 3 {
+        return Err(format!(
+            "expected 3 normalized results after deduplication, got {}",
+            normalized.len()
+        ));
+    }
+    // The first, third, and fourth candidate answers survive in that order.
+    let expected_positions = [0usize, 2, 3];
+    for (rank, raw_index) in expected_positions.iter().enumerate() {
+        if normalized[rank] != raw[*raw_index].normalize() {
+            return Err(format!(
+                "normalized result {rank} does not match candidate answer {raw_index}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("duplicate locations are removed without reordering")]
+fn duplicates_are_removed_without_reordering(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let raw = adapter_answers(world)?;
+    let normalized = adapter_results(world)?;
+    if raw.len() != 4 {
+        return Err(format!("expected 4 candidate answers, got {}", raw.len()));
+    }
+    if normalized.len() != 3 {
+        return Err(format!(
+            "the duplicate was not removed: {} normalized results",
+            normalized.len()
+        ));
+    }
+    if normalized
+        .windows(2)
+        .any(|pair| pair[0] == pair[1])
+    {
+        return Err("a duplicate location survived normalization".into());
+    }
+    let expected = [
+        ("src/math_utils.py", 10, "helper_10"),
+        ("src/text_utils.py", 0, ""),
+        ("src/math_utils.py", 30, "helper_30"),
+    ];
+    for (location, (path, line, symbol)) in normalized.iter().zip(expected) {
+        if location.path != path || location.start_line != line || location.symbol != symbol {
+            return Err(format!(
+                "normalized order changed: got {} at {} symbol {:?}, expected {} at {} symbol {:?}",
+                location.path, location.start_line, location.symbol, path, line, symbol
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("the file-only answer remains a file resolution")]
+fn file_only_answer_remains_a_file_resolution(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let normalized = adapter_results(world)?;
+    let file = normalized
+        .iter()
+        .find(|location| location.path == "src/text_utils.py")
+        .ok_or("the file-only answer is missing from the normalized results")?;
+    if file.resolution.as_deref() != Some("file") {
+        return Err(format!(
+            "file-only answer resolution is {:?}, expected file",
+            file.resolution
+        ));
+    }
+    if file.start_line != 0 || file.end_line != 0 || !file.symbol.is_empty() {
+        return Err(
+            "the file-only answer was promoted to a line/symbol resolution".to_string(),
+        );
     }
     Ok(())
 }

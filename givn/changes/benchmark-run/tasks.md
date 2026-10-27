@@ -237,15 +237,23 @@
 
 ## S13 — A real candidate's evidence keeps its order and resolution
 
-- [ ] RED — remove `@wip` from S13 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — drive adapter normalization via `FakeSession` for duplicate and file-only answers; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/adapters/session.rs`, `benchmark/src/adapters/*.rs`, `benchmark/src/adapters/mod.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S13 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^A real candidate\'s evidence keeps its order and resolution$"` (step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — drive adapter normalization via `FakeSession` for duplicate and file-only answers; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/adapters/session.rs` (`CandidateSession`, `FakeSession`, `CandidateAnswer`, `normalize_answers`, `dedup_locations` boundary), `benchmark/src/adapters/mod.rs` (module export), `benchmark/tests/benchmark_features.rs` (adapter world state), `benchmark/tests/steps/benchmark_comparison.rs` (S13 steps).
+  - Regression test: `adapters::session::tests::s13_normalization_preserves_order_and_file_resolution` → `1 passed`.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] COMMIT: __S13_NEW__
 - Design constraints: preserve candidate order; deduplicate by `(path, start_line, end_line, symbol)` without reordering; file-only remains a file resolution; no capability inference.
 
 ## S14 — A real candidate without an operation is unavailable with the capability reason
