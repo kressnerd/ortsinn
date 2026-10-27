@@ -37,13 +37,13 @@
   - Removed the probe and reran `./run-tests.sh`: `28 scenarios (28 passed)`, `171 steps (171 passed)`, exit 0.
   - Confirmed `givn/commands.yaml` declares `verify.command: ./run-tests.sh` and `verify.e2e_command: ./run-tests.sh --e2e`.
   - Production files: none; no repair was needed.
-  - COMMIT: __SETUP_COMMIT__
+  - COMMIT: cddeb5a
 
-- [ ] E2E setup check (no new e2e scenario).
+- [x] E2E setup check (no new e2e scenario).
   - Command: `./run-tests.sh` → full count 28; `./run-tests.sh --e2e` → 2 scenarios; e2e count is strictly less than full.
-  - Output: _(paste both counts)_.
-  - Confirm the e2e step file remains `benchmark/tests/steps/e2e/benchmark_cli.rs` and the local fake endpoint starts on loopback.
-  - COMMIT: _(hash)_
+  - Output: full `1 feature / 28 scenarios (28 passed) / 171 steps (171 passed)`, exit 0; e2e `1 feature / 2 scenarios (2 passed) / 14 steps (14 passed)`, exit 0. `2 < 28`.
+  - Confirmed the e2e step file remains `benchmark/tests/steps/e2e/benchmark_cli.rs`; `FakeOpenAiEndpoint::start` binds `127.0.0.1:0` and the steps assert every peer is loopback.
+  - COMMIT: __E2E_COMMIT__
 
 ## Evidence preparation (prerequisites for S7/S11/S12/S15)
 
