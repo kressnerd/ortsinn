@@ -222,15 +222,23 @@
 
 ## S10 — An unreviewed gold set referenced by the manifest stops before scoring
 
-- [ ] RED — remove `@wip` from S10 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — implement `reviewed_by` enforcement and typed `unreviewed gold set` failure; unreferenced drafts are not loaded; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/gold/mod.rs`, `benchmark/src/manifest.rs`, `benchmark/src/gold/propose.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S10 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^An unreviewed gold set referenced by the manifest stops before scoring$"` (step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — implement `reviewed_by` enforcement and typed `unreviewed gold set` failure; unreferenced drafts are not loaded; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/manifest.rs` (`GoldSet::reviewed_by`), `benchmark/src/gold/mod.rs` (`UnreviewedGoldSet`, `ensure_reviewed` called for every manifest-referenced set before its fingerprint or tasks are read), `benchmark/src/gold/propose.rs` (`drafts/` writer; drafts never enter the loader), `benchmark/tests/fixtures/e2e/manifest.yaml` (reviewer on the five committed fixture sets), `benchmark/tests/benchmark_features.rs` (unreviewed set and draft task state), `benchmark/tests/steps/benchmark_comparison.rs` (S10 steps; unreferenced draft under a temporary `gold/drafts/`; the permanent extra-repository fixture's gold entry gains a reviewer).
+  - Regression test: `gold::tests::s10_unreviewed_referenced_gold_set_is_typed_and_specifically_named` (missing, empty, and whitespace reviewer are typed and named; a reviewed set loads) → `1 passed`; `cargo test -p benchmark --lib` → `12 passed`.
+  - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`; `./run-tests.sh` → `2 features / 39 scenarios (39 passed) / 228 steps (228 passed)`, exit 0.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
+- [x] COMMIT: e57dc85
 - Design constraints: manifest-referenced unreviewed set fails before scoring; no report; drafts under `gold/drafts/` excluded; no change-ID vocabulary.
 
 ## S11 — The real record run covers every manifest candidate and repository
