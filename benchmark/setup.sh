@@ -114,7 +114,8 @@ toolchains = {
 }
 llvm_cov = os.environ.get("LLVM_COV")
 if llvm_cov:
-    toolchains["llvm_cov"] = output(llvm_cov, "--version").splitlines()[0]
+    lines = [line for line in output(llvm_cov, "--version").splitlines() if "version" in line.lower()]
+    toolchains["llvm_cov"] = lines[0] if lines else output(llvm_cov, "--version").splitlines()[0]
 
 candidates = {}
 for candidate in manifest["candidates"]:
