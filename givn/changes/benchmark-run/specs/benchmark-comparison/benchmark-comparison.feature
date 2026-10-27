@@ -2,7 +2,7 @@
 
 Feature: Benchmark comparison
 
-  @givn.added @wip
+  @givn.added
   Scenario: Real manifest pins every reference repository and the synthetic monorepo
     Given  the real benchmark manifest
     Then  it pins typescript-reference, python-reference, and rust-reference at a URL, revision, commit, language, measured size, and power

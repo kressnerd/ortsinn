@@ -43,16 +43,17 @@
   - Command: `./run-tests.sh` → full count 28; `./run-tests.sh --e2e` → 2 scenarios; e2e count is strictly less than full.
   - Output: full `1 feature / 28 scenarios (28 passed) / 171 steps (171 passed)`, exit 0; e2e `1 feature / 2 scenarios (2 passed) / 14 steps (14 passed)`, exit 0. `2 < 28`.
   - Confirmed the e2e step file remains `benchmark/tests/steps/e2e/benchmark_cli.rs`; `FakeOpenAiEndpoint::start` binds `127.0.0.1:0` and the steps assert every peer is loopback.
-  - COMMIT: __E2E_COMMIT__
+  - COMMIT: 18a569a
 
 ## Evidence preparation (prerequisites for S7/S11/S12/S15)
 
-- [ ] Resolve and commit the real fixed inputs and candidate pins.
-  - Author `benchmark/manifest.yaml` with the three reference repository URLs/commits/languages/LOC, the synthetic seed/version/fingerprint, candidate versions/commits, adapters, power labels, deadlines, and gold/cassette references.
-  - Author `benchmark/targets.yaml` and `benchmark/setup.lock.json` (toolchains/probes only; pins stay in the manifest).
-  - Run `benchmark/fetch-repos.sh` and `benchmark/setup.sh`; prove pins match and no drift. Output: _(paste)_.
-  - Production files: `benchmark/manifest.yaml`, `benchmark/targets.yaml`, `benchmark/setup.lock.json`, scripts, `benchmark/src/setup.rs` as required.
-  - COMMIT: _(hash)_
+- [x] Resolve and commit the real fixed inputs and candidate pins.
+  - Authored `benchmark/manifest.yaml` with the three reference repositories and commits (microsoft/TypeScript v7.0.2 `1e4744d6…` measured 731,537 TypeScript lines; python/cpython v3.15.0 `d220409a…` measured 918,945 Python lines; rust-lang/rust 1.99.1 `58cf8f9c…` measured 2,919,114 Rust lines), the synthetic seed/version/fingerprint (`20261020`/`1`/`sha256:799817ea…`), candidate pins (ocbi v0.37.0 `573b71c3…`, CKB v9.3.1 `5ff375db…`, Serena v2.1.0 `5e4f5cd1…` with evidence URLs), power labels, and 14,400/1,800-second deadlines. Cassette paths are referenced; their fingerprints and the reviewed gold entries are added by the record/gold tasks. `targets.yaml` carries AC-01 `proposed` and the rest `unstated`.
+  - Authored `benchmark/setup.lock.json` with probes, toolchains, copied pins (`pinned_by: benchmark/manifest.yaml`), and both endpoint records. The explanation endpoint is honestly `configured: false` with model `unconfigured`; the record run is blocked until the operator supplies `BENCHMARK_EXPLANATION_ENDPOINT` plus its model/key.
+  - `benchmark/fetch-repos.sh`: `fetch-repos: fixed inputs match the manifest pins` (three pinned shallow checkouts; synthetic content fingerprint matched; per-candidate copies created).
+  - `benchmark/setup.sh`: probes `ok` for ocbi/CKB/Serena; `setup validation passed: benchmark/manifest.yaml`; `candidate pins, probes, toolchains, and fixed inputs verified`.
+  - Production files: `benchmark/manifest.yaml`, `benchmark/targets.yaml`, `benchmark/setup.lock.json`, `benchmark/fetch-repos.sh`, `benchmark/setup.sh`, `benchmark/.gitignore`, `benchmark/src/setup.rs`, `benchmark/src/manifest.rs` (power/synthetic/evidence/targets_file/gold_minimums), `benchmark/src/lib.rs`, `benchmark/src/bin/setup-check.rs`, `benchmark/src/bin/generate-synthetic.rs`.
+  - COMMIT: 555ac04
 
 - [ ] Author and review the real gold sets.
   - Primary repository: 50 typo, 30 natural-language, 20 explanation, 50 concept, 20 concept-equivalence reviewed tasks. Each secondary: 25/15/10/25/10. Synthetic gold generated and reviewed with the generator.
@@ -69,15 +70,22 @@
 
 ## S1 — Real manifest pins every reference repository and the synthetic monorepo
 
-- [ ] RED — remove `@wip` from S1 only; targeted run; paste non-zero output.
-  - Command: single-scenario command above with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — implement the real manifest/repository identity assertions; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/manifest.rs`, `benchmark/src/setup.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed `benchmark/manifest.yaml`/`targets.yaml` as required.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S1 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^Real manifest pins every reference repository and the synthetic monorepo$"` (step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — implement the real manifest/repository identity assertions; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/manifest.yaml`, `benchmark/targets.yaml`, `benchmark/src/manifest.rs` (power/synthetic/evidence/targets_file/gold_minimums fields), `benchmark/src/setup.rs`, `benchmark/src/lib.rs`, `benchmark/src/bin/setup-check.rs`, `benchmark/src/bin/generate-synthetic.rs`, `benchmark/fetch-repos.sh`, `benchmark/setup.sh`, `benchmark/setup.lock.json`, `benchmark/tests/steps/benchmark_comparison.rs`.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] COMMIT: __S1_COMMIT__
 - Design constraints: manifest IDs and languages; primary/secondary; 200k minimum; synthetic seed/generator/10M; checkouts under `benchmark/work`; 14,400/1,800-second deadlines; read the committed manifest and setup lock, not a live network call.
 
 ## S2 — Real manifest pins every candidate version and commit

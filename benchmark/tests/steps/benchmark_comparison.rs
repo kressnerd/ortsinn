@@ -3054,3 +3054,458 @@ fn invalid_report_rejected(world: &mut BenchmarkWorld) -> Result<(), String> {
     }
     Ok(())
 }
+
+fn real_manifest_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("manifest.yaml")
+}
+
+fn real_setup_lock_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("setup.lock.json")
+}
+
+fn load_real_manifest(world: &mut BenchmarkWorld) -> Result<Manifest, String> {
+    let path = real_manifest_path();
+    let manifest = Manifest::load(&path)
+        .map_err(|error| format!("load real manifest {}: {error:#}", path.display()))?;
+    world.manifest_path = path;
+    world.manifest = Some(manifest.clone());
+    Ok(manifest)
+}
+
+#[given("the real benchmark manifest")]
+fn the_real_benchmark_manifest(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_real_manifest(world).map(|_| ())
+}
+
+#[then("it pins typescript-reference, python-reference, and rust-reference at a URL, revision, commit, language, measured size, and power")]
+fn repositories_are_pinned(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    for id in ["typescript-reference", "python-reference", "rust-reference"] {
+        let repository = manifest
+            .repository(id)
+            .ok_or_else(|| format!("real manifest does not pin {id}"))?;
+        if repository.url.is_empty() || !repository.url.starts_with("https://") {
+            return Err(format!("{id} url is not an https URL: {}", repository.url));
+        }
+        if repository.revision.is_empty() {
+            return Err(format!("{id} has no revision"));
+        }
+        if repository.commit.len() != 40
+            || !repository.commit.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Err(format!("{id} commit is not 40 hex characters: {}", repository.commit));
+        }
+        if repository.language.is_empty() {
+            return Err(format!("{id} has no language"));
+        }
+        let measured = repository.loc.language_code_lines;
+        if measured == 0 {
+            return Err(format!("{id} has no measured size"));
+        }
+        let minimum = repository.minimum_code_lines.unwrap_or(200_000);
+        if measured < minimum {
+            return Err(format!(
+                "{id} measured {measured} code lines, below the {minimum}-line minimum"
+            ));
+        }
+        if !matches!(repository.power, Some(benchmark::manifest::Power::Primary))
+            && !matches!(repository.power, Some(benchmark::manifest::Power::Secondary))
+        {
+            return Err(format!("{id} has no power label"));
+        }
+    }
+    let primary = manifest
+        .repositories
+        .iter()
+        .filter(|repository| matches!(repository.power, Some(benchmark::manifest::Power::Primary)))
+        .count();
+    if primary != 1 {
+        return Err(format!("real manifest has {primary} primary repositories, expected 1"));
+    }
+    Ok(())
+}
+
+#[then("it pins the synthetic monorepo with its fixed seed, generator version, and content fingerprint")]
+fn synthetic_monorepo_is_pinned(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let repository = manifest
+        .repository("synthetic-monorepo")
+        .ok_or("real manifest does not pin synthetic-monorepo")?;
+    let synthetic = repository
+        .synthetic
+        .as_ref()
+        .ok_or("synthetic-monorepo has no synthetic pin record")?;
+    if synthetic.seed != 20_261_020 {
+        return Err(format!("synthetic seed is {}, expected 20261020", synthetic.seed));
+    }
+    if synthetic.generator_version != 1 {
+        return Err(format!(
+            "synthetic generator version is {}, expected 1",
+            synthetic.generator_version
+        ));
+    }
+    if !synthetic.content_fingerprint.starts_with("sha256:")
+        || synthetic.content_fingerprint.len() != "sha256:".len() + 64
+    {
+        return Err(format!(
+            "synthetic content fingerprint is not a sha256 digest: {}",
+            synthetic.content_fingerprint
+        ));
+    }
+    if synthetic.code_lines != 10_000_000 {
+        return Err(format!(
+            "synthetic code lines are {}, expected 10000000",
+            synthetic.code_lines
+        ));
+    }
+    if repository.loc.language_code_lines != synthetic.code_lines {
+        return Err("synthetic measured size differs from its generated code lines".into());
+    }
+    Ok(())
+}
+
+#[then("it sets the public repository index deadline to 14400 seconds")]
+fn public_deadline(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    if manifest.index_deadlines.get("public_repository_seconds").copied() != Some(14_400) {
+        return Err(format!(
+            "public repository deadline is {:?}, expected 14400",
+            manifest.index_deadlines.get("public_repository_seconds")
+        ));
+    }
+    Ok(())
+}
+
+#[then("it sets the synthetic monorepo index deadline to 1800 seconds")]
+fn synthetic_deadline(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    if manifest.index_deadlines.get("synthetic_seconds").copied() != Some(1_800) {
+        return Err(format!(
+            "synthetic deadline is {:?}, expected 1800",
+            manifest.index_deadlines.get("synthetic_seconds")
+        ));
+    }
+    Ok(())
+}
+
+#[then("it pins open-codebase-index, CKB, and Serena at a candidate version and source commit")]
+fn candidates_are_pinned(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    for (id, name) in [("ocbi", "open-codebase-index"), ("ckb", "CKB"), ("serena", "Serena")] {
+        let candidate = manifest
+            .candidate(id)
+            .ok_or_else(|| format!("real manifest does not pin {name} ({id})"))?;
+        if candidate.version.is_empty() {
+            return Err(format!("{name} has no version"));
+        }
+        if candidate.commit.len() != 40
+            || !candidate.commit.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Err(format!(
+                "{name} commit is not a 40-character commit: {}",
+                candidate.commit
+            ));
+        }
+        if candidate.adapter.is_empty() {
+            return Err(format!("{name} has no adapter"));
+        }
+    }
+    Ok(())
+}
+
+#[then("each candidate pin records the evidence for its version and commit")]
+fn candidate_evidence_is_recorded(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    for candidate in &manifest.candidates {
+        let evidence = candidate
+            .evidence
+            .as_ref()
+            .ok_or_else(|| format!("candidate {} has no evidence record", candidate.id))?;
+        if evidence.version.is_empty() || evidence.commit.is_empty() {
+            return Err(format!("candidate {} evidence is incomplete", candidate.id));
+        }
+        if !evidence.version.contains(candidate.version.trim_start_matches('v')) {
+            return Err(format!(
+                "candidate {} version evidence does not name {}: {}",
+                candidate.id, candidate.version, evidence.version
+            ));
+        }
+        if !evidence.commit.contains(&candidate.commit) {
+            return Err(format!(
+                "candidate {} commit evidence does not name {}: {}",
+                candidate.id, candidate.commit, evidence.commit
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[given("the real benchmark manifest and the committed setup lock")]
+fn the_real_manifest_and_setup_lock(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_real_manifest(world)?;
+    let lock_path = real_setup_lock_path();
+    benchmark::setup::SetupLock::load(&lock_path)
+        .map_err(|error| format!("load committed setup lock {}: {error:#}", lock_path.display()))?;
+    Ok(())
+}
+
+fn real_lock() -> Result<benchmark::setup::SetupLock, String> {
+    benchmark::setup::SetupLock::load(&real_setup_lock_path())
+        .map_err(|error| format!("load committed setup lock: {error:#}"))
+}
+
+#[then("every candidate and repository pin is identical in both files")]
+fn setup_lock_pins_agree(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    benchmark::setup::validate_pins(&real_manifest_path(), &real_setup_lock_path())
+        .map_err(|error| format!("setup validation failed: {error:#}"))?;
+    let lock = real_lock()?;
+    for candidate in &manifest.candidates {
+        let entry = lock
+            .candidates
+            .get(&candidate.id)
+            .ok_or_else(|| format!("setup lock has no candidate {}", candidate.id))?;
+        if entry.version != candidate.version || entry.commit != candidate.commit {
+            return Err(format!("candidate {} pins differ between manifest and lock", candidate.id));
+        }
+    }
+    for repository in &manifest.repositories {
+        let entry = lock
+            .repositories
+            .get(&repository.id)
+            .ok_or_else(|| format!("setup lock has no repository {}", repository.id))?;
+        if repository.synthetic.is_none() && entry.commit.as_deref() != Some(repository.commit.as_str()) {
+            return Err(format!("repository {} pins differ between manifest and lock", repository.id));
+        }
+    }
+    Ok(())
+}
+
+#[then("every pinned commit is a 40-character commit")]
+fn pinned_commits_are_40_hex(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let lock = real_lock()?;
+    let mut commits = Vec::new();
+    for candidate in &manifest.candidates {
+        commits.push((candidate.id.clone(), candidate.commit.clone()));
+    }
+    for repository in &manifest.repositories {
+        if repository.synthetic.is_none() {
+            commits.push((repository.id.clone(), repository.commit.clone()));
+        }
+    }
+    for (label, commit) in commits {
+        if commit.len() != 40 || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(format!("{label} pin {commit} is not a 40-character commit"));
+        }
+    }
+    for (id, entry) in &lock.candidates {
+        if entry.commit.len() != 40 || !entry.commit.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(format!("setup lock candidate {id} commit is not 40 hex characters"));
+        }
+    }
+    Ok(())
+}
+
+#[then("the setup lock records a probe result and the toolchain versions for every candidate")]
+fn setup_lock_probes_and_toolchains(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let lock = real_lock()?;
+    for candidate in &manifest.candidates {
+        let entry = lock
+            .candidates
+            .get(&candidate.id)
+            .ok_or_else(|| format!("setup lock has no probe record for {}", candidate.id))?;
+        if entry.probe.status != "ok" || entry.probe.command.is_empty() {
+            return Err(format!(
+                "setup lock probe for {} is not a successful probe result",
+                candidate.id
+            ));
+        }
+        if entry.toolchain.is_empty() {
+            return Err(format!("setup lock has no toolchain versions for {}", candidate.id));
+        }
+    }
+    Ok(())
+}
+
+#[then("the setup lock records no candidate pin as its origin")]
+fn setup_lock_has_no_self_pin_origin(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_real_manifest(world)?;
+    let lock = real_lock()?;
+    for (id, entry) in &lock.candidates {
+        let origin = &entry.pinned_by;
+        if origin.is_empty()
+            || origin == id
+            || origin == &entry.version
+            || origin == &entry.commit
+            || !origin.contains("manifest")
+        {
+            return Err(format!(
+                "setup lock candidate {id} records pin origin {origin}, which is not the manifest"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("the setup lock records both endpoint localities, both model names, and the explanation-query budget")]
+fn setup_lock_endpoints(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_real_manifest(world)?;
+    let lock = real_lock()?;
+    let endpoints = &lock.endpoints;
+    for (label, endpoint) in [
+        ("embedding", &endpoints.embedding),
+        ("explanation", &endpoints.explanation),
+    ] {
+        if endpoint.locality.is_empty() {
+            return Err(format!("setup lock does not record the {label} locality"));
+        }
+        if endpoint.model.as_deref().is_none_or(str::is_empty) {
+            return Err(format!("setup lock does not record the {label} model name"));
+        }
+    }
+    if endpoints.embedding.locality != "loopback" {
+        return Err("embedding endpoint locality is not loopback".into());
+    }
+    let budget = endpoints
+        .explanation
+        .query_budget
+        .ok_or("setup lock does not record the explanation-query budget")?;
+    if budget > 80 {
+        return Err(format!("explanation-query budget {budget} exceeds 80"));
+    }
+    Ok(())
+}
+
+#[given("a real fixed input whose checkout or candidate installation does not match the manifest")]
+fn a_fixed_input_mismatch(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("benchmark crate has no workspace root")?
+        .join("target")
+        .join("benchmark-setup-mismatch");
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).map_err(|error| format!("create {}: {error}", root.display()))?;
+
+    let checkout = root.join("checkout");
+    fs::create_dir_all(&checkout).map_err(|error| format!("create {}: {error}", checkout.display()))?;
+    fs::write(checkout.join("file.ts"), "export const value = 1;\n")
+        .map_err(|error| format!("write mismatch checkout: {error}"))?;
+    let git = |args: &[&str]| -> Result<(), String> {
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&checkout)
+            .args(["-c", "user.name=benchmark", "-c", "user.email=benchmark@example.invalid"])
+            .args(args)
+            .output()
+            .map_err(|error| format!("run git: {error}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "git {:?} failed: {}",
+                args,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        Ok(())
+    };
+    git(&["init", "-q"])?;
+    git(&["add", "file.ts"])?;
+    git(&["commit", "-q", "-m", "wrong pin"])?;
+    let actual = std::process::Command::new("git")
+        .arg("-C")
+        .arg(&checkout)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .map_err(|error| format!("run git rev-parse: {error}"))?;
+    let actual = String::from_utf8_lossy(&actual.stdout).trim().to_string();
+
+    let synthetic = root.join("synthetic");
+    fs::create_dir_all(&synthetic).map_err(|error| format!("create {}: {error}", synthetic.display()))?;
+    fs::write(synthetic.join("module_0000.ts"), "export const value = 1;\n")
+        .map_err(|error| format!("write synthetic checkout: {error}"))?;
+
+    let mut manifest = Manifest::load(&real_manifest_path())
+        .map_err(|error| format!("load real manifest: {error:#}"))?;
+    let expected = manifest
+        .repository("typescript-reference")
+        .ok_or("real manifest has no typescript-reference")?
+        .commit
+        .clone();
+    for repository in &mut manifest.repositories {
+        repository.checkout = if repository.synthetic.is_some() {
+            synthetic.to_string_lossy().to_string()
+        } else {
+            checkout.to_string_lossy().to_string()
+        };
+    }
+    for candidate in &mut manifest.candidates {
+        candidate.install = "/bin/true".to_string();
+    }
+    let manifest_path = root.join("manifest.yaml");
+    let text = serde_yaml_ng::to_string(&manifest)
+        .map_err(|error| format!("serialize mismatch manifest: {error}"))?;
+    fs::write(&manifest_path, text)
+        .map_err(|error| format!("write {}: {error}", manifest_path.display()))?;
+
+    world.manifest_path = manifest_path;
+    world.manifest = Some(manifest);
+    world.out_dir = root.join("out");
+    world.report = None;
+    world.run_failure = None;
+    world.mismatch = Some((expected, actual));
+    Ok(())
+}
+
+#[when("the benchmark validates the fixed inputs")]
+fn validate_fixed_inputs(world: &mut BenchmarkWorld) -> Result<(), String> {
+    match benchmark::setup::validate_fixed_inputs(&world.manifest_path) {
+        Ok(()) => Err("a mismatched fixed input passed validation".into()),
+        Err(error) => {
+            world.run_failure = Some(benchmark::runner::RunFailure::from_error(error));
+            Ok(())
+        }
+    }
+}
+
+#[then("the run exits with code 2 and names the mismatched fixed input")]
+fn mismatch_exits_two_and_names_input(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let failure = world
+        .run_failure
+        .as_ref()
+        .ok_or("the mismatched input did not stop validation")?;
+    if failure.exit_code != benchmark::setup::EXIT_INPUT_ERROR {
+        return Err(format!(
+            "validation exit code was {}, expected {}",
+            failure.exit_code,
+            benchmark::setup::EXIT_INPUT_ERROR
+        ));
+    }
+    if !failure.message.contains("typescript-reference") {
+        return Err(format!(
+            "error does not name the mismatched fixed input: {}",
+            failure.message
+        ));
+    }
+    if !failure.message.contains("expected commit") || !failure.message.contains("actual commit") {
+        return Err(format!(
+            "error does not report the expected and actual commits: {}",
+            failure.message
+        ));
+    }
+    Ok(())
+}
+
+#[then("no benchmark run starts")]
+fn no_benchmark_run_starts(world: &mut BenchmarkWorld) -> Result<(), String> {
+    if world.report.is_some() {
+        return Err("a benchmark report was produced after invalid preparation".into());
+    }
+    for name in ["report.json", "report.md"] {
+        let path = world.out_dir.join(name);
+        if path.exists() {
+            return Err(format!("invalid preparation wrote {}", path.display()));
+        }
+    }
+    Ok(())
+}
