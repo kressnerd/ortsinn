@@ -324,15 +324,23 @@
 
 ## S16 — A real run below the per-family measurement floor publishes no report
 
-- [ ] RED — remove `@wip` from S16 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — implement the floor check; temp manifest/cassette with one family or repository unmeasured → exit 2, no report files; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/runner.rs`, `benchmark/src/report/model.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S16 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^A real run below the per-family measurement floor publishes no report$"` (step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — implement the floor check; temp manifest/cassette with one family or repository unmeasured → exit 2, no report files; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/runner.rs` (`MeasurementFloorUnmet`, `publication_floor`, `ensure_publication_floor` called in replay and record before either report file is written; the floor applies to a published manifest and leaves the fixture contract tests that deliberately leave a metric unmeasured alone), `benchmark/tests/benchmark_features.rs` (floor fixture state), `benchmark/tests/steps/benchmark_comparison.rs` (S16 steps: every candidate loses its explanation operation and a repository with no gold joins the manifest, so one family and one repository have no measured cell).
+  - Regression test: `runner::tests::s16_publication_floor_requires_a_measured_cell_per_family_and_repository` (unmeasured run names all four families and the repository; a repository-only measurement still leaves the families missing; a fully measured run passes; a fixture manifest is exempt) → `1 passed`; `cargo test -p benchmark --lib` → `13 passed`.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`; `./run-tests.sh` → `2 features / 40 scenarios (40 passed) / 233 steps (233 passed)`, exit 0.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] COMMIT: 706cf27
 - Design constraints: per-family measured cell; every repository; exit 2 before report write; unavailable candidates remain in a published report when the floor is met.
 
 ## S17 — A real gold set below the published minimum stops before scoring
