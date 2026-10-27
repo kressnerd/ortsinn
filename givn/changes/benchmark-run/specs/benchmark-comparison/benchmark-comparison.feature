@@ -16,7 +16,7 @@ Feature: Benchmark comparison
     Then  it pins open-codebase-index, CKB, and Serena at a candidate version and source commit
     And  each candidate pin records the evidence for its version and commit
 
-  @givn.added @wip
+  @givn.added
   Scenario: The real manifest and setup lock agree on every pin
     Given  the real benchmark manifest and the committed setup lock
     Then  every candidate and repository pin is identical in both files
