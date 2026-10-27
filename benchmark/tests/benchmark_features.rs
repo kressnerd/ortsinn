@@ -73,6 +73,8 @@ pub(crate) struct BenchmarkWorld {
     /// Draft task written under `gold/drafts/` but not referenced by the
     /// manifest.
     pub(crate) draft_task: Option<String>,
+    /// Publication-floor fixture: missing family and missing repository.
+    pub(crate) floor: Option<(String, String)>,
 }
 
 impl Default for BenchmarkWorld {
@@ -110,6 +112,7 @@ impl Default for BenchmarkWorld {
             changed_query: None,
             unreviewed_gold: None,
             draft_task: None,
+            floor: None,
         }
     }
 }

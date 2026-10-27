@@ -131,7 +131,7 @@ Feature: Benchmark comparison
     And  it names every candidate, repository, gold set, and cassette fingerprint
     And  it records the product-path decision as deferred to the Ortsinn maintainer and the post-report decision record
 
-  @givn.added @wip
+  @givn.added
   Scenario: A real run below the per-family measurement floor publishes no report
     Given  a real run where one metric family and one repository have no measured cell
     When  the benchmark writes the report

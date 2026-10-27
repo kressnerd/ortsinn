@@ -1,6 +1,6 @@
 //! Replay and record runners for the fixed benchmark inputs.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,14 +8,14 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::gold::Gold;
-use crate::manifest::{Candidate, CandidateSetup, Manifest, RunMode};
+use crate::manifest::{Candidate, CandidateSetup, GoldMinimumsMode, Manifest, RunMode};
 use crate::metrics;
 use crate::record::cassette::{self, ModelCassette, ModelRecord, ResultCassette};
 use crate::record::keys;
 use crate::record::proxy::ModelRecorder;
 use crate::report::model::{
-    CandidateReport, CandidateStatus, Gaps, GoldSetReport, Inputs, LineCountReport, Metrics,
-    PathDecision, PathDecisionStatus, Report, Reproduction, RepositoryReport, RunReport,
+    CandidateReport, CandidateStatus, CellStatus, Gaps, GoldSetReport, Inputs, LineCountReport,
+    Metrics, PathDecision, PathDecisionStatus, Report, Reproduction, RepositoryReport, RunReport,
     SCHEMA_VERSION,
 };
 use crate::report::render;
@@ -87,6 +87,36 @@ impl fmt::Display for MissingRecordedResponse {
 
 impl std::error::Error for MissingRecordedResponse {}
 
+/// A report would claim a measured comparison without the evidence the
+/// publication floor requires. The run exits 2 and writes neither report
+/// file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeasurementFloorUnmet {
+    pub missing_families: Vec<String>,
+    pub missing_repositories: Vec<String>,
+}
+
+impl fmt::Display for MeasurementFloorUnmet {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut parts = Vec::new();
+        if !self.missing_families.is_empty() {
+            parts.push(format!(
+                "no measured candidate cell for families {}",
+                self.missing_families.join(", ")
+            ));
+        }
+        if !self.missing_repositories.is_empty() {
+            parts.push(format!(
+                "no measured cell for repositories {}",
+                self.missing_repositories.join(", ")
+            ));
+        }
+        write!(formatter, "publication floor not met: {}", parts.join("; "))
+    }
+}
+
+impl std::error::Error for MeasurementFloorUnmet {}
+
 pub type RunResult<T> = std::result::Result<T, RunFailure>;
 
 /// Build the report from fixed inputs and replay cassettes, then write
@@ -139,6 +169,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     verify_recorded_model_responses(&gold, &cassette, &models)?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
     let gaps = metrics::gaps::compute(&manifest, &metrics);
+    ensure_publication_floor(&manifest, &metrics)?;
 
     let command = format!(
         "cargo run -p benchmark -- run --manifest {} --mode replay --out {}",
@@ -237,6 +268,7 @@ fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) 
     verify_recorded_model_responses(&gold, &cassette, &recorded_models)?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
     let gaps = metrics::gaps::compute(&manifest, &metrics);
+    ensure_publication_floor(&manifest, &metrics)?;
 
     let command = format!(
         "cargo run -p benchmark -- run --manifest {} --mode record --model-endpoint {} --out {}",
@@ -257,6 +289,72 @@ fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) 
     render::write_reports(&report, out_dir)
         .with_context(|| format!("write report into {}", out_dir.display()))?;
     Ok(report)
+}
+
+/// A published report must carry at least one measured candidate cell for
+/// each required family and at least one measured cell for every manifest
+/// repository. The floor is evaluated before either report file is written,
+/// so an all-unavailable run never claims a measured comparison; unavailable
+/// candidates remain listed whenever the floor is met.
+///
+/// A fixture manifest (`gold_minimums.mode: fixture`, or no published
+/// minimums) keeps the harness contract tests that deliberately leave a
+/// metric unmeasured.
+fn ensure_publication_floor(manifest: &Manifest, metrics: &Metrics) -> Result<()> {
+    if !publication_floor_required(manifest) {
+        return Ok(());
+    }
+    let unmet = publication_floor(manifest, metrics);
+    if unmet.missing_families.is_empty() && unmet.missing_repositories.is_empty() {
+        return Ok(());
+    }
+    Err(unmet.into())
+}
+
+fn publication_floor_required(manifest: &Manifest) -> bool {
+    manifest
+        .gold_minimums
+        .as_ref()
+        .is_some_and(|minimums| minimums.mode == GoldMinimumsMode::Published)
+}
+
+fn publication_floor(manifest: &Manifest, metrics: &Metrics) -> MeasurementFloorUnmet {
+    let families = [
+        ("typo", &metrics.typo.per_candidate),
+        ("natural-language", &metrics.natural_language.per_candidate),
+        ("explanation", &metrics.explanation.per_candidate),
+        ("concept", &metrics.concept.per_candidate),
+    ];
+    let missing_families: Vec<String> = families
+        .into_iter()
+        .filter(|(_, cells)| !cells.values().any(|cell| cell.status == CellStatus::Measured))
+        .map(|(name, _)| name.to_string())
+        .collect();
+
+    let mut measured_repositories = BTreeSet::new();
+    for cells in [
+        &metrics.typo.per_repository,
+        &metrics.natural_language.per_repository,
+        &metrics.explanation.per_repository,
+        &metrics.concept.per_repository,
+    ] {
+        for (repository, cell) in cells {
+            if cell.status == CellStatus::Measured {
+                measured_repositories.insert(repository.clone());
+            }
+        }
+    }
+    let missing_repositories: Vec<String> = manifest
+        .repositories
+        .iter()
+        .map(|repository| repository.id.clone())
+        .filter(|repository| !measured_repositories.contains(repository))
+        .collect();
+
+    MeasurementFloorUnmet {
+        missing_families,
+        missing_repositories,
+    }
 }
 
 /// Prefer cassettes recorded next to the report directory; the committed
@@ -585,4 +683,126 @@ fn verify_recorded_model_responses(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::report::model::Score;
+    use std::fs;
+
+    fn floor_manifest_dir(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("benchmark-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create floor fixture directory");
+        fs::write(root.join("results.jsonl"), "").expect("write empty result cassette");
+        fs::write(
+            root.join("manifest.yaml"),
+            r#"schema_version: 1
+run_id: floor-test
+mode: replay
+repositories:
+  - id: repo-a
+    url: "test://repo-a"
+    revision: r1
+    commit: "1111111111111111111111111111111111111111"
+    language: python
+    checkout: .
+    loc: {language_code_lines: 1, total_code_lines: 1, tool: test, command: test, exclusions: []}
+candidates:
+  - id: candidate-a
+    version: v1
+    commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    install: test
+    adapter: fixture
+    adapter_version: 1
+gold_minimums:
+  mode: published
+  primary: {typo: 0, natural_language: 0, explanation: 0, concept: 0, concept_equivalence: 0}
+  secondary: {typo: 0, natural_language: 0, explanation: 0, concept: 0, concept_equivalence: 0}
+cassettes:
+  results: {path: results.jsonl, fingerprint: "sha256:00"}
+  model: {path: model.jsonl, fingerprint: "sha256:00"}
+"#,
+        )
+        .expect("write floor manifest");
+        root
+    }
+
+    fn empty_metrics(manifest: &Manifest, cassette: &ResultCassette) -> Metrics {
+        let gold = Gold {
+            typo: Vec::new(),
+            natural_language: Vec::new(),
+            explanation: Vec::new(),
+            concept: Vec::new(),
+            concept_equivalence: Vec::new(),
+            sets: Vec::new(),
+        };
+        metrics::score(manifest, &gold, cassette).expect("score an empty run")
+    }
+
+    fn measure_every_family(metrics: &mut Metrics) {
+        for (candidate, repository) in [
+            (&mut metrics.typo.per_candidate, &mut metrics.typo.per_repository),
+            (
+                &mut metrics.natural_language.per_candidate,
+                &mut metrics.natural_language.per_repository,
+            ),
+            (
+                &mut metrics.explanation.per_candidate,
+                &mut metrics.explanation.per_repository,
+            ),
+            (
+                &mut metrics.concept.per_candidate,
+                &mut metrics.concept.per_repository,
+            ),
+        ] {
+            candidate.insert("candidate-a".to_string(), Score::measured(1, 1, 1, 0));
+            repository.insert("repo-a".to_string(), Score::measured(1, 1, 1, 0));
+        }
+    }
+
+    #[test]
+    fn s16_publication_floor_requires_a_measured_cell_per_family_and_repository() {
+        let root = floor_manifest_dir("publication-floor");
+        let manifest = Manifest::load(&root.join("manifest.yaml")).expect("load floor manifest");
+        let cassette =
+            ResultCassette::load(&root.join("results.jsonl")).expect("load empty cassette");
+        let mut metrics = empty_metrics(&manifest, &cassette);
+
+        let unmet = publication_floor(&manifest, &metrics);
+        assert_eq!(
+            unmet.missing_families,
+            vec![
+                "typo".to_string(),
+                "natural-language".to_string(),
+                "explanation".to_string(),
+                "concept".to_string(),
+            ]
+        );
+        assert_eq!(unmet.missing_repositories, vec!["repo-a".to_string()]);
+        assert!(unmet.to_string().contains("publication floor not met"));
+        assert!(ensure_publication_floor(&manifest, &metrics).is_err());
+
+        let mut repository_only = empty_metrics(&manifest, &cassette);
+        repository_only
+            .typo
+            .per_repository
+            .insert("repo-a".to_string(), Score::measured(1, 1, 1, 0));
+        let unmet = publication_floor(&manifest, &repository_only);
+        assert_eq!(unmet.missing_families.len(), 4);
+        assert!(unmet.missing_repositories.is_empty());
+
+        measure_every_family(&mut metrics);
+        assert!(ensure_publication_floor(&manifest, &metrics).is_ok());
+
+        let mut fixture = Manifest::load(&root.join("manifest.yaml")).expect("load fixture mode");
+        fixture.gold_minimums = None;
+        let unmeasured = empty_metrics(&fixture, &cassette);
+        assert!(
+            ensure_publication_floor(&fixture, &unmeasured).is_ok(),
+            "a fixture manifest keeps its unmeasured metric"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
 }

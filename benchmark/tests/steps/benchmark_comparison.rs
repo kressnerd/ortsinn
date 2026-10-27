@@ -4580,3 +4580,68 @@ fn an_unreferenced_draft_is_not_loaded(world: &mut BenchmarkWorld) -> Result<(),
     assert_eq!(gold.typo.len(), 5, "reviewed typo task count");
     Ok(())
 }
+
+// --- S16: a run below the per-family measurement floor publishes no report --
+
+const UNMEASURED_REPOSITORY: &str = "fixture-unmeasured";
+
+#[given("a real run where one metric family and one repository have no measured cell")]
+fn a_run_below_the_publication_floor(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-floor")?;
+    let mut manifest = read_fixture_manifest()?;
+    let explanation: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str("{status: unavailable, reason: no_explanation_operation}")
+            .map_err(|error| format!("parse unavailable capability: {error}"))?;
+    for candidate in manifest
+        .get_mut("candidates")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no candidates sequence")?
+    {
+        candidate["capabilities"]["explanation"] = explanation.clone();
+    }
+    let extra: serde_yaml_ng::Value = serde_yaml_ng::from_str(
+        "id: fixture-unmeasured\nurl: \"fixture://fixture-unmeasured\"\nrevision: fixture-1\ncommit: \"2222222222222222222222222222222222222222\"\nlanguage: python\ncheckout: repo\nloc: {language_code_lines: 0, total_code_lines: 0, tool: fixture, command: \"unmeasured\", exclusions: []}",
+    )
+    .map_err(|error| format!("parse unmeasured repository: {error}"))?;
+    manifest
+        .get_mut("repositories")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+        .ok_or("fixture manifest has no repositories sequence")?
+        .push(extra);
+    manifest["gold_minimums"] = serde_yaml_ng::from_str(
+        "mode: published\nprimary: {typo: 0, natural_language: 0, explanation: 0, concept: 0, concept_equivalence: 0}\nsecondary: {typo: 0, natural_language: 0, explanation: 0, concept: 0, concept_equivalence: 0}",
+    )
+    .map_err(|error| format!("parse published minimums: {error}"))?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    world.out_dir = root.join("out");
+    world.floor = Some(("explanation".to_string(), UNMEASURED_REPOSITORY.to_string()));
+    load_fixture(world)
+}
+
+#[when("the benchmark writes the report")]
+fn the_benchmark_writes_the_report(world: &mut BenchmarkWorld) -> Result<(), String> {
+    run_replay(world)
+}
+
+#[then("the error names the missing measurement family and repository")]
+fn the_error_names_the_missing_family_and_repository(
+    world: &mut BenchmarkWorld,
+) -> Result<(), String> {
+    let (family, repository) = world
+        .floor
+        .clone()
+        .ok_or("the publication-floor fixture was not prepared")?;
+    let failure = world
+        .run_failure
+        .as_ref()
+        .ok_or("the run published a report below the measurement floor")?;
+    for expected in ["publication floor not met", family.as_str(), repository.as_str()] {
+        if !failure.message.contains(expected) {
+            return Err(format!(
+                "error does not name `{expected}`: {}",
+                failure.message
+            ));
+        }
+    }
+    Ok(())
+}
