@@ -66,7 +66,7 @@ Feature: Benchmark comparison
     And  no candidate process starts
     And  every installed candidate's measured slice replays identically
 
-  @givn.added @wip
+  @givn.added
   Scenario: A changed query does not reuse a recorded model response
     Given  a recorded real benchmark run and one of its gold explanation queries
     When  the maintainer copies the fixed inputs, changes that query's text, recomputes the gold set fingerprint, and replays

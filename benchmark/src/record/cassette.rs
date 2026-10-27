@@ -172,6 +172,90 @@ impl ModelCassette {
     }
 }
 
+/// Normalized query text the model key digests. Whitespace is the only
+/// normalization: formatting alone cannot change a recorded key.
+pub fn normalize_query(query: &str) -> String {
+    query.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// SHA-256 digest of the normalized query text, in lowercase hex.
+pub fn query_digest(query: &str) -> String {
+    let digest = Sha256::digest(normalize_query(query).as_bytes());
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// Canonical model-cassette key for one explanation request. The query digest
+/// makes a changed gold query a distinct key instead of a reused response.
+pub fn explanation_key(candidate: &str, task: &str, query: &str) -> String {
+    format!(
+        "model:explanation:{candidate}:{task}:sha256:{}",
+        query_digest(query)
+    )
+}
+
+/// Canonical model-cassette key for one embedding request.
+pub fn embedding_key(candidate: &str, model: &str, query: &str) -> String {
+    format!(
+        "model:embedding:{candidate}:{model}:sha256:{}",
+        query_digest(query)
+    )
+}
+
+/// The identifying parts of a model-cassette key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParsedModelKey<'a> {
+    pub layer: &'a str,
+    pub candidate: &'a str,
+    /// Explanation task id or embedding model name.
+    pub ident: &'a str,
+    pub digest: Option<&'a str>,
+}
+
+/// Split `model:<layer>:<candidate>:<ident>[:sha256:<digest>]`.
+pub fn parse_model_key(key: &str) -> Option<ParsedModelKey<'_>> {
+    let mut parts = key.split(':');
+    if parts.next()? != "model" {
+        return None;
+    }
+    let layer = parts.next()?;
+    let candidate = parts.next()?;
+    let ident = parts.next()?;
+    let rest: Vec<&str> = parts.collect();
+    let digest = match rest.as_slice() {
+        [] => None,
+        ["sha256", digest] if !digest.is_empty() => Some(*digest),
+        _ => return None,
+    };
+    Some(ParsedModelKey {
+        layer,
+        candidate,
+        ident,
+        digest,
+    })
+}
+
+impl ModelRecord {
+    /// True when the stored key carries the SHA-256 digest of this record's
+    /// own query and names the same candidate and identity.
+    pub fn carries_query_digest(&self) -> bool {
+        let Some(parsed) = parse_model_key(&self.key) else {
+            return false;
+        };
+        if parsed.candidate != self.candidate {
+            return false;
+        }
+        let digest = query_digest(&self.query);
+        if parsed.digest != Some(digest.as_str()) {
+            return false;
+        }
+        match parsed.layer {
+            "explanation" => parsed.ident == self.task,
+            "embedding" => true,
+            _ => false,
+        }
+    }
+}
+
 /// Content fingerprint of a cassette file, in the report's `sha256:<hex>`
 /// shape. The recording and the replay of the same temporary cassette
 /// produce the same value.

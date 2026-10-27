@@ -7,6 +7,16 @@ use cucumber::{World, cli::Opts};
 #[path = "steps/mod.rs"]
 mod steps;
 
+/// The original and edited explanation query of the changed-query fixture.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ChangedQuery {
+    pub(crate) candidate: String,
+    pub(crate) task: String,
+    pub(crate) original: String,
+    pub(crate) changed: String,
+    pub(crate) original_key: String,
+}
+
 #[derive(Debug, World)]
 pub(crate) struct BenchmarkWorld {
     /// Path to the committed fixture manifest.
@@ -56,6 +66,8 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) setup_deviation: Option<benchmark::manifest::SetupDeviation>,
     /// Loopback endpoint used by the record-mode adapter scenario.
     pub(crate) adapter_endpoint: Option<benchmark::record::proxy::FakeOpenAiEndpoint>,
+    /// Gold explanation query the changed-query scenario edits and replays.
+    pub(crate) changed_query: Option<ChangedQuery>,
 }
 
 impl Default for BenchmarkWorld {
@@ -90,6 +102,7 @@ impl Default for BenchmarkWorld {
             focus_candidate: None,
             setup_deviation: None,
             adapter_endpoint: None,
+            changed_query: None,
         }
     }
 }

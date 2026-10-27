@@ -276,7 +276,7 @@ impl ModelRecorder {
         let response: Value = serde_json::from_str(content)
             .with_context(|| format!("parse recorded completion for {candidate}/{task}"))?;
         Ok(ModelRecord {
-            key: format!("model:explanation:{candidate}:{task}"),
+            key: super::cassette::explanation_key(candidate, task, query),
             candidate: candidate.to_string(),
             task: task.to_string(),
             query: query.to_string(),
@@ -296,7 +296,7 @@ impl ModelRecorder {
             .cloned()
             .context("fixture embedding response has no vector")?;
         Ok(ModelRecord {
-            key: format!("model:embedding:{candidate}:{model}"),
+            key: super::cassette::embedding_key(candidate, model, &input),
             candidate: candidate.to_string(),
             task: "embedding".to_string(),
             query: input,

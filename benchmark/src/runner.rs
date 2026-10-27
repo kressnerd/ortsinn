@@ -11,6 +11,7 @@ use crate::gold::Gold;
 use crate::manifest::{Candidate, CandidateSetup, Manifest, RunMode};
 use crate::metrics;
 use crate::record::cassette::{self, ModelCassette, ModelRecord, ResultCassette};
+use crate::record::keys;
 use crate::record::proxy::ModelRecorder;
 use crate::report::model::{
     CandidateReport, CandidateStatus, Gaps, GoldSetReport, Inputs, LineCountReport, Metrics,
@@ -135,7 +136,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     let cassette = ResultCassette::load(&results_path)?;
     let models = ModelCassette::load(&model_path)?;
     verify_fixed_inputs(&manifest, &cassette)?;
-    verify_recorded_model_responses(&cassette, &models)?;
+    verify_recorded_model_responses(&gold, &cassette, &models)?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
     let gaps = metrics::gaps::compute(&manifest, &metrics);
 
@@ -177,22 +178,38 @@ fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) 
     let mut models: BTreeMap<String, ModelRecord> = BTreeMap::new();
     for result in source.entries() {
         for dependency in &result.model_requests {
-            if models.contains_key(&dependency.key) {
+            let request = keys::resolve(
+                &gold,
+                &result.repository,
+                &result.metric,
+                &result.candidate,
+                &result.task,
+                &dependency.key,
+            )?;
+            anyhow::ensure!(
+                request.layer == "explanation",
+                "record mode cannot record a {} dependency for {}/{}",
+                request.layer,
+                result.candidate,
+                result.task
+            );
+            if models.contains_key(&request.key) {
                 continue;
             }
-            let query = if dependency.query.is_empty() {
-                result.task.as_str()
-            } else {
-                dependency.query.as_str()
-            };
             let record = recorder
-                .explanation(&result.candidate, &result.task, query)
+                .explanation(&result.candidate, &result.task, &request.query)
                 .with_context(|| {
                     format!(
                         "record model response {} for candidate {}",
-                        dependency.key, result.candidate
+                        request.key, result.candidate
                     )
                 })?;
+            anyhow::ensure!(
+                record.key == request.key,
+                "recorded model key {} does not match the gold query key {}",
+                record.key,
+                request.key
+            );
             models.insert(record.key.clone(), record);
         }
     }
@@ -217,7 +234,7 @@ fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) 
 
     let cassette = ResultCassette::load(&results_path)?;
     let recorded_models = ModelCassette::load(&model_path)?;
-    verify_recorded_model_responses(&cassette, &recorded_models)?;
+    verify_recorded_model_responses(&gold, &cassette, &recorded_models)?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
     let gaps = metrics::gaps::compute(&manifest, &metrics);
 
@@ -447,9 +464,6 @@ fn report_limitations(manifest: &Manifest, metrics: &Metrics) -> Vec<String> {
         ));
     }
     limitations.insert(
-        "model cassette keys are (candidate, task or model) and exclude the query; a new gold version must invalidate the cassette".to_string(),
-    );
-    limitations.insert(
         "explanation rubric credits only the listed surface forms; a paraphrase outside them is not credited"
             .to_string(),
     );
@@ -531,28 +545,41 @@ fn verify_fixed_inputs(manifest: &Manifest, results: &ResultCassette) -> Result<
     Ok(())
 }
 
-/// Replay serves recorded model responses only. A normalized result that
-/// depends on a model response must find it in the model cassette; a missing
-/// key fails the run instead of falling back to a live call or a partial
-/// report.
-fn verify_recorded_model_responses(results: &ResultCassette, models: &ModelCassette) -> Result<()> {
+/// Replay serves recorded model responses only. Every result's dependency is
+/// resolved against the current gold query, so a changed query is a missing
+/// response instead of a reused answer; the run stops before any report.
+fn verify_recorded_model_responses(
+    gold: &Gold,
+    results: &ResultCassette,
+    models: &ModelCassette,
+) -> Result<()> {
+    for record in models.entries() {
+        anyhow::ensure!(
+            record.carries_query_digest(),
+            "model cassette key {} does not carry the SHA-256 digest of its query",
+            record.key
+        );
+    }
     for result in results.entries() {
         for dependency in &result.model_requests {
-            if models.get(&dependency.key).is_some() {
+            let request = keys::resolve(
+                gold,
+                &result.repository,
+                &result.metric,
+                &result.candidate,
+                &result.task,
+                &dependency.key,
+            )?;
+            if models.get(&request.key).is_some() && dependency.key == request.key {
                 continue;
             }
-            let query = if dependency.query.is_empty() {
-                &result.task
-            } else {
-                &dependency.query
-            };
             return Err(MissingRecordedResponse {
-                key: dependency.key.clone(),
+                key: request.key,
                 candidate: result.candidate.clone(),
                 repository: result.repository.clone(),
                 task: result.task.clone(),
-                query: query.clone(),
-                layer: "model".to_string(),
+                query: request.query,
+                layer: request.layer.to_string(),
             }
             .into());
         }

@@ -802,7 +802,8 @@ fn replay_mode_and_recording_fingerprint(
     Ok(())
 }
 
-const MISSING_MODEL_KEY: &str = "model:explanation:fixture-ckb:exp-2";
+const MISSING_MODEL_KEY: &str =
+    "model:explanation:fixture-ckb:exp-2:sha256:14ce8c855a20f44baf846d93b8bc9196fa1a06dff8c5a376befb4c7d14537f03";
 const MISSING_MODEL_CANDIDATE: &str = "fixture-ckb";
 
 fn missing_response_fixture(world: &mut BenchmarkWorld) -> Result<(), String> {
@@ -924,6 +925,183 @@ fn no_report_is_published(world: &mut BenchmarkWorld) -> Result<(), String> {
         if path.exists() {
             return Err(format!("failed run published {}", path.display()));
         }
+    }
+    Ok(())
+}
+
+// --- S9: a changed query is a missing recorded response -------------------
+
+const CHANGED_QUERY_CANDIDATE: &str = "fixture-ckb";
+
+fn rewrite_first_explanation_query(root: &Path, query: &str) -> Result<(), String> {
+    let path = root.join("gold/explanation.jsonl");
+    let text =
+        fs::read_to_string(&path).map_err(|error| format!("read variant gold: {error}"))?;
+    let mut lines = text.lines();
+    let first = lines.next().ok_or("fixture explanation gold is empty")?;
+    let mut task: serde_json::Value =
+        serde_json::from_str(first).map_err(|error| format!("parse variant gold: {error}"))?;
+    task["query"] = serde_json::Value::String(query.to_string());
+    let mut out = serde_json::to_string(&task)
+        .map_err(|error| format!("serialize variant gold: {error}"))?;
+    out.push('\n');
+    for line in lines {
+        out.push_str(line);
+        out.push('\n');
+    }
+    fs::write(&path, out).map_err(|error| format!("write variant gold {}: {error}", path.display()))
+}
+
+#[given("a recorded real benchmark run and one of its gold explanation queries")]
+fn a_recorded_run_and_a_gold_explanation_query(
+    world: &mut BenchmarkWorld,
+) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-changed-query")?;
+    let gold_path = root.join("gold/explanation.jsonl");
+    let text = fs::read_to_string(&gold_path)
+        .map_err(|error| format!("read fixture explanation gold: {error}"))?;
+    let first = text
+        .lines()
+        .next()
+        .ok_or("fixture explanation gold is empty")?;
+    let task: serde_json::Value = serde_json::from_str(first)
+        .map_err(|error| format!("parse fixture explanation gold: {error}"))?;
+    let id = task["id"]
+        .as_str()
+        .ok_or("fixture explanation task has no id")?
+        .to_string();
+    let original = task["query"]
+        .as_str()
+        .ok_or("fixture explanation task has no query")?
+        .to_string();
+    let original_key =
+        benchmark::record::cassette::explanation_key(CHANGED_QUERY_CANDIDATE, &id, &original);
+    let models = ModelCassette::load(&root.join("cassettes/model/model.jsonl"))
+        .map_err(|error| format!("load recorded model cassette: {error:#}"))?;
+    let recorded = models.get(&original_key).ok_or_else(|| {
+        format!("recorded model cassette has no response for the original query key {original_key}")
+    })?;
+    if recorded.query != original {
+        return Err(format!(
+            "recorded response {original_key} answers {:?}, not the gold query {original:?}",
+            recorded.query
+        ));
+    }
+    world.changed_query = Some(crate::ChangedQuery {
+        candidate: CHANGED_QUERY_CANDIDATE.to_string(),
+        task: id,
+        original,
+        changed: String::new(),
+        original_key,
+    });
+    world.manifest_path = root.join("manifest.yaml");
+    world.out_dir = root.join("out");
+    Ok(())
+}
+
+#[when(
+    "the maintainer copies the fixed inputs, changes that query's text, recomputes the gold set fingerprint, and replays"
+)]
+fn the_query_is_changed_and_replayed(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let mut state = world
+        .changed_query
+        .clone()
+        .ok_or("the changed-query fixture is not prepared")?;
+    let root = world
+        .manifest_path
+        .parent()
+        .ok_or("the changed-query fixture has no manifest directory")?
+        .to_path_buf();
+    let changed = format!("{} in detail", state.original);
+    rewrite_first_explanation_query(&root, &changed)?;
+    let mut manifest = read_fixture_manifest()?;
+    refresh_gold_fingerprint(&mut manifest, &root, "explanation")?;
+    world.manifest_path = write_variant_manifest(&root, &manifest)?;
+    state.changed = changed;
+    world.changed_query = Some(state);
+    load_fixture(world)?;
+    run_replay(world)
+}
+
+fn changed_query(world: &BenchmarkWorld) -> Result<&crate::ChangedQuery, String> {
+    world
+        .changed_query
+        .as_ref()
+        .ok_or_else(|| "the changed-query fixture has no recorded query".to_string())
+}
+
+#[then("the error is a missing recorded response for the changed query's digest")]
+fn the_error_names_the_changed_query_digest(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let state = changed_query(world)?;
+    let failure = world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; a report was produced")?;
+    let digest = benchmark::record::cassette::query_digest(&state.changed);
+    let key = benchmark::record::cassette::explanation_key(
+        &state.candidate,
+        &state.task,
+        &state.changed,
+    );
+    for expected in [
+        "missing recorded",
+        "response",
+        state.changed.as_str(),
+        digest.as_str(),
+        key.as_str(),
+        state.candidate.as_str(),
+    ] {
+        if !failure.message.contains(expected) {
+            return Err(format!(
+                "error does not name the changed query's `{expected}`: {}",
+                failure.message
+            ));
+        }
+    }
+    if failure.message.contains(&state.original_key) {
+        return Err(format!(
+            "error names the original query's recorded key {} instead of the changed query's digest: {}",
+            state.original_key, failure.message
+        ));
+    }
+    Ok(())
+}
+
+#[then("the recorded response for the original query is not used")]
+fn the_original_response_is_not_reused(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let state = changed_query(world)?;
+    let root = world
+        .manifest_path
+        .parent()
+        .ok_or("the changed-query fixture has no manifest directory")?
+        .to_path_buf();
+    let models = ModelCassette::load(&root.join("cassettes/model/model.jsonl"))
+        .map_err(|error| format!("load recorded model cassette: {error:#}"))?;
+    let recorded = models.get(&state.original_key).ok_or_else(|| {
+        format!(
+            "the recording no longer holds the original query's response {}",
+            state.original_key
+        )
+    })?;
+    if recorded.query != state.original {
+        return Err(format!(
+            "the recording's original response answers {:?}, not {:?}",
+            recorded.query, state.original
+        ));
+    }
+    if world.report.is_some() {
+        return Err("the changed query reused a recorded response and produced a report".into());
+    }
+    let message = &world
+        .run_failure
+        .as_ref()
+        .ok_or("the run did not fail; no error to inspect")?
+        .message;
+    if message.contains(&state.original_key) {
+        return Err(format!(
+            "the run consumed the original query's recorded key {}: {message}",
+            state.original_key
+        ));
     }
     Ok(())
 }
