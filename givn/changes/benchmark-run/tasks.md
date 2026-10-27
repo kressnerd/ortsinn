@@ -200,16 +200,24 @@
 
 ## S9 — A changed query does not reuse a recorded model response
 
-- [ ] RED — remove `@wip` from S9 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — implement the S9 recipe and typed missing-response behavior; list production files; targeted run; paste zero output.
+- [x] RED — remove `@wip` from S9 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^A changed query does not reuse a recorded model response$"` (S9 step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — implement the S9 recipe and typed missing-response behavior; list production files; targeted run; paste zero output.
   - Recipe: copy fixture dir → edit one explanation query → recompute and write its fingerprint in the temp manifest → replay → assert exit 2, missing response for the new digest, old key absent.
-  - Production files: `benchmark/src/record/*`, `benchmark/src/runner.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, fixture migration as required.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+  - Production files: `benchmark/src/record/cassette.rs` (normalized query digest, explanation/embedding keys, `ModelRecord::carries_query_digest`, committed-fixture regression test), `benchmark/src/record/keys.rs` (canonical key resolution against the current gold query), `benchmark/src/record/mod.rs`, `benchmark/src/record/proxy.rs` (recorder emits digest keys), `benchmark/src/runner.rs` (replay/record resolve the current gold query and fail with `MissingRecordedResponse`; the query-free limitation is removed), `benchmark/src/bin/migrate-cassettes.rs` (one-shot result-cassette key rewrite), `benchmark/tests/fixtures/e2e/cassettes/{results,model}/*.jsonl` and `benchmark/tests/fixtures/e2e/manifest.yaml` (migrated keys and recomputed fingerprints), `benchmark/tests/benchmark_features.rs` (`ChangedQuery` world state), `benchmark/tests/steps/benchmark_comparison.rs` (S9 steps and the migrated missing-response key), `givn/specs/benchmark-comparison/benchmark-comparison.feature` (permanent fingerprint expectation).
+  - Regression tests: `record::keys::tests::s9_changed_query_is_a_distinct_key_and_never_reuses_the_recorded_response`, `record::keys::tests::s9_query_digest_uses_the_normalized_query_text`; `cargo test -p benchmark --lib` → `11 passed`.
+  - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
+- [x] COMMIT: 614528c
 - Design constraints: query digest in the key; no fallback; exit 2; no report; gold fingerprint recomputed before replay.
 
 ## S10 — An unreviewed gold set referenced by the manifest stops before scoring
