@@ -425,6 +425,13 @@ fn report_limitations(manifest: &Manifest, metrics: &Metrics) -> Vec<String> {
                 ));
             }
         }
+        for deviation in &candidate.setup.setup_deviations {
+            limitations.insert(format!(
+                "candidate {} {}",
+                candidate.id,
+                deviation.label()
+            ));
+        }
         for (language, tier) in &candidate.setup.language_support {
             if tier.contains('3') {
                 limitations.insert(format!(

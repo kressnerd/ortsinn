@@ -210,6 +210,47 @@ pub struct CandidateSetup {
     /// Per-repository index outcome and duration.
     #[serde(default)]
     pub indexes: Vec<IndexRecord>,
+    /// Documented setup deviations. Every metric cell a deviation affects
+    /// carries its label; the affected cell keeps its measured value.
+    #[serde(default)]
+    pub setup_deviations: Vec<SetupDeviation>,
+}
+
+/// One documented setup deviation: a dependency the candidate could not
+/// install or a documented mode it could not use.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct SetupDeviation {
+    pub dependency: String,
+    pub reason: String,
+    /// Capabilities the deviation affects. An empty list affects every
+    /// capability.
+    #[serde(default)]
+    pub affected_capabilities: Vec<String>,
+    /// Repositories the deviation affects. An empty list affects every
+    /// repository.
+    #[serde(default)]
+    pub affected_repositories: Vec<String>,
+}
+
+impl SetupDeviation {
+    /// The closed label every affected cell carries.
+    pub fn label(&self) -> String {
+        format!("setup deviation: {}: {}", self.dependency, self.reason)
+    }
+
+    /// True when the deviation affects this capability/repository cell.
+    pub fn affects(&self, capability: &str, repository: &str) -> bool {
+        (self.affected_capabilities.is_empty()
+            || self
+                .affected_capabilities
+                .iter()
+                .any(|affected| affected == capability))
+            && (self.affected_repositories.is_empty()
+                || self
+                    .affected_repositories
+                    .iter()
+                    .any(|affected| affected == repository))
+    }
 }
 
 fn unknown_git_metadata() -> String {
@@ -538,6 +579,31 @@ mod tests {
             version: version.to_string(),
             commit: commit.to_string(),
         })
+    }
+
+    /// S5: a setup deviation labels exactly the affected capability and
+    /// repository cells; an empty scope affects every cell.
+    #[test]
+    fn s5_setup_deviation_labels_only_the_affected_scope() {
+        let deviation = SetupDeviation {
+            dependency: "scip-python".to_string(),
+            reason: "documented SCIP indexer unavailable; fallback parser used".to_string(),
+            affected_capabilities: vec!["natural_language".to_string()],
+            affected_repositories: vec!["fixture-repo".to_string()],
+        };
+        assert!(deviation.affects("natural_language", "fixture-repo"));
+        assert!(!deviation.affects("concept", "fixture-repo"));
+        assert!(!deviation.affects("natural_language", "other-repo"));
+        assert!(deviation.label().contains("scip-python"));
+        assert!(deviation.label().contains("fallback parser"));
+
+        let unscoped = SetupDeviation {
+            dependency: "language-server".to_string(),
+            reason: "documented language server unavailable".to_string(),
+            affected_capabilities: Vec::new(),
+            affected_repositories: Vec::new(),
+        };
+        assert!(unscoped.affects("typo", "any-repository"));
     }
 
     /// S2: candidate pins require a version, a 40-hex commit, an adapter, and

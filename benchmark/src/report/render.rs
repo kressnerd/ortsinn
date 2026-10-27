@@ -152,6 +152,15 @@ pub fn markdown(report: &Report) -> String {
         if let Some(doctor) = &candidate.setup.doctor {
             out.push_str(&format!("  - Doctor: `{doctor}`\n"));
         }
+        for deviation in &candidate.setup.setup_deviations {
+            out.push_str(&format!(
+                "  - Setup deviation `{}`: {} (capabilities: {}; repositories: {})\n",
+                deviation.dependency,
+                deviation.reason,
+                join_or_all(&deviation.affected_capabilities),
+                join_or_all(&deviation.affected_repositories)
+            ));
+        }
     }
     out.push('\n');
     render_metrics(&mut out, report);
@@ -568,6 +577,17 @@ fn score_line(out: &mut String, label: &str, score: &Score) {
             status(score),
             score.reason.as_deref().unwrap_or("no reason")
         )),
+    }
+    for deviation in &score.setup_deviations {
+        out.push_str(&format!("  - {deviation}\n"));
+    }
+}
+
+fn join_or_all(values: &[String]) -> String {
+    if values.is_empty() {
+        "all".to_string()
+    } else {
+        values.join(", ")
     }
 }
 

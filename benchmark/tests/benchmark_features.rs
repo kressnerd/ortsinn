@@ -52,6 +52,10 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) adapter_results: Option<Vec<benchmark::adapters::NormalizedLocation>>,
     /// Candidate the adapter scenario drives, so the Then-steps name it.
     pub(crate) focus_candidate: Option<String>,
+    /// Setup deviation the adapter scenario declares.
+    pub(crate) setup_deviation: Option<benchmark::manifest::SetupDeviation>,
+    /// Loopback endpoint used by the record-mode adapter scenario.
+    pub(crate) adapter_endpoint: Option<benchmark::record::proxy::FakeOpenAiEndpoint>,
 }
 
 impl Default for BenchmarkWorld {
@@ -84,6 +88,8 @@ impl Default for BenchmarkWorld {
             adapter_answers: None,
             adapter_results: None,
             focus_candidate: None,
+            setup_deviation: None,
+            adapter_endpoint: None,
         }
     }
 }

@@ -32,7 +32,7 @@ Feature: Benchmark comparison
     Then  the run exits with code 2 and names the mismatched fixed input
     And  no benchmark run starts
 
-  @givn.added @wip
+  @givn.added
   Scenario: A documented setup deviation is recorded on every affected cell
     Given  a real candidate whose installed setup differs from its full documented setup
     When  the maintainer runs the real benchmark in record mode

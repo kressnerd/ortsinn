@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use super::common::{
     candidate_unavailable_cell, capability, combine_scores, hit_at, index_unavailable_cell_for,
-    recorded_locations, target, unmeasured_cell,
+    label_setup_deviations, recorded_locations, target, unmeasured_cell,
 };
 use crate::gold::{Gold, GoldTask};
 use crate::manifest::Manifest;
@@ -161,6 +161,9 @@ fn score_repository(
                 Score::measured(candidate_at_5, task_count, task_count, 0),
             )
         };
+        let cell = label_setup_deviations(cell, candidate, &["typo"], repository);
+        let recall_at_5 =
+            label_setup_deviations(recall_at_5, candidate, &["typo"], repository);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         recall_at_5_per_candidate.insert(candidate.id.clone(), recall_at_5.clone());
         cells.push(cell);

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -6,7 +7,9 @@ use benchmark::adapters::session::{
     normalize_answers,
 };
 use benchmark::adapters::NormalizedLocation;
-use benchmark::manifest::{Candidate, Manifest};
+use benchmark::manifest::{Candidate, Manifest, SetupDeviation};
+use benchmark::record::cassette::ModelCassette;
+use benchmark::record::proxy::{FakeOpenAiEndpoint, FixtureCompletion};
 use benchmark::report::model::Report;
 use cucumber::{given, then, when};
 
@@ -3929,6 +3932,252 @@ fn report_lists_the_candidate_unavailable(world: &mut BenchmarkWorld) -> Result<
             "unavailable reason is {:?}, expected candidate_probe_failed",
             candidate.unavailable_reason
         ));
+    }
+    Ok(())
+}
+
+// --- S5: a documented setup deviation labels every affected cell ----------
+
+fn fixture_endpoint() -> Result<FakeOpenAiEndpoint, String> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/e2e/cassettes/model/model.jsonl");
+    let models = ModelCassette::load(&path)
+        .map_err(|error| format!("load fixture model cassette: {error:#}"))?;
+    let mut completions = BTreeMap::new();
+    for record in models.entries() {
+        if record.layer != "explanation" {
+            continue;
+        }
+        let completion: FixtureCompletion = serde_json::from_value(record.response.clone())
+            .map_err(|error| format!("parse fixture completion {}: {error}", record.key))?;
+        completions.insert(record.query.clone(), completion);
+    }
+    FakeOpenAiEndpoint::start(completions)
+        .map_err(|error| format!("start local fixture endpoint: {error}"))
+}
+
+fn run_record_with_fixture_endpoint(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let endpoint = world
+        .adapter_endpoint
+        .as_ref()
+        .ok_or_else(|| "the local fixture endpoint is not running".to_string())?
+        .base_url();
+    let manifest = world.manifest_path.clone();
+    let out = world.out_dir.clone();
+    // Record mode uses the blocking model client, which owns a runtime; run it
+    // off the cucumber async runtime, as the CLI subprocess does.
+    let outcome = std::thread::spawn(move || {
+        benchmark::runner::run_record(&manifest, &out, &endpoint)
+    })
+    .join()
+    .map_err(|_| "the record-mode worker panicked".to_string())?;
+    match outcome {
+        Ok(report) => {
+            world.report = Some(report);
+            world.run_failure = None;
+        }
+        Err(failure) => {
+            world.report = None;
+            world.run_failure = Some(failure);
+        }
+    }
+    Ok(())
+}
+
+fn setup_deviation(world: &BenchmarkWorld) -> Result<&SetupDeviation, String> {
+    world
+        .setup_deviation
+        .as_ref()
+        .ok_or_else(|| "no setup deviation was declared".to_string())
+}
+
+#[given("a real candidate whose installed setup differs from its full documented setup")]
+fn a_candidate_with_a_reduced_setup(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let root = variant_fixture_root("benchmark-setup-deviation")?;
+    let mut manifest = Manifest::load(&fixture_manifest_path())
+        .map_err(|error| format!("load fixture manifest: {error:#}"))?;
+    let id = "fixture-ocbi";
+    let deviation = SetupDeviation {
+        dependency: "scip-python".to_string(),
+        reason: "the documented SCIP indexer is unavailable; the candidate answers from its fallback parser"
+            .to_string(),
+        affected_capabilities: vec![
+            "natural_language".to_string(),
+            "concept".to_string(),
+        ],
+        affected_repositories: vec!["fixture-repo".to_string()],
+    };
+    let mut setup = manifest
+        .candidate(id)
+        .ok_or("fixture manifest has no fixture-ocbi")?
+        .setup
+        .clone();
+    setup.setup_deviations.push(deviation.clone());
+    let mut session = FakeSession::exposing(
+        id,
+        vec![
+            Operation::Typo,
+            Operation::NaturalLanguage,
+            Operation::Concept,
+            Operation::ConceptEquivalence,
+            Operation::Expansion,
+        ],
+    )
+    .with_setup(setup);
+    apply_session(&mut manifest, id, &mut session)
+        .map_err(|error| format!("apply candidate session: {error:#}"))?;
+    let path = write_typed_manifest(&root, &manifest)?;
+
+    world.manifest_path = path;
+    world.out_dir = root.join("out");
+    world.report = None;
+    world.run_failure = None;
+    world.adapter_answers = None;
+    world.adapter_results = None;
+    world.focus_candidate = Some(id.to_string());
+    world.setup_deviation = Some(deviation);
+    world.adapter_endpoint = Some(fixture_endpoint()?);
+    Ok(())
+}
+
+#[when("the maintainer runs the real benchmark in record mode")]
+fn the_maintainer_runs_the_real_benchmark_in_record_mode(
+    world: &mut BenchmarkWorld,
+) -> Result<(), String> {
+    run_record_with_fixture_endpoint(world)
+}
+
+#[then("the report names the candidate's setup deviation")]
+fn the_report_names_the_setup_deviation(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let deviation = setup_deviation(world)?.clone();
+    let id = focus_candidate(world)?;
+    let report = report(world);
+    let candidate = report
+        .candidates
+        .iter()
+        .find(|candidate| candidate.id == id)
+        .ok_or_else(|| format!("the report omits candidate {id}"))?;
+    let recorded = candidate
+        .setup
+        .setup_deviations
+        .iter()
+        .find(|recorded| recorded.dependency == deviation.dependency)
+        .ok_or_else(|| format!("the report does not name the {id} setup deviation"))?;
+    if recorded.reason != deviation.reason {
+        return Err(format!(
+            "setup deviation reason is {:?}, expected {:?}",
+            recorded.reason, deviation.reason
+        ));
+    }
+    if recorded.affected_capabilities != deviation.affected_capabilities
+        || recorded.affected_repositories != deviation.affected_repositories
+    {
+        return Err("setup deviation does not record its affected scope".into());
+    }
+    let label = deviation.label();
+    if !report.limitations.iter().any(|limitation| limitation.contains(&label)) {
+        return Err(format!(
+            "the report limitations do not name the deviation: {label}"
+        ));
+    }
+    Ok(())
+}
+
+#[then("every cell affected by the deviation is measured and labelled with the deviation")]
+fn affected_cells_are_measured_and_labelled(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let id = focus_candidate(world)?;
+    let label = setup_deviation(world)?.label();
+    let report = report(world);
+    let mut cells: Vec<(String, &benchmark::report::model::Score)> = Vec::new();
+    cells.push((
+        "natural-language".to_string(),
+        report
+            .metrics
+            .natural_language
+            .per_candidate
+            .get(&id)
+            .ok_or("the report omits the natural-language candidate cell")?,
+    ));
+    cells.push((
+        "natural-language repository".to_string(),
+        report
+            .metrics
+            .natural_language
+            .per_repository
+            .get("fixture-repo")
+            .ok_or("the report omits the natural-language repository cell")?,
+    ));
+    cells.push((
+        "concept".to_string(),
+        report
+            .metrics
+            .concept
+            .per_candidate
+            .get(&id)
+            .ok_or("the report omits the concept candidate cell")?,
+    ));
+    cells.push((
+        "concept repository".to_string(),
+        report
+            .metrics
+            .concept
+            .per_repository
+            .get("fixture-repo")
+            .ok_or("the report omits the concept repository cell")?,
+    ));
+    for (name, cell) in cells {
+        if cell.status != benchmark::report::model::CellStatus::Measured {
+            return Err(format!(
+                "affected {name} cell is {:?}, expected measured",
+                cell.status
+            ));
+        }
+        if !cell.setup_deviations.iter().any(|recorded| recorded == &label) {
+            return Err(format!(
+                "affected {name} cell does not carry the deviation label: {}",
+                label
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("no affected cell is reported as zero")]
+fn no_affected_cell_is_zero(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let id = focus_candidate(world)?;
+    let report = report(world);
+    let cells = [
+        (
+            "natural-language",
+            report.metrics.natural_language.per_candidate.get(&id),
+        ),
+        (
+            "concept",
+            report.metrics.concept.per_candidate.get(&id),
+        ),
+        (
+            "natural-language aggregate",
+            Some(&report.metrics.natural_language.aggregate),
+        ),
+        ("concept aggregate", Some(&report.metrics.concept.aggregate)),
+    ];
+    for (name, cell) in cells {
+        let cell = cell.ok_or_else(|| format!("the report omits the {name} cell"))?;
+        if !cell.setup_deviations.is_empty() {
+            match cell.value {
+                Some(0.0) => {
+                    return Err(format!(
+                        "affected {name} cell is reported as zero despite the deviation"
+                    ));
+                }
+                Some(_) => {}
+                None => {
+                    return Err(format!(
+                        "affected {name} cell lost its measured value"
+                    ));
+                }
+            }
+        }
     }
     Ok(())
 }

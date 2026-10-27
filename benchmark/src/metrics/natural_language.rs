@@ -6,7 +6,8 @@ use anyhow::Result;
 
 use super::common::{
     candidate_unavailable_cell, capability, combine_scores, first_rank, hit_at,
-    index_unavailable_cell_for, recorded_locations, target, unmeasured_cell,
+    index_unavailable_cell_for, label_setup_deviations, recorded_locations, target,
+    unmeasured_cell,
 };
 use crate::gold::{Gold, GoldTask};
 use crate::manifest::{CapabilityStatus, Manifest};
@@ -118,6 +119,8 @@ fn score_repository(
             })
             .flatten();
         if let Some(cell) = unavailable.or(unsupported) {
+            let cell =
+                label_setup_deviations(cell, candidate, &["natural_language"], repository);
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
@@ -156,6 +159,8 @@ fn score_repository(
         query_errors += candidate_errors;
         query_errors_per_candidate.insert(candidate.id.clone(), candidate_errors);
         let cell = Score::measured(candidate_hits, task_count, task_count, 0);
+        let cell =
+            label_setup_deviations(cell, candidate, &["natural_language"], repository);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         cells.push(cell);
     }
@@ -217,6 +222,8 @@ fn proxy_arms(
                 }
             }
             let cell = Score::measured(candidate_hits, task_count, task_count, 0);
+            let cell =
+                label_setup_deviations(cell, candidate, &["natural_language"], &repository.id);
             per_candidate_parts
                 .entry(candidate.id.clone())
                 .or_default()

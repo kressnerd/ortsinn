@@ -7,7 +7,7 @@ use anyhow::Result;
 
 use super::common::{
     candidate_unavailable_cell, capability, combine_scores, hit_at, index_unavailable_cell_for,
-    no_expansion_arm_cell, recorded_locations, target, unmeasured_cell,
+    label_setup_deviations, no_expansion_arm_cell, recorded_locations, target, unmeasured_cell,
 };
 use crate::gold::GoldTask;
 use crate::manifest::Manifest;
@@ -130,6 +130,7 @@ fn score_arm(
             })
             .flatten();
         if let Some(cell) = unavailable.or(unsupported) {
+            let cell = label_setup_deviations(cell, candidate, &[metric_name], repository);
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
@@ -150,6 +151,7 @@ fn score_arm(
             }
         }
         let cell = Score::measured(candidate_hits, task_count, task_count, 0);
+        let cell = label_setup_deviations(cell, candidate, &[metric_name], repository);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         cells.push(cell);
     }
@@ -176,12 +178,24 @@ fn score_no_expansion(
 
     for candidate in &manifest.candidates {
         if let Some(cell) = no_expansion_arm_cell(manifest, candidate, repository, task_count) {
+            let cell = label_setup_deviations(
+                cell,
+                candidate,
+                &[metric_name, "expansion"],
+                repository,
+            );
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
         }
         let capability = capability(candidate, metric_name);
         if let Some(cell) = unmeasured_cell(capability, task_count) {
+            let cell = label_setup_deviations(
+                cell,
+                candidate,
+                &[metric_name, "expansion"],
+                repository,
+            );
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
@@ -201,6 +215,12 @@ fn score_no_expansion(
             }
         }
         let cell = Score::measured(candidate_hits, task_count, task_count, 0);
+        let cell = label_setup_deviations(
+            cell,
+            candidate,
+            &[metric_name, "expansion"],
+            repository,
+        );
         per_candidate.insert(candidate.id.clone(), cell.clone());
         cells.push(cell);
     }

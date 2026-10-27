@@ -122,15 +122,48 @@ pub fn unmeasured_cell(capability: Option<&Capability>, tasks: u64) -> Option<Sc
     }
 }
 
+/// Every metric cell a candidate's documented setup deviation affects keeps
+/// its measured value and carries the deviation label. The cell is never
+/// zeroed or dropped because of the deviation.
+pub fn label_setup_deviations(
+    mut cell: Score,
+    candidate: &Candidate,
+    capabilities: &[&str],
+    repository: &str,
+) -> Score {
+    for deviation in &candidate.setup.setup_deviations {
+        if capabilities
+            .iter()
+            .any(|capability| deviation.affects(capability, repository))
+        {
+            cell.add_setup_deviation(deviation.label());
+        }
+    }
+    cell
+}
+
+fn merge_setup_deviations(cells: &[Score]) -> Vec<String> {
+    let mut labels: Vec<String> = cells
+        .iter()
+        .flat_map(|cell| cell.setup_deviations.iter().cloned())
+        .collect();
+    labels.sort();
+    labels.dedup();
+    labels
+}
+
 /// Combine measured and unmeasured candidate cells into a metric aggregate.
 /// Not-applicable cells contribute to neither side of the coverage fraction.
 pub fn aggregate(cells: &[Score], numerator: u64, denominator: u64) -> Score {
     let attempted: u64 = cells.iter().map(|cell| cell.attempted).sum();
     let unavailable: u64 = cells.iter().map(|cell| cell.unavailable).sum();
-    if attempted == 0 {
-        return Score::unavailable("no_measured_candidate", unavailable);
-    }
-    Score::measured(numerator, denominator, attempted, unavailable)
+    let mut combined = if attempted == 0 {
+        Score::unavailable("no_measured_candidate", unavailable)
+    } else {
+        Score::measured(numerator, denominator, attempted, unavailable)
+    };
+    combined.setup_deviations = merge_setup_deviations(cells);
+    combined
 }
 
 pub fn is_measured(cell: &Score) -> bool {
@@ -146,25 +179,26 @@ pub fn combine_scores(cells: &[Score]) -> Score {
     let unavailable: u64 = cells.iter().map(|cell| cell.unavailable).sum();
     let numerator: u64 = cells.iter().map(|cell| cell.numerator).sum();
     let denominator: u64 = cells.iter().map(|cell| cell.denominator).sum();
-    if attempted > 0 && denominator > 0 {
-        return Score::measured(numerator, denominator, attempted, unavailable);
-    }
-    if let Some(cell) = cells
+    let mut combined = if attempted > 0 && denominator > 0 {
+        Score::measured(numerator, denominator, attempted, unavailable)
+    } else if let Some(cell) = cells
         .iter()
         .find(|cell| cell.status == CellStatus::Unavailable)
     {
-        return Score::unavailable(
+        Score::unavailable(
             cell.reason.as_deref().unwrap_or("unavailable"),
             unavailable.max(cell.unavailable),
-        );
-    }
-    if let Some(cell) = cells
+        )
+    } else if let Some(cell) = cells
         .iter()
         .find(|cell| cell.status == CellStatus::NotApplicable)
     {
-        return Score::not_applicable(cell.reason.as_deref().unwrap_or("no_gold_tasks"));
-    }
-    Score::unavailable("no_measured_candidate", unavailable)
+        Score::not_applicable(cell.reason.as_deref().unwrap_or("no_gold_tasks"))
+    } else {
+        Score::unavailable("no_measured_candidate", unavailable)
+    };
+    combined.setup_deviations = merge_setup_deviations(cells);
+    combined
 }
 
 /// Load one recorded result and return its deduplicated locations.

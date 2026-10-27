@@ -253,6 +253,16 @@ impl FakeSession {
         self
     }
 
+    /// Declare a documented setup deviation. Every affected cell keeps its
+    /// measured value and carries the deviation label.
+    pub fn with_setup_deviation(
+        mut self,
+        deviation: crate::manifest::SetupDeviation,
+    ) -> Self {
+        self.setup.setup_deviations.push(deviation);
+        self
+    }
+
     pub fn answering(mut self, task: &str, answers: Vec<CandidateAnswer>) -> Self {
         self.answers.insert(task.to_string(), answers);
         self

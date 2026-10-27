@@ -132,15 +132,23 @@
 
 ## S5 — A documented setup deviation is recorded on every affected cell
 
-- [ ] RED — remove `@wip` from S5 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — implement setup-deviation recording and cell labelling through `FakeSession`; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/adapters/session.rs`, `benchmark/src/adapters/*.rs`, `benchmark/src/manifest.rs`, `benchmark/src/report/model.rs`, `benchmark/src/report/render.rs`, `benchmark/tests/steps/benchmark_comparison.rs`.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
-- [ ] COMMIT: _(hash)_
+- [x] RED — remove `@wip` from S5 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^A documented setup deviation is recorded on every affected cell$"` (step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — implement setup-deviation recording and cell labelling through `FakeSession`; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/src/manifest.rs` (`CandidateSetup::setup_deviations`, `SetupDeviation::{label,affects}`), `benchmark/src/report/model.rs` (`Score::setup_deviations`, label validation), `benchmark/src/metrics/common.rs` (`label_setup_deviations`; aggregates merge labels), `benchmark/src/metrics/{typo,natural_language,explanation,concept}.rs` (every affected candidate cell is labelled without changing its value), `benchmark/src/runner.rs` (deviation limitation), `benchmark/src/report/render.rs` (candidate and score lines), `benchmark/src/adapters/session.rs` (`FakeSession::with_setup_deviation`), `benchmark/tests/benchmark_features.rs` (deviation/endpoint world state), `benchmark/tests/steps/benchmark_comparison.rs` (S5 record-mode steps over a temporary manifest and the loopback fixture endpoint).
+  - Regression test: `manifest::tests::s5_setup_deviation_labels_only_the_affected_scope` → `1 passed`; `cargo test -p benchmark --lib` → `8 passed`.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `5 steps (5 passed)`, `EXIT=0`.
+- [x] COMMIT: __S5_NEW__
 - Design constraints: setup deviation names dependency, reason, affected capabilities/repositories; affected measured cells keep their value; no affected cell is zero; candidate remains in the report.
 
 ## S6 — A candidate that fails its setup probe is unavailable, not zero

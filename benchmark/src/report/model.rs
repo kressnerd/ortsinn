@@ -155,6 +155,17 @@ impl Report {
 }
 
 fn validate_score(label: &str, score: &Score) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        score.setup_deviations.iter().all(|deviation| !deviation.trim().is_empty()),
+        "{label} carries an empty setup-deviation label"
+    );
+    anyhow::ensure!(
+        score
+            .setup_deviations
+            .windows(2)
+            .all(|pair| pair[0] < pair[1]),
+        "{label} setup-deviation labels are not sorted and unique"
+    );
     let expected_denominator = score.attempted + score.unavailable;
     anyhow::ensure!(
         score.coverage.numerator == score.attempted,
@@ -378,6 +389,10 @@ pub struct Score {
     pub unavailable: u64,
     pub coverage: Coverage,
     pub reason: Option<String>,
+    /// Setup-deviation labels that apply to this cell. An affected cell keeps
+    /// its measured value; the label never replaces or zeroes it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub setup_deviations: Vec<String>,
 }
 
 impl Score {
@@ -391,6 +406,7 @@ impl Score {
             unavailable,
             coverage: Coverage::new(attempted, attempted + unavailable),
             reason: None,
+            setup_deviations: Vec::new(),
         }
     }
 
@@ -404,6 +420,7 @@ impl Score {
             unavailable: tasks,
             coverage: Coverage::new(0, tasks),
             reason: Some(reason.to_string()),
+            setup_deviations: Vec::new(),
         }
     }
 
@@ -417,6 +434,17 @@ impl Score {
             unavailable: 0,
             coverage: Coverage::new(0, 0),
             reason: Some(reason.to_string()),
+            setup_deviations: Vec::new(),
+        }
+    }
+
+    /// Attach one setup-deviation label. Labels are sorted and unique, and a
+    /// measured value is left untouched.
+    pub fn add_setup_deviation(&mut self, label: String) {
+        if !label.is_empty() {
+            self.setup_deviations.push(label);
+            self.setup_deviations.sort();
+            self.setup_deviations.dedup();
         }
     }
 }

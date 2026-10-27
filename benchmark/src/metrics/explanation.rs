@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 
 use super::common::{
     candidate_unavailable_cell, capability, combine_scores, index_unavailable_cell_for,
-    recorded_locations, target, unmeasured_cell,
+    label_setup_deviations, recorded_locations, target, unmeasured_cell,
 };
 use crate::adapters::Citation;
 use crate::gold::{ExplanationTask, Gold};
@@ -105,6 +105,7 @@ fn score_repository(
             })
             .flatten();
         if let Some(cell) = unavailable.or(unsupported) {
+            let cell = label_setup_deviations(cell, candidate, &["explanation"], repository);
             per_candidate.insert(candidate.id.clone(), cell.clone());
             cells.push(cell);
             continue;
@@ -149,6 +150,7 @@ fn score_repository(
         }
         grounded_total += grounded;
         let cell = Score::measured(correct, task_count, task_count, 0);
+        let cell = label_setup_deviations(cell, candidate, &["explanation"], repository);
         per_candidate.insert(candidate.id.clone(), cell.clone());
         cells.push(cell);
     }
