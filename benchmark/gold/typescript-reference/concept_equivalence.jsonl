@@ -1,0 +1,20 @@
+{"equivalence":true,"expected":[{"end_line":1255,"path":"src/compiler/parser.ts","start_line":1249,"symbol":"forEachChild"}],"id":"ts-ce-01","query":"visiting every child node of a node"}
+{"equivalence":true,"expected":[{"end_line":1309,"path":"src/compiler/parser.ts","start_line":1272,"symbol":"forEachChildRecursively"}],"id":"ts-ce-02","query":"walking all descendant nodes of a node"}
+{"equivalence":true,"expected":[{"end_line":1383,"path":"src/compiler/parser.ts","start_line":1381,"symbol":"parseJsonText"}],"id":"ts-ce-03","query":"turning JSON text into a source file"}
+{"equivalence":true,"expected":[{"end_line":444,"path":"src/compiler/utilitiesPublic.ts","start_line":423,"symbol":"normalizeSpans"}],"id":"ts-ce-04","query":"canonical ordering of text spans"}
+{"equivalence":true,"expected":[{"end_line":601,"path":"src/compiler/utilitiesPublic.ts","start_line":487,"symbol":"collapseTextChangeRangesAcrossMultipleVersions"}],"id":"ts-ce-05","query":"combining edits from several script snapshot versions"}
+{"equivalence":true,"expected":[{"end_line":800,"path":"src/compiler/utilitiesPublic.ts","start_line":786,"symbol":"findAncestor"}],"id":"ts-ce-06","query":"locating an enclosing node by walking up parents"}
+{"equivalence":true,"expected":[{"end_line":809,"path":"src/compiler/utilitiesPublic.ts","start_line":807,"symbol":"isParseTreeNode"}],"id":"ts-ce-07","query":"checking that a node came from parsing"}
+{"equivalence":true,"expected":[{"end_line":839,"path":"src/compiler/utilitiesPublic.ts","start_line":826,"symbol":"getParseTreeNode"}],"id":"ts-ce-08","query":"unwrapping a transformed node to its parsed form"}
+{"equivalence":true,"expected":[{"end_line":855,"path":"src/compiler/utilitiesPublic.ts","start_line":852,"symbol":"unescapeLeadingUnderscores"}],"id":"ts-ce-09","query":"removing the escaped underscore prefix from a name"}
+{"equivalence":true,"expected":[{"end_line":859,"path":"src/compiler/program.ts","start_line":857,"symbol":"getModeForFileReference"}],"id":"ts-ce-10","query":"deciding how a file reference should resolve"}
+{"equivalence":true,"expected":[{"end_line":934,"path":"src/compiler/program.ts","start_line":932,"symbol":"getModeForUsageLocation"}],"id":"ts-ce-11","query":"deciding how an import usage should resolve"}
+{"equivalence":true,"expected":[{"end_line":1321,"path":"src/compiler/program.ts","start_line":1228,"symbol":"isProgramUptoDate"}],"id":"ts-ce-12","query":"detecting an outdated program structure"}
+{"equivalence":true,"expected":[{"end_line":1342,"path":"src/compiler/program.ts","start_line":1339,"symbol":"getImpliedNodeFormatForFile"}],"id":"ts-ce-13","query":"deciding whether a file is ESM or CommonJS"}
+{"equivalence":true,"expected":[{"end_line":5130,"path":"src/compiler/program.ts","start_line":5128,"symbol":"resolveProjectReferencePath"}],"id":"ts-ce-14","query":"finding the tsconfig of a referenced project"}
+{"equivalence":true,"expected":[{"end_line":5176,"path":"src/compiler/program.ts","start_line":5139,"symbol":"getResolutionDiagnostic"}],"id":"ts-ce-15","query":"reporting why a resolved module is excluded"}
+{"equivalence":true,"expected":[{"end_line":4841,"path":"src/compiler/program.ts","start_line":1515,"symbol":"createProgram"}],"id":"ts-ce-16","query":"building a program from root files and options"}
+{"equivalence":true,"expected":[{"end_line":666,"path":"src/compiler/utilities.ts","start_line":664,"symbol":"isExternalModuleSymbol"}],"id":"ts-ce-17","query":"checking that a symbol declares an external module"}
+{"equivalence":true,"expected":[{"end_line":755,"path":"src/compiler/utilities.ts","start_line":746,"symbol":"forEachEntry"}],"id":"ts-ce-18","query":"visiting each key-value pair of a map"}
+{"equivalence":true,"expected":[{"end_line":771,"path":"src/compiler/utilities.ts","start_line":762,"symbol":"forEachKey"}],"id":"ts-ce-19","query":"visiting every key of a map"}
+{"equivalence":true,"expected":[{"end_line":782,"path":"src/compiler/utilities.ts","start_line":778,"symbol":"copyEntries"}],"id":"ts-ce-20","query":"duplicating key-value pairs into another map"}

@@ -160,77 +160,51 @@ pub struct SyntheticRepo {
 
 struct GoldSpec {
     metric: &'static str,
-    id: &'static str,
+    id: String,
     language: Language,
     file_index: usize,
     line_index: u32,
 }
 
-const GOLD_SPECS: [GoldSpec; 9] = [
-    GoldSpec {
-        metric: "typo",
-        id: "syn-typo-1",
-        language: Language::TypeScript,
-        file_index: 0,
-        line_index: 10,
-    },
-    GoldSpec {
-        metric: "typo",
-        id: "syn-typo-2",
-        language: Language::Python,
-        file_index: 3,
-        line_index: 25,
-    },
-    GoldSpec {
-        metric: "typo",
-        id: "syn-typo-3",
-        language: Language::Rust,
-        file_index: 7,
-        line_index: 40,
-    },
-    GoldSpec {
-        metric: "natural_language",
-        id: "syn-nl-1",
-        language: Language::TypeScript,
-        file_index: 10,
-        line_index: 100,
-    },
-    GoldSpec {
-        metric: "natural_language",
-        id: "syn-nl-2",
-        language: Language::Python,
-        file_index: 20,
-        line_index: 200,
-    },
-    GoldSpec {
-        metric: "natural_language",
-        id: "syn-nl-3",
-        language: Language::Rust,
-        file_index: 30,
-        line_index: 300,
-    },
-    GoldSpec {
-        metric: "concept",
-        id: "syn-concept-1",
-        language: Language::TypeScript,
-        file_index: 399,
-        line_index: 9_990,
-    },
-    GoldSpec {
-        metric: "concept",
-        id: "syn-concept-2",
-        language: Language::Python,
-        file_index: 299,
-        line_index: 9_990,
-    },
-    GoldSpec {
-        metric: "concept",
-        id: "syn-concept-3",
-        language: Language::Rust,
-        file_index: 299,
-        line_index: 9_990,
-    },
+/// Reviewed synthetic gold counts. The synthetic monorepo is a secondary
+/// input, so its gold carries the secondary minima; the counts are exact by
+/// construction because the generator emits both the code and the gold.
+pub const GOLD_COUNTS: [(&str, u64); 5] = [
+    ("typo", 25),
+    ("natural_language", 15),
+    ("explanation", 10),
+    ("concept", 25),
+    ("concept_equivalence", 10),
 ];
+
+/// Fixed metric rotation, so every gold family covers all three languages.
+const GOLD_LANGUAGES: [Language; 3] = [Language::TypeScript, Language::Python, Language::Rust];
+
+/// Deterministic gold locations. Each language keeps its own slot counter, and
+/// a slot below the language's file count lands in a distinct file, so no two
+/// tasks share a location.
+fn gold_specs() -> Vec<GoldSpec> {
+    let mut slots = [0usize; 3];
+    let mut specs = Vec::new();
+    for (metric, count) in GOLD_COUNTS {
+        for index in 0..count {
+            let language_index = index as usize % GOLD_LANGUAGES.len();
+            let language = GOLD_LANGUAGES[language_index];
+            let slot = slots[language_index];
+            slots[language_index] += 1;
+            let file_index = slot % language.file_count();
+            let line_index = 100 + (slot * 17) as u32;
+            specs.push(GoldSpec {
+                metric,
+                id: format!("syn-{metric}-{index:02}"),
+                language,
+                file_index,
+                line_index,
+            });
+        }
+    }
+    specs
+}
 
 /// Generate in memory, hashing every line without writing a repository tree.
 pub fn generate() -> SyntheticRepo {
@@ -243,15 +217,15 @@ pub fn generate_to(root: &Path) -> Result<SyntheticRepo> {
 }
 
 fn generate_with(root: Option<&Path>) -> Result<SyntheticRepo> {
-    let specs = &GOLD_SPECS;
+    let specs = gold_specs();
     let mut gold: Vec<SyntheticGoldTask> = specs
         .iter()
         .map(|spec| {
             let symbol_line = symbol_line(spec.file_index, spec.line_index);
             SyntheticGoldTask {
-                id: spec.id.to_string(),
+                id: spec.id.clone(),
                 metric: spec.metric.to_string(),
-                query: format!("definition of helper_{symbol_line}"),
+                query: gold_query(spec.metric, symbol_line),
                 expected: SyntheticLocation {
                     path: spec.language.path(spec.file_index),
                     start_line: spec.line_index,
@@ -272,10 +246,13 @@ fn generate_with(root: Option<&Path>) -> Result<SyntheticRepo> {
         let mut language_lines = 0u64;
         for file_index in 0..language.file_count() {
             let path = language.path(file_index);
-            let mut file_gold: HashMap<u32, usize> = HashMap::new();
+            let mut file_gold: HashMap<u32, Vec<usize>> = HashMap::new();
             for (index, task) in gold.iter().enumerate() {
                 if task.expected.path == path {
-                    file_gold.insert(task.expected.start_line, index);
+                    file_gold
+                        .entry(task.expected.start_line)
+                        .or_default()
+                        .push(index);
                 }
             }
 
@@ -300,9 +277,13 @@ fn generate_with(root: Option<&Path>) -> Result<SyntheticRepo> {
                     writer.write_all(&line)?;
                     writer.write_all(b"\n")?;
                 }
-                if let Some(index) = file_gold.get(&line_index) {
-                    gold[*index].observed_line =
-                        std::str::from_utf8(&line).expect("synthetic lines are UTF-8").to_string();
+                if let Some(indexes) = file_gold.get(&line_index) {
+                    let observed = std::str::from_utf8(&line)
+                        .expect("synthetic lines are UTF-8")
+                        .to_string();
+                    for index in indexes {
+                        gold[*index].observed_line.clone_from(&observed);
+                    }
                 }
             }
             if let Some(mut writer) = writer {
@@ -353,4 +334,68 @@ fn generate_with(root: Option<&Path>) -> Result<SyntheticRepo> {
 /// text, so a gold location can be checked against the emitted content.
 fn symbol_line(file_index: usize, line_index: u32) -> u64 {
     file_index as u64 * u64::from(LINES_PER_FILE) + u64::from(line_index)
+}
+
+fn gold_query(metric: &str, symbol_line: u64) -> String {
+    match metric {
+        "typo" => format!("hepler_{symbol_line}"),
+        "natural_language" => format!("Where is helper_{symbol_line} defined?"),
+        "explanation" => format!("Explain what helper_{symbol_line} returns."),
+        "concept" => format!("helper_{symbol_line} definition"),
+        "concept_equivalence" => {
+            format!("the helper function named helper_{symbol_line}")
+        }
+        other => unreachable!("unknown synthetic gold metric {other}"),
+    }
+}
+
+/// The reviewed gold files of the synthetic monorepo, in report metric order.
+/// They are a pure function of the generated repository, so a regeneration
+/// that changes a location or a query also changes its gold file.
+pub fn gold_files(repo: &SyntheticRepo) -> BTreeMap<String, Vec<serde_json::Value>> {
+    let mut sets: BTreeMap<String, Vec<serde_json::Value>> = BTreeMap::new();
+    for (metric, _) in GOLD_COUNTS {
+        let tasks: Vec<serde_json::Value> = repo
+            .gold
+            .iter()
+            .filter(|task| task.metric == metric)
+            .map(|task| match metric {
+                "explanation" => {
+                    let value = task
+                        .expected
+                        .symbol
+                        .rsplit('_')
+                        .next()
+                        .expect("a synthetic symbol carries its number");
+                    serde_json::json!({
+                        "id": task.id,
+                        "query": task.query,
+                        "target": task.expected,
+                        "required_facts": [
+                            ["function", "fn", "def"],
+                            ["returns", "return"],
+                            [value],
+                        ],
+                        "acceptable_evidence": [{
+                            "start_line": task.expected.start_line,
+                            "end_line": task.expected.end_line,
+                        }],
+                    })
+                }
+                "concept" | "concept_equivalence" => serde_json::json!({
+                    "id": task.id,
+                    "query": task.query,
+                    "expected": [task.expected],
+                    "equivalence": metric == "concept_equivalence",
+                }),
+                _ => serde_json::json!({
+                    "id": task.id,
+                    "query": task.query,
+                    "expected": [task.expected],
+                }),
+            })
+            .collect();
+        sets.insert(metric.to_string(), tasks);
+    }
+    sets
 }

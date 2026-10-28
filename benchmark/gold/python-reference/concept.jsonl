@@ -1,0 +1,25 @@
+{"equivalence":false,"expected":[{"end_line":63,"path":"Lib/functools.py","start_line":35,"symbol":"update_wrapper"}],"id":"py-concept-01","query":"copying metadata onto a wrapper function"}
+{"equivalence":false,"expected":[{"end_line":77,"path":"Lib/functools.py","start_line":65,"symbol":"wraps"}],"id":"py-concept-02","query":"decorator factory for wrapper metadata"}
+{"equivalence":false,"expected":[{"end_line":199,"path":"Lib/functools.py","start_line":188,"symbol":"total_ordering"}],"id":"py-concept-03","query":"filling in ordering methods from one comparison"}
+{"equivalence":false,"expected":[{"end_line":223,"path":"Lib/functools.py","start_line":206,"symbol":"cmp_to_key"}],"id":"py-concept-04","query":"adapting a comparison function into a key function"}
+{"equivalence":false,"expected":[{"end_line":265,"path":"Lib/functools.py","start_line":237,"symbol":"reduce"}],"id":"py-concept-05","query":"folding an iterable into a single value"}
+{"equivalence":false,"expected":[{"end_line":434,"path":"Lib/functools.py","start_line":369,"symbol":"partial"}],"id":"py-concept-06","query":"partial application of a callable"}
+{"equivalence":false,"expected":[{"end_line":602,"path":"Lib/functools.py","start_line":555,"symbol":"lru_cache"}],"id":"py-concept-07","query":"least-recently-used result caching"}
+{"equivalence":false,"expected":[{"end_line":749,"path":"Lib/functools.py","start_line":747,"symbol":"cache"}],"id":"py-concept-08","query":"unbounded memoization"}
+{"equivalence":false,"expected":[{"end_line":1012,"path":"Lib/functools.py","start_line":896,"symbol":"singledispatch"}],"id":"py-concept-09","query":"single-dispatch generic function"}
+{"equivalence":false,"expected":[{"end_line":368,"path":"Lib/textwrap.py","start_line":361,"symbol":"fill"}],"id":"py-concept-10","query":"wrapping text to a given width"}
+{"equivalence":false,"expected":[{"end_line":359,"path":"Lib/textwrap.py","start_line":347,"symbol":"wrap"}],"id":"py-concept-11","query":"splitting text into wrapped lines"}
+{"equivalence":false,"expected":[{"end_line":444,"path":"Lib/textwrap.py","start_line":416,"symbol":"dedent"}],"id":"py-concept-12","query":"removing common leading whitespace"}
+{"equivalence":false,"expected":[{"end_line":411,"path":"Lib/textwrap.py","start_line":398,"symbol":"shorten"}],"id":"py-concept-13","query":"truncating text to a width"}
+{"equivalence":false,"expected":[{"end_line":353,"path":"Lib/shutil.py","start_line":283,"symbol":"copyfile"}],"id":"py-concept-14","query":"copying file contents"}
+{"equivalence":false,"expected":[{"end_line":657,"path":"Lib/shutil.py","start_line":611,"symbol":"copytree"}],"id":"py-concept-15","query":"recursive directory copy"}
+{"equivalence":false,"expected":[{"end_line":859,"path":"Lib/shutil.py","start_line":811,"symbol":"rmtree"}],"id":"py-concept-16","query":"recursive directory removal"}
+{"equivalence":false,"expected":[{"end_line":1651,"path":"Lib/shutil.py","start_line":1571,"symbol":"which"}],"id":"py-concept-17","query":"locating an executable on PATH"}
+{"equivalence":false,"expected":[{"end_line":672,"path":"Lib/tempfile.py","start_line":612,"symbol":"NamedTemporaryFile"}],"id":"py-concept-18","query":"named temporary file creation"}
+{"equivalence":false,"expected":[{"end_line":1057,"path":"Lib/tempfile.py","start_line":939,"symbol":"TemporaryDirectory"}],"id":"py-concept-19","query":"temporary directory creation"}
+{"equivalence":false,"expected":[{"end_line":482,"path":"Lib/urllib/parse.py","start_line":447,"symbol":"urlparse"}],"id":"py-concept-20","query":"parsing a URL into components"}
+{"equivalence":false,"expected":[{"end_line":1200,"path":"Lib/urllib/parse.py","start_line":1123,"symbol":"urlencode"}],"id":"py-concept-21","query":"encoding a mapping into a query string"}
+{"equivalence":false,"expected":[{"end_line":1072,"path":"Lib/urllib/parse.py","start_line":1020,"symbol":"quote"}],"id":"py-concept-22","query":"percent-encoding a string for a URL"}
+{"equivalence":false,"expected":[{"end_line":856,"path":"Lib/urllib/parse.py","start_line":836,"symbol":"unquote"}],"id":"py-concept-23","query":"decoding percent escapes"}
+{"equivalence":false,"expected":[{"end_line":179,"path":"Lib/statistics.py","start_line":159,"symbol":"mean"}],"id":"py-concept-24","query":"arithmetic mean of data"}
+{"equivalence":false,"expected":[{"end_line":349,"path":"Lib/statistics.py","start_line":328,"symbol":"median"}],"id":"py-concept-25","query":"middle value of data"}

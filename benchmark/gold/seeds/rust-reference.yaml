@@ -1,0 +1,123 @@
+# Reviewed gold seeds for the secondary Rust reference repository.
+#
+# The proposer resolves each seed against the fixed checkout
+# (work/repos/rust-reference). A seed must name a documented inherent method
+# of a standard library type; the range is the method body, doc comment
+# included in the acceptable evidence.
+
+repository: rust-reference
+language: rust
+seeds:
+  # library/core/src/option.rs
+  - path: library/core/src/option.rs
+    symbol: map
+    concept: mapping the contained option value
+    equivalence: transforming Some while keeping None
+  - path: library/core/src/option.rs
+    symbol: and_then
+    concept: chaining an option-returning function
+    equivalence: flat mapping over an option
+  - path: library/core/src/option.rs
+    symbol: unwrap_or
+    concept: option value with a default
+    equivalence: returning the contained value or a fallback
+  - path: library/core/src/option.rs
+    symbol: take
+    concept: taking the option value out
+    equivalence: moving the value out and leaving None
+  - path: library/core/src/option.rs
+    symbol: is_some
+    concept: some value detection
+    equivalence: checking that an option holds a value
+  # library/core/src/result.rs
+  - path: library/core/src/result.rs
+    symbol: map
+    concept: mapping the ok value
+    equivalence: transforming Ok while keeping Err
+    typo: maap
+  - path: library/core/src/result.rs
+    symbol: map_err
+    concept: mapping the error value
+    equivalence: transforming Err while keeping Ok
+  - path: library/core/src/result.rs
+    symbol: and_then
+    concept: chaining a result-returning function
+    equivalence: flat mapping over a result
+    typo: and_thn
+  - path: library/core/src/result.rs
+    symbol: ok
+    concept: result to option conversion
+    equivalence: dropping the error and keeping Ok
+  # library/core/src/mem/mod.rs
+  - path: library/core/src/mem/mod.rs
+    symbol: swap
+    concept: swapping two values in place
+    equivalence: exchanging the contents of two locations
+  - path: library/core/src/mem/mod.rs
+    symbol: replace
+    concept: replacing a value and returning the old one
+    equivalence: moving a new value in and yielding the previous one
+  - path: library/core/src/mem/mod.rs
+    symbol: take
+    concept: taking a value and leaving its default
+    equivalence: replacing with the default and returning the old value
+    typo: tkae
+  - path: library/core/src/mem/mod.rs
+    symbol: size_of
+    concept: size of a type in bytes
+    equivalence: byte size of a type
+  # library/core/src/str/mod.rs
+  - path: library/core/src/str/mod.rs
+    symbol: split
+    concept: splitting a string on a pattern
+    equivalence: iterating substring splits
+  - path: library/core/src/str/mod.rs
+    symbol: lines
+    concept: iterating over string lines
+    equivalence: line iteration over a string slice
+  - path: library/core/src/str/mod.rs
+    symbol: parse
+    concept: parsing a string into a value
+    equivalence: converting text into another type
+  - path: library/core/src/str/mod.rs
+    symbol: len
+    concept: byte length of a string
+    equivalence: counting bytes in a string slice
+  # library/core/src/slice/mod.rs
+  - path: library/core/src/slice/mod.rs
+    symbol: first
+    concept: first element of a slice
+    equivalence: accessing the leading slice element
+  - path: library/core/src/slice/mod.rs
+    symbol: last
+    concept: last element of a slice
+    equivalence: accessing the trailing slice element
+  # library/alloc/src/vec/mod.rs
+  - path: library/alloc/src/vec/mod.rs
+    symbol: new
+    concept: creating an empty vector
+    equivalence: constructing a vector without capacity
+    natural_language: Where is the code that constructs a new empty Vec?
+  - path: library/alloc/src/vec/mod.rs
+    symbol: push
+    concept: appending to a vector
+    equivalence: adding an element at the back
+  - path: library/alloc/src/vec/mod.rs
+    symbol: pop
+    concept: removing the last vector element
+    equivalence: popping the trailing element
+  # library/alloc/src/string.rs
+  - path: library/alloc/src/string.rs
+    symbol: push_str
+    concept: appending a string slice
+    equivalence: growing a string with more text
+  # library/std/src/fs.rs
+  - path: library/std/src/fs.rs
+    symbol: read_to_string
+    concept: reading a file into a string
+    equivalence: loading a file's contents as text
+  # library/std/src/path.rs
+  - path: library/std/src/path.rs
+    symbol: join
+    concept: joining a path with a component
+    equivalence: appending a path segment

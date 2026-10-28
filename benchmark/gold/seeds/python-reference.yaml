@@ -1,0 +1,118 @@
+# Reviewed gold seeds for the secondary Python reference repository.
+#
+# The proposer resolves each seed against the fixed checkout
+# (work/repos/python-reference). A seed must name a documented module-level
+# function or class in the standard library. The checkout is pinned at
+# v3.15.0, whose parser is newer than the interpreter on the host, so the
+# proposer scans the source text rather than importing it.
+
+repository: python-reference
+language: python
+seeds:
+  # Lib/functools.py
+  - path: Lib/functools.py
+    symbol: update_wrapper
+    concept: copying metadata onto a wrapper function
+    equivalence: making a wrapper look like the wrapped function
+  - path: Lib/functools.py
+    symbol: wraps
+    concept: decorator factory for wrapper metadata
+    equivalence: applying update_wrapper through a decorator
+  - path: Lib/functools.py
+    symbol: total_ordering
+    concept: filling in ordering methods from one comparison
+    equivalence: deriving comparison methods from a single rich comparison
+  - path: Lib/functools.py
+    symbol: cmp_to_key
+    concept: adapting a comparison function into a key function
+    equivalence: turning a cmp function into a sort key
+  - path: Lib/functools.py
+    symbol: reduce
+    concept: folding an iterable into a single value
+    equivalence: left-to-right reduction over an iterable
+  - path: Lib/functools.py
+    symbol: partial
+    concept: partial application of a callable
+    equivalence: binding some arguments of a function
+  - path: Lib/functools.py
+    symbol: lru_cache
+    concept: least-recently-used result caching
+    equivalence: memoizing calls with a bounded cache
+  - path: Lib/functools.py
+    symbol: cache
+    concept: unbounded memoization
+    equivalence: simple unbounded result cache
+    natural_language: Where is the code that memoizes a function without a size limit?
+  - path: Lib/functools.py
+    symbol: singledispatch
+    concept: single-dispatch generic function
+    equivalence: dispatching on the type of the first argument
+  # Lib/textwrap.py
+  - path: Lib/textwrap.py
+    symbol: fill
+    concept: wrapping text to a given width
+    equivalence: filling paragraphs to a width
+  - path: Lib/textwrap.py
+    symbol: wrap
+    concept: splitting text into wrapped lines
+    equivalence: line wrapping without filling
+  - path: Lib/textwrap.py
+    symbol: dedent
+    concept: removing common leading whitespace
+    equivalence: stripping uniform indentation
+  - path: Lib/textwrap.py
+    symbol: shorten
+    concept: truncating text to a width
+    equivalence: collapsing text to fit a width
+  # Lib/shutil.py
+  - path: Lib/shutil.py
+    symbol: copyfile
+    concept: copying file contents
+    equivalence: duplicating a file's data
+  - path: Lib/shutil.py
+    symbol: copytree
+    concept: recursive directory copy
+    equivalence: copying a directory tree
+  - path: Lib/shutil.py
+    symbol: rmtree
+    concept: recursive directory removal
+    equivalence: deleting a directory tree
+  - path: Lib/shutil.py
+    symbol: which
+    concept: locating an executable on PATH
+    equivalence: resolving a command to its executable path
+  # Lib/tempfile.py
+  - path: Lib/tempfile.py
+    symbol: NamedTemporaryFile
+    concept: named temporary file creation
+    equivalence: creating a temporary file with a name
+  - path: Lib/tempfile.py
+    symbol: TemporaryDirectory
+    concept: temporary directory creation
+    equivalence: creating and cleaning up a temporary directory
+  # Lib/urllib/parse.py
+  - path: Lib/urllib/parse.py
+    symbol: urlparse
+    concept: parsing a URL into components
+    equivalence: splitting a URL into its parts
+  - path: Lib/urllib/parse.py
+    symbol: urlencode
+    concept: encoding a mapping into a query string
+    equivalence: serializing parameters as a URL query
+  - path: Lib/urllib/parse.py
+    symbol: quote
+    concept: percent-encoding a string for a URL
+    equivalence: escaping unsafe URL characters
+  - path: Lib/urllib/parse.py
+    symbol: unquote
+    concept: decoding percent escapes
+    equivalence: replacing URL escapes with characters
+  # Lib/statistics.py
+  - path: Lib/statistics.py
+    symbol: mean
+    concept: arithmetic mean of data
+    equivalence: average of sample values
+  - path: Lib/statistics.py
+    symbol: median
+    concept: middle value of data
+    equivalence: median of numeric data

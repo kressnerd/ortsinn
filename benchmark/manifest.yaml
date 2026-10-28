@@ -98,9 +98,30 @@ gold_minimums:
   mode: published
   primary: {typo: 50, natural_language: 30, explanation: 20, concept: 50, concept_equivalence: 20}
   secondary: {typo: 25, natural_language: 15, explanation: 10, concept: 25, concept_equivalence: 10}
-# The reviewed gold files are authored by their own evidence task; the record
-# task adds the entries and fingerprints once they exist.
-gold: []
+# Reviewed gold sets. Each seed file under gold/seeds/ is the reviewed query
+# intent and each pinned checkout supplies the reviewed line range; the
+# fingerprints below are the reviewed files those two inputs produce.
+gold:
+  - {repository: typescript-reference, metric: typo, version: 1, tasks: 50, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:7a594c3f5c09d0e180a66740564e3223cf6e4df8324596d0496ae9124c2e7f48", path: gold/typescript-reference/typo.jsonl}
+  - {repository: typescript-reference, metric: natural_language, version: 1, tasks: 30, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:27f4df2dae7afa5edff86a226558e14d66cdee6e732e4318c246134372a3ab11", path: gold/typescript-reference/natural_language.jsonl}
+  - {repository: typescript-reference, metric: explanation, version: 1, tasks: 20, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:f4c554e04f1504dc97bec6acdc83d09aa0aae1d026fa9a9885f428a572c73605", path: gold/typescript-reference/explanation.jsonl}
+  - {repository: typescript-reference, metric: concept, version: 1, tasks: 50, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:f5a09c8690b5e384debb626c3649a4fa037ced331dc1f7568f9f2ef10e220b1b", path: gold/typescript-reference/concept.jsonl}
+  - {repository: typescript-reference, metric: concept_equivalence, version: 1, tasks: 20, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:6ca6e1909739d989c5ea0f09c1fa8cb235dec99c06efdc6fcbb49d0c9bec9680", path: gold/typescript-reference/concept_equivalence.jsonl}
+  - {repository: python-reference, metric: typo, version: 1, tasks: 25, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:6c4c21545c5dbcdfd2db4ca344fce110952b29f052d6a9aab269a6e2b9db010a", path: gold/python-reference/typo.jsonl}
+  - {repository: python-reference, metric: natural_language, version: 1, tasks: 15, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:25f52010ba56b0bd00ddba316b5f449dbb7b86b15c8313ce422145a9ea4b9141", path: gold/python-reference/natural_language.jsonl}
+  - {repository: python-reference, metric: explanation, version: 1, tasks: 10, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:f1b03f368db364a33702e6b60349fdc16fab4ff9404a264028fb2e31414a79f5", path: gold/python-reference/explanation.jsonl}
+  - {repository: python-reference, metric: concept, version: 1, tasks: 25, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:e302fef97eafb73f0fdb4885a360f0e2b9a5e68510d5aebd245592ff8e3d9ff4", path: gold/python-reference/concept.jsonl}
+  - {repository: python-reference, metric: concept_equivalence, version: 1, tasks: 10, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:8dc2b188128e6501458f08d93da753f95c1e0f1dd05b5e922917d8eb9467f76c", path: gold/python-reference/concept_equivalence.jsonl}
+  - {repository: rust-reference, metric: typo, version: 1, tasks: 25, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:e3389ecb1d277e638cfa0bc5a173aeee24c08d611357b1aae105118784db9367", path: gold/rust-reference/typo.jsonl}
+  - {repository: rust-reference, metric: natural_language, version: 1, tasks: 15, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:cb1949a83106ea8c807e6ddb3d95a5889ef661dbc4fad971e79569856d376814", path: gold/rust-reference/natural_language.jsonl}
+  - {repository: rust-reference, metric: explanation, version: 1, tasks: 10, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:b360e07f203f5504041126bbf39fad4badf062d0e00b1be7f50c5524a4f320d5", path: gold/rust-reference/explanation.jsonl}
+  - {repository: rust-reference, metric: concept, version: 1, tasks: 25, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:44576ae1d2bfe7fe66f03604af8f772ce124be2e0460f5867d23a7bbc8bc7325", path: gold/rust-reference/concept.jsonl}
+  - {repository: rust-reference, metric: concept_equivalence, version: 1, tasks: 10, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:4e0263da898b776562483c32c71227ecce871440db3a66d7a9ced9fd49a9c09f", path: gold/rust-reference/concept_equivalence.jsonl}
+  - {repository: synthetic-monorepo, metric: typo, version: 1, tasks: 25, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:1cef0379d14d9c2af49849c94e21db49e6cd087889e316b3c7daba0b520f5b22", path: gold/synthetic-monorepo/typo.jsonl}
+  - {repository: synthetic-monorepo, metric: natural_language, version: 1, tasks: 15, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:904c12abbf2102b9731d118752b238732293ff98f67e204f5b24e8cb64fff2df", path: gold/synthetic-monorepo/natural_language.jsonl}
+  - {repository: synthetic-monorepo, metric: explanation, version: 1, tasks: 10, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:fe39a9efbf92eb4756dca6f89413fa6402b14668dfb875d5f0ebebe2000d7da8", path: gold/synthetic-monorepo/explanation.jsonl}
+  - {repository: synthetic-monorepo, metric: concept, version: 1, tasks: 25, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:4986fcdd2009f1c9a2fd61737078d72287697070eb7eaeea0d8ab133efaf36bc", path: gold/synthetic-monorepo/concept.jsonl}
+  - {repository: synthetic-monorepo, metric: concept_equivalence, version: 1, tasks: 10, reviewed_by: maintainer--ortsinn, fingerprint: "sha256:6ecbe64e89d73cec401192dcb2ead33497a7aaea7f2a6d7f28a30d5d830a1216", path: gold/synthetic-monorepo/concept_equivalence.jsonl}
 cassettes:
   results: {path: cassettes/results/results.jsonl, fingerprint: ""}
   model: {path: cassettes/model/model.jsonl, fingerprint: ""}

@@ -2,6 +2,7 @@
 
 pub mod minimums;
 pub mod propose;
+pub mod seeds;
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};

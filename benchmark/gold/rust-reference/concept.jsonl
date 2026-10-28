@@ -1,0 +1,25 @@
+{"equivalence":false,"expected":[{"end_line":1166,"path":"library/core/src/option.rs","start_line":1158,"symbol":"map"}],"id":"rs-concept-01","query":"mapping the contained option value"}
+{"equivalence":false,"expected":[{"end_line":1545,"path":"library/core/src/option.rs","start_line":1537,"symbol":"and_then"}],"id":"rs-concept-02","query":"chaining an option-returning function"}
+{"equivalence":false,"expected":[{"end_line":1044,"path":"library/core/src/option.rs","start_line":1036,"symbol":"unwrap_or"}],"id":"rs-concept-03","query":"option value with a default"}
+{"equivalence":false,"expected":[{"end_line":1902,"path":"library/core/src/option.rs","start_line":1899,"symbol":"take"}],"id":"rs-concept-04","query":"taking the option value out"}
+{"equivalence":false,"expected":[{"end_line":635,"path":"library/core/src/option.rs","start_line":633,"symbol":"is_some"}],"id":"rs-concept-05","query":"some value detection"}
+{"equivalence":false,"expected":[{"end_line":840,"path":"library/core/src/result.rs","start_line":832,"symbol":"map"}],"id":"rs-concept-06","query":"mapping the ok value"}
+{"equivalence":false,"expected":[{"end_line":969,"path":"library/core/src/result.rs","start_line":961,"symbol":"map_err"}],"id":"rs-concept-07","query":"mapping the error value"}
+{"equivalence":false,"expected":[{"end_line":1495,"path":"library/core/src/result.rs","start_line":1487,"symbol":"and_then"}],"id":"rs-concept-08","query":"chaining a result-returning function"}
+{"equivalence":false,"expected":[{"end_line":718,"path":"library/core/src/result.rs","start_line":709,"symbol":"ok"}],"id":"rs-concept-09","query":"result to option conversion"}
+{"equivalence":false,"expected":[{"end_line":834,"path":"library/core/src/mem/mod.rs","start_line":830,"symbol":"swap"}],"id":"rs-concept-10","query":"swapping two values in place"}
+{"equivalence":false,"expected":[{"end_line":979,"path":"library/core/src/mem/mod.rs","start_line":961,"symbol":"replace"}],"id":"rs-concept-11","query":"replacing a value and returning the old one"}
+{"equivalence":false,"expected":[{"end_line":896,"path":"library/core/src/mem/mod.rs","start_line":894,"symbol":"take"}],"id":"rs-concept-12","query":"taking a value and leaving its default"}
+{"equivalence":false,"expected":[{"end_line":384,"path":"library/core/src/mem/mod.rs","start_line":375,"symbol":"size_of"}],"id":"rs-concept-13","query":"size of a type in bytes"}
+{"equivalence":false,"expected":[{"end_line":1679,"path":"library/core/src/str/mod.rs","start_line":1671,"symbol":"split"}],"id":"rs-concept-14","query":"splitting a string on a pattern"}
+{"equivalence":false,"expected":[{"end_line":1331,"path":"library/core/src/str/mod.rs","start_line":1329,"symbol":"lines"}],"id":"rs-concept-15","query":"iterating over string lines"}
+{"equivalence":false,"expected":[{"end_line":2784,"path":"library/core/src/str/mod.rs","start_line":2782,"symbol":"parse"}],"id":"rs-concept-16","query":"parsing a string into a value"}
+{"equivalence":false,"expected":[{"end_line":157,"path":"library/core/src/str/mod.rs","start_line":155,"symbol":"len"}],"id":"rs-concept-17","query":"byte length of a string"}
+{"equivalence":false,"expected":[{"end_line":157,"path":"library/core/src/slice/mod.rs","start_line":155,"symbol":"first"}],"id":"rs-concept-18","query":"first element of a slice"}
+{"equivalence":false,"expected":[{"end_line":283,"path":"library/core/src/slice/mod.rs","start_line":281,"symbol":"last"}],"id":"rs-concept-19","query":"last element of a slice"}
+{"equivalence":false,"expected":[{"end_line":463,"path":"library/alloc/src/vec/mod.rs","start_line":461,"symbol":"new"}],"id":"rs-concept-20","query":"creating an empty vector"}
+{"equivalence":false,"expected":[{"end_line":997,"path":"library/alloc/src/vec/mod.rs","start_line":995,"symbol":"push"}],"id":"rs-concept-21","query":"appending to a vector"}
+{"equivalence":false,"expected":[{"end_line":2882,"path":"library/alloc/src/vec/mod.rs","start_line":2872,"symbol":"pop"}],"id":"rs-concept-22","query":"removing the last vector element"}
+{"equivalence":false,"expected":[{"end_line":1106,"path":"library/alloc/src/string.rs","start_line":1104,"symbol":"push_str"}],"id":"rs-concept-23","query":"appending a string slice"}
+{"equivalence":false,"expected":[{"end_line":393,"path":"library/std/src/fs.rs","start_line":383,"symbol":"read_to_string"}],"id":"rs-concept-24","query":"reading a file into a string"}
+{"equivalence":false,"expected":[{"end_line":3079,"path":"library/std/src/path.rs","start_line":3077,"symbol":"join"}],"id":"rs-concept-25","query":"joining a path with a component"}

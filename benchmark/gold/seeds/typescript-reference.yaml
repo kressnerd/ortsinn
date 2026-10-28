@@ -1,0 +1,219 @@
+# Reviewed gold seeds for the primary TypeScript reference repository.
+#
+# The proposer resolves each seed against the fixed checkout
+# (work/repos/typescript-reference) and derives the five gold files. A seed
+# must name a documented top-level `export function`; the seed file is the
+# reviewed intent, the checkout is the reviewed location. `concept` and
+# `equivalence` are the reviewed concept queries; `natural_language` overrides
+# the derived question where two definitions share documentation.
+
+repository: typescript-reference
+language: typescript
+seeds:
+  # parser.ts
+  - path: src/compiler/parser.ts
+    symbol: forEachChild
+    concept: iteration over each syntax tree child
+    equivalence: visiting every child node of a node
+  - path: src/compiler/parser.ts
+    symbol: forEachChildRecursively
+    concept: recursive traversal of syntax tree children
+    equivalence: walking all descendant nodes of a node
+    natural_language: Where is the code that walks every nested child of a syntax tree node?
+  - path: src/compiler/parser.ts
+    symbol: parseJsonText
+    concept: parsing JSON into a syntax tree
+    equivalence: turning JSON text into a source file
+  # utilitiesPublic.ts — public node predicates
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: normalizeSpans
+    concept: sorting and merging text spans
+    equivalence: canonical ordering of text spans
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: collapseTextChangeRangesAcrossMultipleVersions
+    concept: merging text change ranges across versions
+    equivalence: combining edits from several script snapshot versions
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: findAncestor
+    concept: searching the parent chain for a node
+    equivalence: locating an enclosing node by walking up parents
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: isParseTreeNode
+    concept: origin of a node in the parse tree
+    equivalence: checking that a node came from parsing
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: getParseTreeNode
+    concept: recovering the original parse tree node
+    equivalence: unwrapping a transformed node to its parsed form
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: unescapeLeadingUnderscores
+    concept: unescaping leading underscores in identifier text
+    equivalence: removing the escaped underscore prefix from a name
+  # program.ts
+  - path: src/compiler/program.ts
+    symbol: getModeForFileReference
+    concept: resolution mode for a module reference
+    equivalence: deciding how a file reference should resolve
+  - path: src/compiler/program.ts
+    symbol: getModeForUsageLocation
+    concept: resolution mode for a module usage
+    equivalence: deciding how an import usage should resolve
+  - path: src/compiler/program.ts
+    symbol: isProgramUptoDate
+    concept: checking whether a program can be reused
+    equivalence: detecting an outdated program structure
+  - path: src/compiler/program.ts
+    symbol: getImpliedNodeFormatForFile
+    concept: implied module format of a file
+    equivalence: deciding whether a file is ESM or CommonJS
+  - path: src/compiler/program.ts
+    symbol: resolveProjectReferencePath
+    concept: resolving a project reference config path
+    equivalence: finding the tsconfig of a referenced project
+  - path: src/compiler/program.ts
+    symbol: getResolutionDiagnostic
+    concept: diagnostic for an unemitted module resolution
+    equivalence: reporting why a resolved module is excluded
+  - path: src/compiler/program.ts
+    symbol: createProgram
+    concept: creating a compiler program
+    equivalence: building a program from root files and options
+  # utilities.ts — node and symbol helpers
+  - path: src/compiler/utilities.ts
+    symbol: isExternalModuleSymbol
+    concept: external module symbol detection
+    equivalence: checking that a symbol declares an external module
+  - path: src/compiler/utilities.ts
+    symbol: forEachEntry
+    concept: iteration over map entries
+    equivalence: visiting each key-value pair of a map
+  - path: src/compiler/utilities.ts
+    symbol: forEachKey
+    concept: iteration over map keys
+    equivalence: visiting every key of a map
+  - path: src/compiler/utilities.ts
+    symbol: copyEntries
+    concept: copying map entries
+    equivalence: duplicating key-value pairs into another map
+  - path: src/compiler/utilities.ts
+    symbol: isFileLevelUniqueName
+    concept: file-level name uniqueness
+    equivalence: checking that a name is unique in its file
+  - path: src/compiler/utilities.ts
+    symbol: isGrammarError
+    concept: grammar error detection on a node
+    equivalence: checking that a child is a grammar error
+  - path: src/compiler/utilities.ts
+    symbol: insertStatementsAfterStandardPrologue
+    concept: inserting statements after the prologue
+    equivalence: placing statements after directive prologues
+  - path: src/compiler/utilities.ts
+    symbol: isRecognizedTripleSlashComment
+    concept: recognizing triple-slash directives
+    equivalence: detecting a recognized triple-slash reference comment
+  - path: src/compiler/utilities.ts
+    symbol: moduleExportNameIsDefault
+    concept: default export name detection
+    equivalence: checking that a module export name means default
+  - path: src/compiler/utilities.ts
+    symbol: indexOfNode
+    concept: position of a node in a node array
+    equivalence: finding a node's index in a list
+  - path: src/compiler/utilities.ts
+    symbol: getEmitFlags
+    concept: emit flags of a node
+    equivalence: retrieving the flags that control emission
+  - path: src/compiler/utilities.ts
+    symbol: getInternalEmitFlags
+    concept: internal emit flags of a node
+    equivalence: retrieving internal flags that control emission
+    natural_language: Where is the code that reads the internal emit flags stored on a node?
+  - path: src/compiler/utilities.ts
+    symbol: insertStatementAfterStandardPrologue
+    concept: inserting a statement after the prologue
+    equivalence: placing a statement after directive prologues
+    natural_language: Where is the code that inserts a single statement after the prologue directives?
+  - path: src/compiler/utilities.ts
+    symbol: isShorthandAmbientModuleSymbol
+    concept: shorthand ambient module detection
+    equivalence: checking that a module symbol is a shorthand ambient module
+  - path: src/compiler/utilities.ts
+    symbol: isEffectiveStrictModeSourceFile
+    concept: effective strict mode of a source file
+    equivalence: checking whether a file runs in strict mode
+  - path: src/compiler/utilities.ts
+    symbol: isVarUsing
+    concept: using declaration detection
+    equivalence: checking that a declaration uses a using clause
+  - path: src/compiler/utilities.ts
+    symbol: isVarConst
+    concept: const declaration detection
+    equivalence: checking that a declaration is const
+  - path: src/compiler/utilities.ts
+    symbol: isVarConstLike
+    concept: const-like declaration detection
+    equivalence: checking for const, using, or await using declarations
+  - path: src/compiler/utilities.ts
+    symbol: getRestParameterElementType
+    concept: element type of a rest parameter
+    equivalence: finding the element type of a rest parameter
+  - path: src/compiler/utilities.ts
+    symbol: isSuperProperty
+    concept: super property access detection
+    equivalence: checking for an access on super
+  - path: src/compiler/utilities.ts
+    symbol: isThisProperty
+    concept: this property access detection
+    equivalence: checking for an access on this
+  - path: src/compiler/utilities.ts
+    symbol: getEffectiveInitializer
+    concept: effective initializer of a declaration
+    equivalence: retrieving the initializer including defaulted ones
+  - path: src/compiler/utilities.ts
+    symbol: getDeclaredExpandoInitializer
+    concept: declared expando initializer
+    equivalence: retrieving a container-like declaration initializer
+  - path: src/compiler/utilities.ts
+    symbol: getAssignedExpandoInitializer
+    concept: assigned expando initializer
+    equivalence: retrieving an expando initializer from an assignment
+  - path: src/compiler/utilities.ts
+    symbol: getExpandoInitializer
+    concept: expando initializer detection
+    equivalence: recognizing an initializer that creates an expando
+  - path: src/compiler/utilities.ts
+    symbol: getNameOfExpando
+    concept: name of an expando
+    equivalence: extracting the declared name from an expando initializer
+  - path: src/compiler/utilities.ts
+    symbol: isSameEntityName
+    concept: entity name equality
+    equivalence: checking that two entity names refer to the same name
+  - path: src/compiler/utilities.ts
+    symbol: getParameterSymbolFromJSDoc
+    concept: parameter symbol from a JSDoc tag
+    equivalence: mapping a JSDoc parameter to its symbol
+  - path: src/compiler/utilities.ts
+    symbol: isNodeWithPossibleHoistedDeclaration
+    concept: hoisted var declaration detection
+    equivalence: checking whether a node can contain a hoisted var declaration
+  - path: src/compiler/utilities.ts
+    symbol: isBindableStaticAccessExpression
+    concept: bindable static access expression
+    equivalence: recognizing a chain of static property accesses
+  - path: src/compiler/utilities.ts
+    symbol: walkUpParenthesizedTypesAndGetParentAndChild
+    concept: walking up parenthesized types
+    equivalence: skipping parenthesized type wrappers
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: isObjectBindingOrAssignmentPattern
+    concept: object binding pattern detection
+    equivalence: checking for an object binding or assignment pattern
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: isArrayBindingOrAssignmentPattern
+    concept: array binding pattern detection
+    equivalence: checking for an array binding or assignment pattern
+  - path: src/compiler/utilitiesPublic.ts
+    symbol: isDeclarationBindingElement
+    concept: binding element declaration detection
+    equivalence: checking that a binding element is a declaration

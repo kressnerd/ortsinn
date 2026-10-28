@@ -3,3 +3,7 @@
 reports/
 
 work/
+
+# Regenerable gold proposals. Only the reviewed tree and its seeds are
+# committed; `propose-gold --mode drafts` recreates these from both.
+gold/drafts/

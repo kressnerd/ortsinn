@@ -1,0 +1,10 @@
+{"equivalence":true,"expected":[{"end_line":63,"path":"Lib/functools.py","start_line":35,"symbol":"update_wrapper"}],"id":"py-ce-01","query":"making a wrapper look like the wrapped function"}
+{"equivalence":true,"expected":[{"end_line":77,"path":"Lib/functools.py","start_line":65,"symbol":"wraps"}],"id":"py-ce-02","query":"applying update_wrapper through a decorator"}
+{"equivalence":true,"expected":[{"end_line":199,"path":"Lib/functools.py","start_line":188,"symbol":"total_ordering"}],"id":"py-ce-03","query":"deriving comparison methods from a single rich comparison"}
+{"equivalence":true,"expected":[{"end_line":223,"path":"Lib/functools.py","start_line":206,"symbol":"cmp_to_key"}],"id":"py-ce-04","query":"turning a cmp function into a sort key"}
+{"equivalence":true,"expected":[{"end_line":265,"path":"Lib/functools.py","start_line":237,"symbol":"reduce"}],"id":"py-ce-05","query":"left-to-right reduction over an iterable"}
+{"equivalence":true,"expected":[{"end_line":434,"path":"Lib/functools.py","start_line":369,"symbol":"partial"}],"id":"py-ce-06","query":"binding some arguments of a function"}
+{"equivalence":true,"expected":[{"end_line":602,"path":"Lib/functools.py","start_line":555,"symbol":"lru_cache"}],"id":"py-ce-07","query":"memoizing calls with a bounded cache"}
+{"equivalence":true,"expected":[{"end_line":749,"path":"Lib/functools.py","start_line":747,"symbol":"cache"}],"id":"py-ce-08","query":"simple unbounded result cache"}
+{"equivalence":true,"expected":[{"end_line":1012,"path":"Lib/functools.py","start_line":896,"symbol":"singledispatch"}],"id":"py-ce-09","query":"dispatching on the type of the first argument"}
+{"equivalence":true,"expected":[{"end_line":368,"path":"Lib/textwrap.py","start_line":361,"symbol":"fill"}],"id":"py-ce-10","query":"filling paragraphs to a width"}

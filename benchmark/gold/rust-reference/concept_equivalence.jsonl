@@ -1,0 +1,10 @@
+{"equivalence":true,"expected":[{"end_line":1166,"path":"library/core/src/option.rs","start_line":1158,"symbol":"map"}],"id":"rs-ce-01","query":"transforming Some while keeping None"}
+{"equivalence":true,"expected":[{"end_line":1545,"path":"library/core/src/option.rs","start_line":1537,"symbol":"and_then"}],"id":"rs-ce-02","query":"flat mapping over an option"}
+{"equivalence":true,"expected":[{"end_line":1044,"path":"library/core/src/option.rs","start_line":1036,"symbol":"unwrap_or"}],"id":"rs-ce-03","query":"returning the contained value or a fallback"}
+{"equivalence":true,"expected":[{"end_line":1902,"path":"library/core/src/option.rs","start_line":1899,"symbol":"take"}],"id":"rs-ce-04","query":"moving the value out and leaving None"}
+{"equivalence":true,"expected":[{"end_line":635,"path":"library/core/src/option.rs","start_line":633,"symbol":"is_some"}],"id":"rs-ce-05","query":"checking that an option holds a value"}
+{"equivalence":true,"expected":[{"end_line":840,"path":"library/core/src/result.rs","start_line":832,"symbol":"map"}],"id":"rs-ce-06","query":"transforming Ok while keeping Err"}
+{"equivalence":true,"expected":[{"end_line":969,"path":"library/core/src/result.rs","start_line":961,"symbol":"map_err"}],"id":"rs-ce-07","query":"transforming Err while keeping Ok"}
+{"equivalence":true,"expected":[{"end_line":1495,"path":"library/core/src/result.rs","start_line":1487,"symbol":"and_then"}],"id":"rs-ce-08","query":"flat mapping over a result"}
+{"equivalence":true,"expected":[{"end_line":718,"path":"library/core/src/result.rs","start_line":709,"symbol":"ok"}],"id":"rs-ce-09","query":"dropping the error and keeping Ok"}
+{"equivalence":true,"expected":[{"end_line":834,"path":"library/core/src/mem/mod.rs","start_line":830,"symbol":"swap"}],"id":"rs-ce-10","query":"exchanging the contents of two locations"}

@@ -55,10 +55,21 @@
   - Production files: `benchmark/manifest.yaml`, `benchmark/targets.yaml`, `benchmark/setup.lock.json`, `benchmark/fetch-repos.sh`, `benchmark/setup.sh`, `benchmark/.gitignore`, `benchmark/src/setup.rs`, `benchmark/src/manifest.rs` (power/synthetic/evidence/targets_file/gold_minimums), `benchmark/src/lib.rs`, `benchmark/src/bin/setup-check.rs`, `benchmark/src/bin/generate-synthetic.rs`.
   - COMMIT: 555ac04
 
-- [ ] Author and review the real gold sets.
+- [x] Author and review the real gold sets.
   - Primary repository: 50 typo, 30 natural-language, 20 explanation, 50 concept, 20 concept-equivalence reviewed tasks. Each secondary: 25/15/10/25/10. Synthetic gold generated and reviewed with the generator.
-  - Drafts live under `benchmark/gold/drafts/`; reviewed files under `benchmark/gold/<repository>/<metric>.jsonl`; manifest entries carry `version`, `tasks`, `fingerprint`, `reviewed_by`.
-  - Run `benchmark/src/gold/propose.rs` and the review checks; output the counts and fingerprints. Output: _(paste)_.
+  - Drafts live under `benchmark/gold/drafts/` (regenerable, not committed); reviewed files under `benchmark/gold/<repository>/<metric>.jsonl`; manifest entries carry `version`, `tasks`, `fingerprint`, `reviewed_by: maintainer--ortsinn`.
+  - Command: `cargo run -q -p benchmark --bin propose-gold -- --manifest benchmark/manifest.yaml --gold benchmark/gold --mode drafts`, then the same with `--mode reviewed`, then `--mode check`.
+  - Output (`--mode check`, exit 0):
+    ```
+    typescript-reference  typo 50 sha256:7a594c3f…  natural_language 30 sha256:27f4df2d…  explanation 20 sha256:f4c554e0…  concept 50 sha256:f5a09c86…  concept_equivalence 20 sha256:6ca6e190…
+    python-reference      typo 25 sha256:6c4c2154…  natural_language 15 sha256:25f52010…  explanation 10 sha256:f1b03f36…  concept 25 sha256:e302fef9…  concept_equivalence 10 sha256:8dc2b188…
+    rust-reference        typo 25 sha256:e3389ecb…  natural_language 15 sha256:cb1949a8…  explanation 10 sha256:b360e07f…  concept 25 sha256:44576ae1…  concept_equivalence 10 sha256:4e0263da…
+    synthetic-monorepo    typo 25 sha256:1cef0379…  natural_language 15 sha256:904c12ab…  explanation 10 sha256:fe39a9ef…  concept 25 sha256:4986fcdd…  concept_equivalence 10 sha256:6ecbe64e…
+    loaded: typo 125, natural_language 75, explanation 50, concept 125, concept_equivalence 50
+    ```
+  - Review checks: every seed resolves to a documented definition at its pinned checkout (line range, doc block, prose); an every-seed failure names the path and symbol instead of shrinking the set; no two tasks of a set share a query; every explanation rubric carries at least two fact groups with an acceptable-evidence range from doc block through body; `Gold::load` accepts all 20 sets with the published per-power minima, fingerprints, and reviewers.
+  - Test output: `cargo test -p benchmark --lib` → `17 passed`; `./run-tests.sh` → `2 features / 41 scenarios (41 passed) / 238 steps (238 passed)`, exit 0.
+  - Production files: `benchmark/gold/seeds/{typescript-reference,python-reference,rust-reference}.yaml`, `benchmark/gold/<repository>/<metric>.jsonl` (20 files, 425 reviewed tasks), `benchmark/manifest.yaml` (20 gold sets), `benchmark/src/gold/propose.rs`, `benchmark/src/gold/seeds.rs`, `benchmark/src/gold/mod.rs`, `benchmark/src/gen/synthetic_repo.rs`, `benchmark/src/bin/propose-gold.rs`, `benchmark/.gitignore`.
   - COMMIT: _(hash)_
 
 - [ ] Record the real run and commit provenance, cassettes, and report.
