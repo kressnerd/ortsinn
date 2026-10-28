@@ -3492,6 +3492,293 @@ fn candidate_evidence_is_recorded(world: &mut BenchmarkWorld) -> Result<(), Stri
         .map_err(|error| format!("{error:#}"))
 }
 
+/// Published gold minima of a real primary repository, as the scenario states
+/// them. The manifest must declare exactly these values.
+const PRIMARY_GOLD_MINIMUMS: [(&str, u64); 5] = [
+    ("typo", 50),
+    ("natural_language", 30),
+    ("explanation", 20),
+    ("concept", 50),
+    ("concept_equivalence", 20),
+];
+
+/// Published gold minima of a real secondary repository.
+const SECONDARY_GOLD_MINIMUMS: [(&str, u64); 5] = [
+    ("typo", 25),
+    ("natural_language", 15),
+    ("explanation", 10),
+    ("concept", 25),
+    ("concept_equivalence", 10),
+];
+
+#[given("the real gold sets for every reference repository")]
+fn the_real_gold_sets(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let base = Manifest::base_dir(&world.manifest_path);
+    let gold = benchmark::gold::Gold::load(&manifest, &base)
+        .map_err(|error| format!("load the real gold sets: {error:#}"))?;
+    world.real_gold = Some(gold);
+    Ok(())
+}
+
+fn real_gold(world: &BenchmarkWorld) -> Result<&benchmark::gold::Gold, String> {
+    world
+        .real_gold
+        .as_ref()
+        .ok_or_else(|| "the real gold sets were not loaded".to_string())
+}
+
+/// Reviewed tasks the loader assigned to one repository and metric.
+fn reviewed_tasks(gold: &benchmark::gold::Gold, repository: &str, metric: &str) -> u64 {
+    gold.reviewed_tasks(repository, metric)
+}
+
+fn is_sha256_digest(value: &str) -> bool {
+    value.len() == "sha256:".len() + 64
+        && value.starts_with("sha256:")
+        && value["sha256:".len()..]
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+}
+
+#[then("each gold set declares a version, a reviewed task count, a content fingerprint, and a reviewer")]
+fn gold_sets_declare_identity(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let base = Manifest::base_dir(&world.manifest_path);
+    let gold = real_gold(world)?;
+    if manifest.gold.is_empty() {
+        return Err("the real manifest references no gold sets".into());
+    }
+    for set in &manifest.gold {
+        let label = format!("{} {}", set.repository, set.metric);
+        if set.version == 0 {
+            return Err(format!("gold set {label} declares version 0"));
+        }
+        if set.tasks == 0 {
+            return Err(format!("gold set {label} declares no reviewed tasks"));
+        }
+        if !is_sha256_digest(&set.fingerprint) {
+            return Err(format!(
+                "gold set {label} fingerprint is not a sha256 digest: {}",
+                set.fingerprint
+            ));
+        }
+        let reviewer = set.reviewed_by.as_deref().unwrap_or_default().trim();
+        if reviewer.is_empty() {
+            return Err(format!("gold set {label} declares no reviewer"));
+        }
+        let reviewed = reviewed_tasks(gold, &set.repository, &set.metric);
+        if reviewed != set.tasks {
+            return Err(format!(
+                "gold set {label} declares {} tasks but loads {reviewed}",
+                set.tasks
+            ));
+        }
+        let path = base.join(&set.path);
+        let actual = benchmark::manifest::file_fingerprint(&path)
+            .map_err(|error| format!("fingerprint {}: {error:#}", path.display()))?;
+        if actual != set.fingerprint {
+            return Err(format!(
+                "gold set {label} fingerprint is {}, the file hashes to {actual}",
+                set.fingerprint
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("the primary repository's reviewed task counts meet 50 typo, 30 natural-language, 20 explanation, 50 concept, and 20 concept-equivalence")]
+fn primary_gold_counts_meet_minimums(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let minimums = manifest
+        .gold_minimums
+        .as_ref()
+        .ok_or("the real manifest declares no gold minimums")?;
+    for (metric, minimum) in PRIMARY_GOLD_MINIMUMS {
+        if minimums.primary.get(metric).copied() != Some(minimum) {
+            return Err(format!(
+                "the primary {metric} minimum is {:?}, expected {minimum}",
+                minimums.primary.get(metric)
+            ));
+        }
+    }
+    let gold = real_gold(world)?;
+    let primary: Vec<_> = manifest
+        .repositories
+        .iter()
+        .filter(|repository| {
+            matches!(repository.power, Some(benchmark::manifest::Power::Primary))
+        })
+        .collect();
+    if primary.len() != 1 {
+        return Err(format!(
+            "the real manifest has {} primary repositories, expected 1",
+            primary.len()
+        ));
+    }
+    for repository in primary {
+        for (metric, minimum) in PRIMARY_GOLD_MINIMUMS {
+            let reviewed = reviewed_tasks(gold, &repository.id, metric);
+            if reviewed < minimum {
+                return Err(format!(
+                    "primary repository {} has {reviewed} reviewed {metric} tasks, below the {minimum} minimum",
+                    repository.id
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[then("each secondary repository's reviewed task counts meet 25 typo, 15 natural-language, 10 explanation, 25 concept, and 10 concept-equivalence")]
+fn secondary_gold_counts_meet_minimums(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let minimums = manifest
+        .gold_minimums
+        .as_ref()
+        .ok_or("the real manifest declares no gold minimums")?;
+    for (metric, minimum) in SECONDARY_GOLD_MINIMUMS {
+        if minimums.secondary.get(metric).copied() != Some(minimum) {
+            return Err(format!(
+                "the secondary {metric} minimum is {:?}, expected {minimum}",
+                minimums.secondary.get(metric)
+            ));
+        }
+    }
+    let gold = real_gold(world)?;
+    let secondary: Vec<_> = manifest
+        .repositories
+        .iter()
+        .filter(|repository| {
+            matches!(repository.power, Some(benchmark::manifest::Power::Secondary))
+        })
+        .collect();
+    if secondary.is_empty() {
+        return Err("the real manifest has no secondary repositories".into());
+    }
+    for repository in secondary {
+        for (metric, minimum) in SECONDARY_GOLD_MINIMUMS {
+            let reviewed = reviewed_tasks(gold, &repository.id, metric);
+            if reviewed < minimum {
+                return Err(format!(
+                    "secondary repository {} has {reviewed} reviewed {metric} tasks, below the {minimum} minimum",
+                    repository.id
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[then("each secondary repository is labelled lower-power")]
+fn secondary_repositories_are_lower_power(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let mut primary = 0;
+    let mut secondary = 0;
+    for repository in &manifest.repositories {
+        let power = repository
+            .power
+            .ok_or_else(|| format!("repository {} has no power label", repository.id))?;
+        match power {
+            benchmark::manifest::Power::Primary => {
+                if power.disclosure_label() != "primary" {
+                    return Err(format!(
+                        "repository {} is primary but labelled {}",
+                        repository.id,
+                        power.disclosure_label()
+                    ));
+                }
+                primary += 1;
+            }
+            benchmark::manifest::Power::Secondary => {
+                if power.disclosure_label() != "lower_power" {
+                    return Err(format!(
+                        "repository {} is secondary but labelled {}",
+                        repository.id,
+                        power.disclosure_label()
+                    ));
+                }
+                secondary += 1;
+            }
+        }
+    }
+    if primary != 1 {
+        return Err(format!(
+            "the real manifest has {primary} primary repositories, expected 1"
+        ));
+    }
+    if secondary == 0 {
+        return Err("the real manifest has no lower-power repository".into());
+    }
+    Ok(())
+}
+
+fn read_gold_values(path: &Path) -> Result<Vec<serde_json::Value>, String> {
+    let text =
+        fs::read_to_string(path).map_err(|error| format!("read {}: {error}", path.display()))?;
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            serde_json::from_str(line)
+                .map_err(|error| format!("parse {} line: {error}", path.display()))
+        })
+        .collect()
+}
+
+#[then("the synthetic monorepo's gold is generated and reviewed with its generator")]
+fn synthetic_gold_is_generated_and_reviewed(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = load_real_manifest(world)?;
+    let base = Manifest::base_dir(&world.manifest_path);
+    let generated = benchmark::r#gen::synthetic_repo::generate();
+    let proposed = benchmark::r#gen::synthetic_repo::gold_files(&generated);
+    let sets: Vec<_> = manifest
+        .gold
+        .iter()
+        .filter(|set| set.repository == "synthetic-monorepo")
+        .collect();
+    if sets.len() != benchmark::r#gen::synthetic_repo::GOLD_COUNTS.len() {
+        return Err(format!(
+            "the real manifest references {} synthetic gold sets, expected {}",
+            sets.len(),
+            benchmark::r#gen::synthetic_repo::GOLD_COUNTS.len()
+        ));
+    }
+    for set in sets {
+        if set
+            .reviewed_by
+            .as_deref()
+            .unwrap_or_default()
+            .trim()
+            .is_empty()
+        {
+            return Err(format!(
+                "synthetic gold set {} has no reviewer",
+                set.metric
+            ));
+        }
+        let recorded = read_gold_values(&base.join(&set.path))?;
+        let expected = proposed
+            .get(&set.metric)
+            .ok_or_else(|| format!("the generator emits no {} gold", set.metric))?;
+        if &recorded != expected {
+            return Err(format!(
+                "the committed synthetic {} gold differs from the generator",
+                set.metric
+            ));
+        }
+        if recorded.len() as u64 != set.tasks {
+            return Err(format!(
+                "synthetic gold set {} declares {} tasks, the generator emits {}",
+                set.metric,
+                set.tasks,
+                recorded.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[given("the real benchmark manifest and the committed setup lock")]
 fn the_real_manifest_and_setup_lock(world: &mut BenchmarkWorld) -> Result<(), String> {
     load_real_manifest(world)?;

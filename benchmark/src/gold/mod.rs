@@ -212,35 +212,44 @@ impl Gold {
 /// each task the set's repository, so a multi-repository manifest never
 /// confuses two sets' counts.
 fn reviewed_count(gold: &Gold, set: &GoldSet) -> u64 {
-    let count = match set.metric.as_str() {
-        "typo" => gold
-            .typo
-            .iter()
-            .filter(|task| task.repository == set.repository)
-            .count(),
-        "natural_language" => gold
-            .natural_language
-            .iter()
-            .filter(|task| task.repository == set.repository)
-            .count(),
-        "explanation" => gold
-            .explanation
-            .iter()
-            .filter(|task| task.repository == set.repository)
-            .count(),
-        "concept" => gold
-            .concept
-            .iter()
-            .filter(|task| task.repository == set.repository)
-            .count(),
-        "concept_equivalence" => gold
-            .concept_equivalence
-            .iter()
-            .filter(|task| task.repository == set.repository)
-            .count(),
-        _ => 0,
-    };
-    count as u64
+    gold.reviewed_tasks(&set.repository, &set.metric)
+}
+
+impl Gold {
+    /// Reviewed tasks the loader assigned to one repository and metric. The
+    /// manifest declares the same count, and a file that lost or gained a
+    /// task fails the load instead of silently changing the denominator.
+    pub fn reviewed_tasks(&self, repository: &str, metric: &str) -> u64 {
+        let count = match metric {
+            "typo" => self
+                .typo
+                .iter()
+                .filter(|task| task.repository == repository)
+                .count(),
+            "natural_language" => self
+                .natural_language
+                .iter()
+                .filter(|task| task.repository == repository)
+                .count(),
+            "explanation" => self
+                .explanation
+                .iter()
+                .filter(|task| task.repository == repository)
+                .count(),
+            "concept" => self
+                .concept
+                .iter()
+                .filter(|task| task.repository == repository)
+                .count(),
+            "concept_equivalence" => self
+                .concept_equivalence
+                .iter()
+                .filter(|task| task.repository == repository)
+                .count(),
+            _ => 0,
+        };
+        count as u64
+    }
 }
 
 /// The manifest declares each gold set's reviewed task count. A gold file

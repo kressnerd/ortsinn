@@ -52,6 +52,18 @@ pub enum Power {
     Secondary,
 }
 
+impl Power {
+    /// Disclosure label published for a repository of this power. A secondary
+    /// repository is rendered as lower power and is excluded from
+    /// cross-repository aggregate claims.
+    pub fn disclosure_label(self) -> &'static str {
+        match self {
+            Self::Primary => "primary",
+            Self::Secondary => "lower_power",
+        }
+    }
+}
+
 /// Per-power published gold minima, declared by a real manifest.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GoldMinimums {

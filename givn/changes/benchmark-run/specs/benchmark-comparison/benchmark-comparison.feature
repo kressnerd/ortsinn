@@ -94,7 +94,7 @@ Feature: Benchmark comparison
     And  an index outcome that exceeded its deadline is unavailable with the reason "index_timeout" and its elapsed time
     And  each installed candidate's recorded slice replays identically
 
-  @givn.added @wip
+  @givn.added
   Scenario: The real gold sets declare reviewed task counts
     Given  the real gold sets for every reference repository
     Then  each gold set declares a version, a reviewed task count, a content fingerprint, and a reviewer

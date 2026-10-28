@@ -77,6 +77,8 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) floor: Option<(String, String)>,
     /// Below-minimum gold fixture: repository, metric, minimum, reviewed count.
     pub(crate) gold_minimum: Option<(String, String, u64, u64)>,
+    /// Real gold sets loaded from the committed manifest and checkouts.
+    pub(crate) real_gold: Option<benchmark::gold::Gold>,
 }
 
 impl Default for BenchmarkWorld {
@@ -116,6 +118,7 @@ impl Default for BenchmarkWorld {
             draft_task: None,
             floor: None,
             gold_minimum: None,
+            real_gold: None,
         }
     }
 }

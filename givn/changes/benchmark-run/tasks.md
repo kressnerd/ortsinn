@@ -268,14 +268,21 @@
 
 ## S12 — The real gold sets declare reviewed task counts
 
-- [ ] RED — remove `@wip` from S12 only; targeted run; paste non-zero output.
-  - Command: single-scenario command with the exact title.
-  - Output: _(paste)_
-- [ ] GREEN — assert per-power minima, reviewers, versions, fingerprints, synthetic generation/review; list production files; targeted run; paste zero output.
-  - Production files: `benchmark/src/gold/minimums.rs`, `benchmark/src/gold/mod.rs`, `benchmark/src/manifest.rs`, `benchmark/tests/steps/benchmark_comparison.rs`, committed gold.
-  - Output: _(paste)_
-- [ ] REFACTOR — targeted run; paste zero output.
-  - Output: _(paste)_
+- [x] RED — remove `@wip` from S12 only; targeted run; paste non-zero output.
+  - Command: `GIVN_FEATURES="$(realpath givn/changes/benchmark-run/specs/benchmark-comparison/benchmark-comparison.feature)" cargo test --test benchmark_features -- --name "^The real gold sets declare reviewed task counts$"` (S12 step bindings temporarily absent).
+  - Output:
+    ```
+    1 scenario (1 failed)
+    1 step (1 failed)
+    Step doesn't match any function
+    error: test failed, to rerun pass `--test benchmark_features`
+    EXIT=101
+    ```
+- [x] GREEN — assert per-power minima, reviewers, versions, fingerprints, synthetic generation/review; list production files; targeted run; paste zero output.
+  - Production files: `benchmark/tests/steps/benchmark_comparison.rs` (S12 steps; per-power minima constants; synthetic gold compared with the generator), `benchmark/tests/benchmark_features.rs` (loaded real gold in the world), `benchmark/src/manifest.rs` (`Power::disclosure_label`), `benchmark/src/gold/mod.rs` (`Gold::reviewed_tasks`), committed gold files and manifest entries.
+  - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`; `./run-tests.sh` → `2 features / 42 scenarios (42 passed) / 244 steps (244 passed)`, exit 0.
+- [x] REFACTOR — targeted run; paste zero output.
+  - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
 - [ ] COMMIT: _(hash)_
 - Design constraints: primary 170; secondary 85; synthetic generated; lower-power label; `reviewed_by`; typed below-minimum failure.
 
