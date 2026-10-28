@@ -82,15 +82,19 @@
   - COMMIT: 5bc4482
 - Design constraints: `benchmark/src/record/proxy.rs` splits into an embedding client (loopback-only) and an explanation client (external allowed); models come from `benchmark/setup.lock.json` for a real manifest and from the fixture defaults otherwise; `benchmark/src/adapters/ocbi.rs`, `ckb.rs`, `serena.rs` map documented operations only, preserve order, deduplicate without reordering, and never infer a capability; `benchmark/src/provenance.rs` and `benchmark/run-real.sh` write/copy the evidence described in design.md §Real record run and §Provenance record. Do not run the evidence run or fabricate cassettes.
 
-- [ ] Install and record the SCIP indexers and language servers.
-  - Blocked (2026-10-28): `benchmark/setup.sh` installs and probes the candidate binaries but installs no SCIP indexer or language server. `scip-python`, `scip-typescript`, `rust-analyzer`, and `pyright` are absent from `PATH`, so `ckb index` exits 1 and `serena project index` cannot initialize its language server. The setup lock records no `indexers` entry for CKB and no language-server version for Serena, so scenario 3's "probe and toolchain versions per candidate" holds only for the candidate binaries.
-  - Required: install the documented indexers/language servers, extend `benchmark/setup.sh` and `setup.lock.json`, and prove one CKB/Serena index succeeds on the fixture checkout before the evidence run.
-  - Output: _(paste)_.
-  - COMMIT: _(hash)_
+- [x] Install and record the SCIP indexers and language servers.
+  - Command: `source ./env.sh && ./benchmark/setup.sh`.
+  - Installed project-locally under `benchmark/work/tools`: scip-python 0.6.8, scip-typescript 0.5.2, pyright 1.1.414, typescript-language-server 6.0.2, rust-analyzer 2026-10-19, a seeded pip 26.2.2 virtualenv, and nix Python 3.13.16. `env.sh` exposes them on `PATH` and forces `uv` to use the nix Python, because a uv-managed CPython cannot run on NixOS.
+  - Output: setup exits 0 with `setup validation passed: benchmark/manifest.yaml`; `benchmark/setup.lock.json` now records per-candidate `indexers` (CKB: pip, scip-python, scip-typescript, rust-analyzer; Serena: python313, pyright, typescript-language-server).
+  - Index proofs on the fixture checkout: `ckb index --lang py` → `Done! Indexed in 2.0s`, `index.scip` 0.06 MB, `Python: enhanced tier`, exit 0; `serena project index` → `Indexed files per language: python=2`, exit 0.
+  - Real-path smokes with the temporary manifests (outside the repo): CKB wrote 22 result entries and 4 explanation model entries, explanation correctness 0.25, exit 0; Serena wrote 4 labelled regex-proxy entries, exit 0. Record and replay reports matched on `inputs`, `candidates`, `metrics`, `gaps`, `limitations`, `path_decision`, manifest fingerprint, and provenance fingerprint in both smokes.
+  - `./run-tests.sh` → `2 features / 42 scenarios (42 passed) / 244 steps (244 passed)`, exit 0.
+  - Production files: `benchmark/setup.sh`, `benchmark/setup.lock.json`, `benchmark/src/setup.rs` (`LockedCandidate.indexers`), `benchmark/src/runner.rs` (lock indexers merged into the recorded setup), `env.sh`.
+  - COMMIT: 0081f46
 
 - [ ] Record the real run and commit provenance, cassettes, and report.
   - Requires the hybrid endpoints named above and a successful indexer setup; if unavailable, keep blocked and do not fabricate evidence.
-  - Blocked (2026-10-28, updated): `BENCHMARK_EXPLANATION_ENDPOINT` and its key are absent and the loopback embedding endpoint `http://127.0.0.1:11434/v1` refuses connections. The record path now exists (`--embedding-endpoint`/`--explanation-endpoint`, `benchmark/src/adapters/{ocbi,ckb,serena}.rs`, `benchmark/src/adapters/mcp.rs`, `benchmark/src/provenance.rs`, `benchmark/run-real.sh`), but the SCIP indexer task above is still open, so a real CKB/Serena index cannot succeed.
+  - Blocked (2026-10-28, updated): `BENCHMARK_EXPLANATION_ENDPOINT` and its key are absent and the loopback embedding endpoint `http://127.0.0.1:11434/v1` refuses connections. The record path and the SCIP/language-server setup now exist, and the fixture-checkout index proofs pass; the remaining gate is the operator-supplied explanation endpoint plus a loopback embedding server for the real fixed inputs.
   - Command: `./benchmark/run-real.sh` (fetch/setup/record/replay/provenance).
   - Assert the per-family floor and every manifest cell; commit `benchmark/evidence/real-run/provenance.json`, `benchmark/cassettes/results/results.jsonl`, `benchmark/cassettes/model/model.jsonl`, and `benchmark/reports/report.json`/`report.md`; update manifest fingerprints.
   - Output: _(paste provenance summary and report path)_.
