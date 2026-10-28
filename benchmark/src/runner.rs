@@ -708,6 +708,13 @@ fn merge_lock_toolchain(manifest: &mut Manifest, candidate_id: &str, lock: &Setu
             .entry(name.clone())
             .or_insert_with(|| version.clone());
     }
+    for (name, version) in &locked.indexers {
+        candidate
+            .setup
+            .indexers
+            .entry(name.clone())
+            .or_insert_with(|| version.clone());
+    }
 }
 
 fn record_index(

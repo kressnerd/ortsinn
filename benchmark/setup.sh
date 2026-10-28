@@ -84,6 +84,35 @@ UV_TOOL_DIR="$root/benchmark/work/tools/uv" \
   uv tool install --quiet "serena-agent==${serena_version#v}" >/dev/null
 probe_command serena "$root/benchmark/$serena_install --version | grep -q '${serena_version#v}'"
 
+# Documented SCIP indexers and language servers. CKB needs the SCIP indexers
+# for Python, TypeScript, and Rust; Serena needs the Python and TypeScript
+# language servers. They are installed into the project tool tree and exposed
+# through PATH by env.sh, never into the host's global prefix.
+scip_prefix="$root/benchmark/work/tools/scip"
+mkdir -p "$scip_prefix"
+npm install -g --silent --prefix "$scip_prefix" \
+  "@sourcegraph/scip-python@0.6.8" \
+  "@sourcegraph/scip-typescript@0.5.2" \
+  "pyright@1.1.414" \
+  "typescript-language-server@6.0.2" >/dev/null
+# scip-python evaluates the repository through a pip command. The host Python
+# has no pip, so the project owns a seeded virtualenv and env.sh exposes it.
+uv venv --quiet --seed --clear "$root/benchmark/work/tools/pyenv" >/dev/null
+python313_store="$(nix build --no-link --print-out-paths nixpkgs#python313 | tail -1)"
+mkdir -p "$root/benchmark/work/tools/python313/bin"
+ln -sfn "$python313_store/bin/python3.13" "$root/benchmark/work/tools/python313/bin/python3.13"
+rust_analyzer_store="$(nix build --no-link --print-out-paths nixpkgs#rust-analyzer | tail -1)"
+mkdir -p "$root/benchmark/work/tools/rust-analyzer/bin"
+ln -sfn "$rust_analyzer_store/bin/rust-analyzer" "$root/benchmark/work/tools/rust-analyzer/bin/rust-analyzer"
+
+probe_command scip-python "$scip_prefix/bin/scip-python --version"
+probe_command scip-typescript "$scip_prefix/bin/scip-typescript --version"
+probe_command pyright "$scip_prefix/bin/pyright --version"
+probe_command typescript-language-server "$scip_prefix/bin/typescript-language-server --version"
+probe_command rust-analyzer "$root/benchmark/work/tools/rust-analyzer/bin/rust-analyzer --version"
+probe_command pip "$root/benchmark/work/tools/pyenv/bin/pip --version"
+probe_command python313 "$root/benchmark/work/tools/python313/bin/python3.13 --version"
+
 "$check" --manifest "$manifest" --print-json > /tmp/benchmark-manifest.json
 
 python3 - "$manifest" "$lock" <<'PY'
@@ -117,6 +146,20 @@ if llvm_cov:
     lines = [line for line in output(llvm_cov, "--version").splitlines() if "version" in line.lower()]
     toolchains["llvm_cov"] = lines[0] if lines else output(llvm_cov, "--version").splitlines()[0]
 
+indexers = {
+    "pip": output("benchmark/work/tools/pyenv/bin/pip", "--version").split()[1],
+    "python313": version("benchmark/work/tools/python313/bin/python3.13", "--version"),
+    "scip-python": version("benchmark/work/tools/scip/bin/scip-python", "--version"),
+    "scip-typescript": version("benchmark/work/tools/scip/bin/scip-typescript", "--version"),
+    "pyright": version("benchmark/work/tools/scip/bin/pyright", "--version"),
+    "typescript-language-server": version(
+        "benchmark/work/tools/scip/bin/typescript-language-server", "--version"
+    ),
+    "rust-analyzer": version(
+        "benchmark/work/tools/rust-analyzer/bin/rust-analyzer", "--version"
+    ),
+}
+
 candidates = {}
 for candidate in manifest["candidates"]:
     identifier = candidate["id"]
@@ -127,14 +170,23 @@ for candidate in manifest["candidates"]:
         lines = (result.stdout or result.stderr).splitlines()
         detail = lines[0] if lines else "(no output)"
         toolchain = {"node": toolchains["node"], "npm": toolchains["npm"]}
+        candidate_indexers = {}
     elif identifier == "ckb":
         command = f"{install} version"
         detail = output(install, "version").replace("\n", " ")
         toolchain = {"go": toolchains["go"]}
+        candidate_indexers = {
+            name: indexers[name]
+            for name in ("pip", "scip-python", "scip-typescript", "rust-analyzer")
+        }
     elif identifier == "serena":
         command = f"{install} --version"
         detail = output(install, "--version")
         toolchain = {"uv": toolchains["uv"], "python": toolchains["python"]}
+        candidate_indexers = {
+            name: indexers[name]
+            for name in ("python313", "pyright", "typescript-language-server")
+        }
     else:
         raise SystemExit(f"unexpected candidate {identifier}")
     candidates[identifier] = {
@@ -143,6 +195,7 @@ for candidate in manifest["candidates"]:
         "pinned_by": manifest_path,
         "probe": {"status": "ok", "command": command, "detail": detail},
         "toolchain": toolchain,
+        "indexers": candidate_indexers,
     }
 
 repositories = {}

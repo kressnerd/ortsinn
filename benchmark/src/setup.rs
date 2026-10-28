@@ -42,6 +42,10 @@ pub struct LockedCandidate {
     pub pinned_by: String,
     pub probe: Probe,
     pub toolchain: BTreeMap<String, String>,
+    /// Documented indexers or language servers this candidate needs. Empty
+    /// for a candidate that needs none.
+    #[serde(default)]
+    pub indexers: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

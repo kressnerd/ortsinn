@@ -5,6 +5,28 @@
 
 export RUSTUP_TOOLCHAIN="stable-x86_64-unknown-linux-gnu"
 
+# Project-local benchmark indexers and language servers. setup.sh installs
+# them under benchmark/work/tools; the candidate adapters resolve them from
+# PATH. Absent directories are ignored so the harness still builds before the
+# first setup pass.
+ENV_SH_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+for tools_dir in \
+  "$ENV_SH_ROOT/benchmark/work/tools/scip/bin" \
+  "$ENV_SH_ROOT/benchmark/work/tools/pyenv/bin" \
+  "$ENV_SH_ROOT/benchmark/work/tools/python313/bin" \
+  "$ENV_SH_ROOT/benchmark/work/tools/rust-analyzer/bin"; do
+  if [ -d "$tools_dir" ]; then
+    PATH="$tools_dir:$PATH"
+  fi
+done
+export PATH
+
+# Serena launches pyright through `uvx -p 3.13`. A uv-managed CPython is
+# dynamically linked and cannot run on NixOS, so uv must resolve the pinned
+# nix Python 3.13 from PATH instead of downloading its own.
+export UV_PYTHON_PREFERENCE="${UV_PYTHON_PREFERENCE:-only-system}"
+export UV_PYTHON_DOWNLOADS="${UV_PYTHON_DOWNLOADS:-never}"
+
 if [ -z "${LD_LIBRARY_PATH:-}" ] || ! ldconfig -p 2>/dev/null | grep -q 'libz\.so\.1'; then
   if [ -e /usr/lib/x86_64-linux-gnu/libz.so.1 ] || [ -e /usr/lib/libz.so.1 ]; then
     :
