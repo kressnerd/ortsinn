@@ -70,10 +70,11 @@
   - Review checks: every seed resolves to a documented definition at its pinned checkout (line range, doc block, prose); an every-seed failure names the path and symbol instead of shrinking the set; no two tasks of a set share a query; every explanation rubric carries at least two fact groups with an acceptable-evidence range from doc block through body; `Gold::load` accepts all 20 sets with the published per-power minima, fingerprints, and reviewers.
   - Test output: `cargo test -p benchmark --lib` → `17 passed`; `./run-tests.sh` → `2 features / 41 scenarios (41 passed) / 238 steps (238 passed)`, exit 0.
   - Production files: `benchmark/gold/seeds/{typescript-reference,python-reference,rust-reference}.yaml`, `benchmark/gold/<repository>/<metric>.jsonl` (20 files, 425 reviewed tasks), `benchmark/manifest.yaml` (20 gold sets), `benchmark/src/gold/propose.rs`, `benchmark/src/gold/seeds.rs`, `benchmark/src/gold/mod.rs`, `benchmark/src/gen/synthetic_repo.rs`, `benchmark/src/bin/propose-gold.rs`, `benchmark/.gitignore`.
-  - COMMIT: _(hash)_
+  - COMMIT: f6dadc5
 
 - [ ] Record the real run and commit provenance, cassettes, and report.
   - Requires the hybrid endpoints named above; if unavailable, mark blocked and do not fabricate evidence.
+  - Blocked (2026-10-28): `BENCHMARK_EXPLANATION_ENDPOINT` and its key are absent, the loopback embedding endpoint `http://127.0.0.1:11434/v1` refuses connections (no embedding server installed), and the record path this task invokes does not exist yet: the CLI still takes the single `--model-endpoint` flag, `run_record` replays an existing result cassette instead of driving real candidates, and `benchmark/run-real.sh` and `benchmark/src/provenance.rs` are not written. Those land with the S7/S11/S15 work, so this task resumes after them and after the operator supplies both endpoints.
   - Command: `./benchmark/run-real.sh` (fetch/setup/record/replay/provenance).
   - Assert the per-family floor and every manifest cell; commit `benchmark/evidence/real-run/provenance.json`, `benchmark/cassettes/results/results.jsonl`, `benchmark/cassettes/model/model.jsonl`, and `benchmark/reports/report.json`/`report.md`; update manifest fingerprints.
   - Output: _(paste provenance summary and report path)_.
