@@ -70,13 +70,26 @@ pub fn markdown(report: &Report) -> String {
         reproduction.model_cassette_fingerprint
     ));
     out.push_str(&format!(
-        "- Result cassette fingerprint: `{}`\n\n",
+        "- Result cassette fingerprint: `{}`\n",
         reproduction.result_cassette_fingerprint
     ));
+    out.push_str(&format!(
+        "- Targets fingerprint: `{}`\n",
+        reproduction.targets_fingerprint
+    ));
+    if let Some(fingerprint) = &reproduction.provenance_fingerprint {
+        out.push_str(&format!("- Provenance fingerprint: `{fingerprint}`\n"));
+    }
+    out.push('\n');
     out.push_str("## Fixed inputs\n\n");
     for repository in &report.inputs.repositories {
+        let power = repository
+            .power
+            .as_deref()
+            .map(|power| format!(", {power}"))
+            .unwrap_or_default();
         out.push_str(&format!(
-            "- `{}` revision `{}` commit `{}` ({} code lines)\n",
+            "- `{}` revision `{}` commit `{}` ({} code lines{power})\n",
             repository.id,
             repository.revision,
             repository.commit,
@@ -89,6 +102,18 @@ pub fn markdown(report: &Report) -> String {
         out.push_str(&format!(
             "- `{}` v{}: {} tasks, fingerprint `{}`\n",
             set.metric, set.version, set.tasks, set.fingerprint
+        ));
+    }
+    out.push_str("\n### Targets\n\n");
+    for (name, target) in &report.inputs.targets {
+        out.push_str(&format!(
+            "- `{name}`: {} ({:?}) — {}\n",
+            target
+                .value
+                .map(|value| format!("{value:.2}"))
+                .unwrap_or_else(|| "unstated".to_string()),
+            target.status,
+            target.source
         ));
     }
     out.push('\n');

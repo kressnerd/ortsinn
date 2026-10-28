@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::manifest::{CandidateSetup, RunMode, Target, TargetStatus};
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
@@ -60,6 +60,7 @@ impl Report {
                 "result cassette",
                 &self.reproduction.result_cassette_fingerprint,
             ),
+            ("targets", &self.reproduction.targets_fingerprint),
         ] {
             anyhow::ensure!(
                 fingerprint.starts_with("sha256:"),
@@ -267,6 +268,9 @@ pub struct Reproduction {
     pub gold_fingerprints: BTreeMap<String, String>,
     pub model_cassette_fingerprint: String,
     pub result_cassette_fingerprint: String,
+    pub targets_fingerprint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance_fingerprint: Option<String>,
     pub candidate_install_required: bool,
     pub external_model_calls: bool,
 }
@@ -275,6 +279,8 @@ pub struct Reproduction {
 pub struct Inputs {
     pub repositories: Vec<RepositoryReport>,
     pub gold: Vec<GoldSetReport>,
+    #[serde(default)]
+    pub targets: BTreeMap<String, Target>,
 }
 
 /// Identity of one fixed gold set: which metric it scores, its reviewed
@@ -295,6 +301,8 @@ pub struct RepositoryReport {
     pub revision: String,
     pub commit: String,
     pub language: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub power: Option<String>,
     pub loc: LineCountReport,
 }
 

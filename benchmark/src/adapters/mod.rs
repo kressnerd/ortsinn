@@ -3,7 +3,39 @@
 //! The real candidate adapters are delivered by the `benchmark-run` change.
 //! This change proves the contract with recorded normalized results.
 
+pub mod ckb;
+pub mod mcp;
+pub mod ocbi;
+pub mod real;
+pub mod serena;
 pub mod session;
+
+use std::path::Path;
+
+use anyhow::{Result, bail};
+
+use crate::manifest::{Candidate, Manifest};
+use session::CandidateSession;
+
+/// Open the candidate's real session. Fixture adapters never reach this path;
+/// the fixture record/replay contract uses `FakeSession`.
+pub fn open_session(
+    candidate: &Candidate,
+    manifest: &Manifest,
+    base: &Path,
+    embedding_endpoint: Option<&str>,
+) -> Result<Box<dyn CandidateSession>> {
+    let context = real::RealContext::new(candidate, manifest, base, embedding_endpoint);
+    match candidate.adapter.as_str() {
+        "ocbi" => Ok(Box::new(ocbi::OcbiSession::new(context)?)),
+        "ckb" => Ok(Box::new(ckb::CkbSession::new(context))),
+        "serena" => Ok(Box::new(serena::SerenaSession::new(context))),
+        adapter => bail!(
+            "candidate {} declares unsupported real adapter {adapter}",
+            candidate.id
+        ),
+    }
+}
 
 use std::collections::HashSet;
 

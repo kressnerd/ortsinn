@@ -4090,6 +4090,7 @@ fn the_maintainer_runs_the_real_benchmark(world: &mut BenchmarkWorld) -> Result<
             metric: "typo".to_string(),
             task: "typo-1".to_string(),
             query: "helper_10".to_string(),
+            arm: "default".to_string(),
         })
         .map_err(|error| format!("query candidate session: {error}"))?;
     world.adapter_answers = Some(returned.clone());
@@ -4529,7 +4530,7 @@ fn run_record_with_fixture_endpoint(world: &mut BenchmarkWorld) -> Result<(), St
     // Record mode uses the blocking model client, which owns a runtime; run it
     // off the cucumber async runtime, as the CLI subprocess does.
     let outcome = std::thread::spawn(move || {
-        benchmark::runner::run_record(&manifest, &out, &endpoint)
+        benchmark::runner::run_record(&manifest, &out, &endpoint, &endpoint)
     })
     .join()
     .map_err(|_| "the record-mode worker panicked".to_string())?;

@@ -242,21 +242,31 @@ fn last_message_content(request: &Value) -> String {
         .to_string()
 }
 
-/// A recording client bound to a loopback OpenAI-compatible endpoint.
+/// A recording client bound to the hybrid model boundary.
 ///
-/// The constructor rejects a non-loopback endpoint, so record mode cannot
-/// silently send model traffic outside the local recording boundary.
+/// Embeddings must stay on loopback; the explanation endpoint is the one
+/// operator-permitted external call. The explanation model name is recorded in
+/// the request and the setup lock.
 #[derive(Debug)]
 pub struct ModelRecorder {
-    endpoint: String,
+    embedding_endpoint: String,
+    explanation_endpoint: String,
+    explanation_model: String,
     client: reqwest::blocking::Client,
 }
 
 impl ModelRecorder {
-    pub fn new(endpoint: &str) -> Result<Self> {
-        ensure_loopback(endpoint)?;
+    pub fn new(
+        embedding_endpoint: &str,
+        explanation_endpoint: &str,
+        explanation_model: &str,
+    ) -> Result<Self> {
+        ensure_loopback(embedding_endpoint)?;
+        ensure_http_endpoint(explanation_endpoint)?;
         Ok(Self {
-            endpoint: endpoint.trim_end_matches('/').to_string(),
+            embedding_endpoint: embedding_endpoint.trim_end_matches('/').to_string(),
+            explanation_endpoint: explanation_endpoint.trim_end_matches('/').to_string(),
+            explanation_model: explanation_model.to_string(),
             client: reqwest::blocking::Client::new(),
         })
     }
@@ -264,11 +274,22 @@ impl ModelRecorder {
     /// Send one explanation request and normalize the recorded response.
     pub fn explanation(&self, candidate: &str, task: &str, query: &str) -> Result<ModelRecord> {
         let body = json!({
-            "model": "fixture-completion",
-            "messages": [{"role": "user", "content": query}],
+            "model": self.explanation_model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Answer the explanation query using the repository evidence. Return only a JSON object with a string field `text` and an array field `citations`; each citation is an object with a repository-relative `path`, a 1-based `start_line`, and a 1-based `end_line`."
+                },
+                {"role": "user", "content": query}
+            ],
             "temperature": 0,
         });
-        let value = self.post("chat/completions", &body)?;
+        let value = self.post(
+            &self.explanation_endpoint,
+            "chat/completions",
+            &body,
+            std::env::var("BENCHMARK_EXPLANATION_KEY").ok().as_deref(),
+        )?;
         let content = value
             .pointer("/choices/0/message/content")
             .and_then(Value::as_str)
@@ -290,7 +311,7 @@ impl ModelRecorder {
     pub fn embedding(&self, candidate: &str, model: &str) -> Result<ModelRecord> {
         let input = format!("{candidate} fixture embedding");
         let body = json!({"model": model, "input": input});
-        let value = self.post("embeddings", &body)?;
+        let value = self.post(&self.embedding_endpoint, "embeddings", &body, None)?;
         let embedding = value
             .pointer("/data/0/embedding")
             .cloned()
@@ -306,12 +327,19 @@ impl ModelRecorder {
         })
     }
 
-    fn post(&self, path: &str, body: &Value) -> Result<Value> {
-        let url = format!("{}/{path}", self.endpoint);
-        let response = self
-            .client
-            .post(&url)
-            .json(body)
+    fn post(
+        &self,
+        endpoint: &str,
+        path: &str,
+        body: &Value,
+        key: Option<&str>,
+    ) -> Result<Value> {
+        let url = format!("{endpoint}/{path}");
+        let mut request = self.client.post(&url).json(body);
+        if let Some(key) = key {
+            request = request.bearer_auth(key);
+        }
+        let response = request
             .send()
             .with_context(|| format!("record model request to {url}"))?;
         let status = response.status();
@@ -340,6 +368,23 @@ pub fn ensure_loopback(endpoint: &str) -> Result<()> {
     if !loopback {
         bail!("model endpoint {endpoint} is not loopback; record mode is local-only");
     }
+    Ok(())
+}
+
+/// Reject an endpoint that is not an absolute HTTP(S) URL. The explanation
+/// endpoint may be external by operator decision; only embeddings are
+/// restricted to loopback.
+pub fn ensure_http_endpoint(endpoint: &str) -> Result<()> {
+    let url = reqwest::Url::parse(endpoint)
+        .with_context(|| format!("parse model endpoint {endpoint}"))?;
+    anyhow::ensure!(
+        matches!(url.scheme(), "http" | "https"),
+        "model endpoint {endpoint} is not an HTTP(S) URL"
+    );
+    anyhow::ensure!(
+        url.host_str().is_some(),
+        "model endpoint {endpoint} has no host"
+    );
     Ok(())
 }
 

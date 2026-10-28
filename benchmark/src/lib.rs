@@ -9,6 +9,7 @@ pub mod r#gen;
 pub mod gold;
 pub mod manifest;
 pub mod metrics;
+pub mod provenance;
 pub mod record;
 pub mod report;
 pub mod runner;

@@ -66,14 +66,21 @@ pub fn index_unavailable_cell_for(
         return None;
     }
     let deadline = candidate.index_deadline(manifest)?;
-    candidate
+    let index = candidate
         .setup
         .indexes
         .iter()
-        .any(|index| {
-            index.repository == repository && index.seconds > deadline as f64
-        })
-        .then(|| Score::unavailable("index_timeout", tasks))
+        .find(|index| index.repository == repository)?;
+    if index.status == "timeout" || index.seconds > deadline as f64 {
+        return Some(Score::unavailable("index_timeout", tasks));
+    }
+    if !matches!(index.status.as_str(), "ok" | "indexed") {
+        return Some(Score::unavailable(
+            index.reason.as_deref().unwrap_or("index_failed"),
+            tasks,
+        ));
+    }
+    None
 }
 
 /// The no-expansion arm is available only when the candidate started, its

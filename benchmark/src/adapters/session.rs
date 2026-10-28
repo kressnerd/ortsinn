@@ -135,6 +135,8 @@ pub struct QueryRequest {
     pub metric: String,
     pub task: String,
     pub query: String,
+    /// `default`, `no_expansion`, or a separately labelled proxy arm.
+    pub arm: String,
 }
 
 /// One explanation request against the candidate's documented interface.
@@ -196,6 +198,14 @@ pub trait CandidateSession {
     /// The installed setup, including any documented setup deviation.
     fn setup(&self) -> crate::manifest::CandidateSetup {
         crate::manifest::CandidateSetup::default()
+    }
+
+    /// Capabilities the operation list cannot express, such as a separately
+    /// labelled regex proxy arm. These override the operation-derived map.
+    fn extra_capabilities(
+        &self,
+    ) -> BTreeMap<String, crate::manifest::Capability> {
+        BTreeMap::new()
     }
 
     /// Index one fixed repository. A candidate without a working index fails
@@ -348,13 +358,15 @@ pub fn apply_session(
     let probe = session.probe();
     let operations = session.operations();
     let setup = session.setup();
+    let mut capabilities = capabilities_from_operations(&operations);
+    capabilities.extend(session.extra_capabilities());
     let candidate = manifest
         .candidates
         .iter_mut()
         .find(|candidate| candidate.id == candidate_id)
         .with_context(|| format!("manifest does not fix candidate {candidate_id}"))?;
     candidate.setup = setup;
-    candidate.capabilities = capabilities_from_operations(&operations);
+    candidate.capabilities = capabilities;
     candidate.unavailable = probe.err().map(|error| crate::manifest::Unavailable {
         reason: error.reason,
         detail: error.detail,
@@ -469,6 +481,7 @@ mod tests {
                 metric: "typo".to_string(),
                 task: "typo-1".to_string(),
                 query: "helper_1".to_string(),
+                arm: "default".to_string(),
             })
             .expect("fake answer");
         assert_eq!(answers.len(), 1);

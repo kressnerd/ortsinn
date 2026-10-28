@@ -4,13 +4,20 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 
-use crate::gold::Gold;
+use crate::adapters::ExplanationResponse;
+use crate::adapters::open_session;
+use crate::adapters::session::apply_session;
+use crate::gold::{Gold, GoldTask};
 use crate::manifest::{Candidate, CandidateSetup, GoldMinimumsMode, Manifest, RunMode};
 use crate::metrics;
-use crate::record::cassette::{self, ModelCassette, ModelRecord, ResultCassette};
+use crate::provenance;
+use crate::record::cassette::{
+    self, ModelCassette, ModelDependency, ModelRecord, RecordedResult, ResultCassette,
+};
 use crate::record::keys;
 use crate::record::proxy::ModelRecorder;
 use crate::report::model::{
@@ -19,6 +26,7 @@ use crate::report::model::{
     SCHEMA_VERSION,
 };
 use crate::report::render;
+use crate::setup::SetupLock;
 
 /// Process exit code for a run that cannot produce a complete report.
 pub const EXIT_INPUT_ERROR: i32 = 2;
@@ -133,16 +141,24 @@ pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> RunResult<Report> {
 ///
 /// The committed fixture cassettes are never overwritten: `out_dir` is a
 /// temporary location owned by the caller.
-pub fn run_record(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) -> RunResult<Report> {
-    run_record_inner(manifest_path, out_dir, model_endpoint).map_err(RunFailure::from_error)
+pub fn run_record(
+    manifest_path: &Path,
+    out_dir: &Path,
+    embedding_endpoint: &str,
+    explanation_endpoint: &str,
+) -> RunResult<Report> {
+    run_record_inner(
+        manifest_path,
+        out_dir,
+        embedding_endpoint,
+        explanation_endpoint,
+    )
+    .map_err(RunFailure::from_error)
 }
 
 fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
-    let manifest = Manifest::load(manifest_path)?;
-    anyhow::ensure!(
-        manifest.mode == RunMode::Replay,
-        "the fixture manifest must declare replay mode"
-    );
+    let mut manifest = Manifest::load(manifest_path)?;
+    manifest.apply_targets_file(manifest_path)?;
     let base = Manifest::base_dir(manifest_path);
     let gold = Gold::load(&manifest, &base)?;
 
@@ -165,6 +181,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
 
     let cassette = ResultCassette::load(&results_path)?;
     let models = ModelCassette::load(&model_path)?;
+    let provenance_fingerprint = apply_recorded_provenance(&mut manifest, &base, out_dir)?;
     verify_fixed_inputs(&manifest, &cassette)?;
     verify_recorded_model_responses(&gold, &cassette, &models)?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
@@ -181,6 +198,8 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
         command,
         model_fingerprint,
         result_fingerprint,
+        provenance::targets_fingerprint(&manifest, &base)?,
+        provenance_fingerprint,
         false,
         false,
     )?;
@@ -198,14 +217,106 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
     Ok(report)
 }
 
-fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) -> Result<Report> {
+/// A real replay restores the capabilities and index outcomes the record run
+/// measured. The provenance record is the committed source; without it a real
+/// replay would silently re-report every family as undeclared.
+fn apply_recorded_provenance(
+    manifest: &mut Manifest,
+    base: &Path,
+    out_dir: &Path,
+) -> Result<Option<String>> {
+    if manifest
+        .candidates
+        .iter()
+        .all(|candidate| candidate.adapter == "fixture")
+    {
+        return Ok(None);
+    }
+    let local = out_dir.join("provenance.json");
+    let committed = base.join("evidence/real-run/provenance.json");
+    let path = if local.is_file() { local } else { committed };
+    anyhow::ensure!(
+        path.is_file(),
+        "real replay requires the provenance record at {}",
+        path.display()
+    );
+    let provenance = provenance::load(&path)?;
+    for pin in provenance.candidates {
+        let Some(candidate) = manifest.candidate_mut(&pin.id) else {
+            continue;
+        };
+        candidate.unavailable = pin.unavailable.map(|unavailable| {
+            crate::manifest::Unavailable {
+                reason: unavailable.reason,
+                detail: unavailable.detail,
+            }
+        });
+        candidate.capabilities = pin.capabilities;
+        candidate.setup = pin.setup;
+    }
+    Ok(Some(provenance::file_fingerprint(&path)?))
+}
+
+/// Resolve the explanation model recorded at setup. A fixture run has no
+/// setup lock and uses the fixture completion model; a real manifest with a
+/// setup lock must name a configured explanation model.
+fn explanation_model(manifest_path: &Path, manifest: &Manifest) -> Result<String> {
+    let lock_path = Manifest::base_dir(manifest_path).join("setup.lock.json");
+    let real = manifest
+        .candidates
+        .iter()
+        .any(|candidate| candidate.adapter != "fixture");
+    if !real || !lock_path.is_file() {
+        return Ok("fixture-completion".to_string());
+    }
+    let lock = crate::setup::SetupLock::load(&lock_path)?;
+    let explanation = &lock.endpoints.explanation;
+    anyhow::ensure!(
+        explanation.configured,
+        "setup lock explanation endpoint is not configured; supply BENCHMARK_EXPLANATION_ENDPOINT and its model"
+    );
+    explanation
+        .model
+        .clone()
+        .filter(|model| !model.trim().is_empty())
+        .with_context(|| {
+            format!(
+                "setup lock {} does not name the explanation model",
+                lock_path.display()
+            )
+        })
+}
+
+fn run_record_inner(
+    manifest_path: &Path,
+    out_dir: &Path,
+    embedding_endpoint: &str,
+    explanation_endpoint: &str,
+) -> Result<Report> {
     let manifest = Manifest::load(manifest_path)?;
+    if manifest
+        .candidates
+        .iter()
+        .any(|candidate| candidate.adapter != "fixture")
+    {
+        return run_real_record_inner(
+            manifest_path,
+            out_dir,
+            embedding_endpoint,
+            explanation_endpoint,
+        );
+    }
     let base = Manifest::base_dir(manifest_path);
     let gold = Gold::load(&manifest, &base)?;
     let source = ResultCassette::load(&base.join(&manifest.cassettes.results.path))?;
     verify_fixed_inputs(&manifest, &source)?;
 
-    let recorder = ModelRecorder::new(model_endpoint)?;
+    let explanation_model = explanation_model(manifest_path, &manifest)?;
+    let recorder = ModelRecorder::new(
+        embedding_endpoint,
+        explanation_endpoint,
+        &explanation_model,
+    )?;
     let mut models: BTreeMap<String, ModelRecord> = BTreeMap::new();
     for result in source.entries() {
         for dependency in &result.model_requests {
@@ -271,9 +382,10 @@ fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) 
     ensure_publication_floor(&manifest, &metrics)?;
 
     let command = format!(
-        "cargo run -p benchmark -- run --manifest {} --mode record --model-endpoint {} --out {}",
+        "cargo run -p benchmark --bin benchmark -- run --manifest {} --mode record --embedding-endpoint {} --explanation-endpoint {} --out {}",
         manifest_path.display(),
-        model_endpoint,
+        embedding_endpoint,
+        explanation_endpoint,
         out_dir.display()
     );
     let reproduction = reproduction(
@@ -281,6 +393,8 @@ fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) 
         command,
         cassette::fingerprint(&model_path)?,
         cassette::fingerprint(&results_path)?,
+        provenance::targets_fingerprint(&manifest, &base)?,
+        None,
         false,
         true,
     )?;
@@ -289,6 +403,408 @@ fn run_record_inner(manifest_path: &Path, out_dir: &Path, model_endpoint: &str) 
     render::write_reports(&report, out_dir)
         .with_context(|| format!("write report into {}", out_dir.display()))?;
     Ok(report)
+}
+
+fn run_real_record_inner(
+    manifest_path: &Path,
+    out_dir: &Path,
+    embedding_endpoint: &str,
+    explanation_endpoint: &str,
+) -> Result<Report> {
+    let utc_start = provenance::utc_now();
+    let mut manifest = Manifest::load(manifest_path)?;
+    manifest.apply_targets_file(manifest_path)?;
+    let base = Manifest::base_dir(manifest_path);
+    let lock = SetupLock::load(&base.join("setup.lock.json"))?;
+    anyhow::ensure!(
+        lock.endpoints.embedding.configured,
+        "setup lock embedding endpoint is not configured"
+    );
+    anyhow::ensure!(
+        lock.endpoints.explanation.configured,
+        "setup lock explanation endpoint is not configured; supply BENCHMARK_EXPLANATION_ENDPOINT and its model"
+    );
+    let explanation_model = lock
+        .endpoints
+        .explanation
+        .model
+        .clone()
+        .filter(|model| !model.trim().is_empty())
+        .context("setup lock does not name the explanation model")?;
+    let query_budget = lock
+        .endpoints
+        .explanation
+        .query_budget
+        .unwrap_or(80);
+    let gold = Gold::load(&manifest, &base)?;
+    let recorder = ModelRecorder::new(
+        embedding_endpoint,
+        explanation_endpoint,
+        &explanation_model,
+    )?;
+    let mut results: Vec<RecordedResult> = Vec::new();
+    let mut models: BTreeMap<String, ModelRecord> = BTreeMap::new();
+    let mut explanation_queries = 0u64;
+
+    let candidate_ids: Vec<String> = manifest
+        .candidates
+        .iter()
+        .map(|candidate| candidate.id.clone())
+        .collect();
+    for candidate_id in candidate_ids {
+        let candidate = manifest
+            .candidate(&candidate_id)
+            .with_context(|| format!("manifest lost candidate {candidate_id}"))?
+            .clone();
+        let mut session =
+            open_session(&candidate, &manifest, &base, Some(embedding_endpoint))
+                .with_context(|| format!("open adapter for candidate {candidate_id}"))?;
+        apply_session(&mut manifest, &candidate_id, session.as_mut())?;
+        merge_lock_toolchain(&mut manifest, &candidate_id, &lock);
+        let unavailable = manifest
+            .candidate(&candidate_id)
+            .and_then(|candidate| candidate.unavailable.clone());
+        if unavailable.is_some() {
+            continue;
+        }
+
+        let repositories = manifest.repositories.clone();
+        for repository in repositories {
+            let started = Instant::now();
+            let outcome = session.index(&repository.id);
+            let seconds = (started.elapsed().as_secs_f64() * 1000.0).round() / 1000.0;
+            let deadline = real_index_deadline(&manifest, &candidate_id, &repository.id);
+            let (status, reason) = match &outcome {
+                Ok(()) => ("ok", None),
+                Err(error) if error.reason == "index_timeout" => {
+                    ("timeout", Some("index_timeout".to_string()))
+                }
+                Err(error) => ("failed", Some(error.reason.clone())),
+            };
+            record_index(
+                &mut manifest,
+                &candidate_id,
+                crate::manifest::IndexRecord {
+                    repository: repository.id.clone(),
+                    status: status.to_string(),
+                    seconds,
+                    deadline_seconds: deadline,
+                    reason,
+                },
+            );
+            if outcome.is_err() {
+                continue;
+            }
+
+            for (metric, tasks) in query_tasks(&gold, &repository.id) {
+                if !capability_measured(&manifest, &candidate_id, metric) {
+                    continue;
+                }
+                for task in tasks {
+                    push_query_result(
+                        &mut results,
+                        &manifest,
+                        &candidate_id,
+                        &repository,
+                        metric,
+                        task,
+                        "default",
+                        session.query(&crate::adapters::session::QueryRequest {
+                            repository: repository.id.clone(),
+                            metric: metric.to_string(),
+                            task: task.id.clone(),
+                            query: task.query.clone(),
+                            arm: "default".to_string(),
+                        }),
+                    );
+                }
+            }
+
+            if capability_measured(&manifest, &candidate_id, "regex_pattern_search_proxy") {
+                for task in gold
+                    .natural_language
+                    .iter()
+                    .filter(|task| task.repository == repository.id)
+                {
+                    push_query_result(
+                        &mut results,
+                        &manifest,
+                        &candidate_id,
+                        &repository,
+                        "natural_language",
+                        task,
+                        "regex_pattern_search_proxy",
+                        session.query(&crate::adapters::session::QueryRequest {
+                            repository: repository.id.clone(),
+                            metric: "natural_language".to_string(),
+                            task: task.id.clone(),
+                            query: task.query.clone(),
+                            arm: "regex_pattern_search_proxy".to_string(),
+                        }),
+                    );
+                }
+            }
+
+            if capability_measured(&manifest, &candidate_id, "expansion") {
+                for (metric, tasks) in [
+                    ("concept", &gold.concept),
+                    ("concept_equivalence", &gold.concept_equivalence),
+                ] {
+                    for task in tasks
+                        .iter()
+                        .filter(|task| task.repository == repository.id)
+                    {
+                        push_query_result(
+                            &mut results,
+                            &manifest,
+                            &candidate_id,
+                            &repository,
+                            metric,
+                            task,
+                            "no_expansion",
+                            session.query(&crate::adapters::session::QueryRequest {
+                                repository: repository.id.clone(),
+                                metric: metric.to_string(),
+                                task: task.id.clone(),
+                                query: task.query.clone(),
+                                arm: "no_expansion".to_string(),
+                            }),
+                        );
+                    }
+                }
+            }
+
+            if capability_measured(&manifest, &candidate_id, "explanation") {
+                for task in gold
+                    .explanation
+                    .iter()
+                    .filter(|task| task.repository == repository.id)
+                {
+                    anyhow::ensure!(
+                        explanation_queries < query_budget,
+                        "explanation query budget {query_budget} would be exceeded"
+                    );
+                    let record = recorder
+                        .explanation(&candidate_id, &task.id, &task.query)
+                        .with_context(|| {
+                            format!(
+                                "record explanation for candidate {candidate_id} task {}",
+                                task.id
+                            )
+                        })?;
+                    explanation_queries += 1;
+                    let explanation: ExplanationResponse =
+                        serde_json::from_value(record.response.clone()).with_context(|| {
+                            format!(
+                                "parse explanation response for candidate {candidate_id} task {}",
+                                task.id
+                            )
+                        })?;
+                    let dependency = ModelDependency {
+                        key: record.key.clone(),
+                        query: record.query.clone(),
+                    };
+                    models.insert(record.key.clone(), record);
+                    results.push(RecordedResult {
+                        candidate: candidate_id.clone(),
+                        candidate_version: Some(candidate.version.clone()),
+                        candidate_commit: Some(candidate.commit.clone()),
+                        repository: repository.id.clone(),
+                        repository_commit: repository.commit.clone(),
+                        metric: "explanation".to_string(),
+                        task: task.id.clone(),
+                        arm: "default".to_string(),
+                        results: Vec::new(),
+                        explanation: Some(explanation),
+                        error: None,
+                        model_requests: vec![dependency],
+                    });
+                }
+            }
+        }
+
+        if let Some(embedding) = manifest
+            .candidate(&candidate_id)
+            .and_then(|candidate| candidate.setup.embedding.clone())
+        {
+            let model = embedding
+                .model
+                .unwrap_or_else(|| "nomic-embed-text".to_string());
+            let record = recorder
+                .embedding(&candidate_id, &model)
+                .with_context(|| format!("record embedding for candidate {candidate_id}"))?;
+            models.insert(record.key.clone(), record);
+        }
+    }
+
+    let results_path = out_dir.join(&manifest.cassettes.results.path);
+    let model_path = out_dir.join(&manifest.cassettes.model.path);
+    write_jsonl(&results_path, results.iter())?;
+    write_jsonl(&model_path, models.values())?;
+
+    let cassette = ResultCassette::load(&results_path)?;
+    let recorded_models = ModelCassette::load(&model_path)?;
+    verify_fixed_inputs(&manifest, &cassette)?;
+    verify_recorded_model_responses(&gold, &cassette, &recorded_models)?;
+    let metrics = metrics::score(&manifest, &gold, &cassette)?;
+    let gaps = metrics::gaps::compute(&manifest, &metrics);
+    ensure_publication_floor(&manifest, &metrics)?;
+
+    let command = format!(
+        "cargo run -p benchmark --bin benchmark -- run --manifest {} --mode record --embedding-endpoint {} --explanation-endpoint {} --out {}",
+        manifest_path.display(),
+        embedding_endpoint,
+        explanation_endpoint,
+        out_dir.display()
+    );
+    let provenance = provenance::build(
+        &command,
+        &utc_start,
+        &provenance::utc_now(),
+        &manifest,
+        &base,
+        &lock,
+        &model_path,
+        &results_path,
+        explanation_queries,
+    )?;
+    let provenance_digest =
+        provenance::write(&provenance, &out_dir.join("provenance.json"))?;
+    let reproduction = reproduction(
+        &manifest,
+        command.clone(),
+        cassette::fingerprint(&model_path)?,
+        cassette::fingerprint(&results_path)?,
+        provenance::targets_fingerprint(&manifest, &base)?,
+        Some(provenance_digest),
+        true,
+        true,
+    )?;
+    let report = assemble_report(
+        &manifest,
+        metrics,
+        gaps,
+        RunMode::Record,
+        explanation_queries,
+        reproduction,
+    );
+
+    render::write_reports(&report, out_dir)
+        .with_context(|| format!("write report into {}", out_dir.display()))?;
+    Ok(report)
+}
+
+fn merge_lock_toolchain(manifest: &mut Manifest, candidate_id: &str, lock: &SetupLock) {
+    let Some(locked) = lock.candidates.get(candidate_id) else {
+        return;
+    };
+    let Some(candidate) = manifest.candidate_mut(candidate_id) else {
+        return;
+    };
+    for (name, version) in &locked.toolchain {
+        candidate
+            .setup
+            .environment
+            .entry(name.clone())
+            .or_insert_with(|| version.clone());
+    }
+}
+
+fn record_index(
+    manifest: &mut Manifest,
+    candidate_id: &str,
+    record: crate::manifest::IndexRecord,
+) {
+    if let Some(candidate) = manifest.candidate_mut(candidate_id) {
+        candidate
+            .setup
+            .indexes
+            .retain(|index| index.repository != record.repository);
+        candidate.setup.indexes.push(record);
+    }
+}
+
+fn real_index_deadline(
+    manifest: &Manifest,
+    candidate_id: &str,
+    repository_id: &str,
+) -> Option<u64> {
+    let repository = manifest.repository(repository_id)?;
+    if repository.synthetic.is_some() {
+        manifest.index_deadlines.get("synthetic_seconds").copied()
+    } else {
+        manifest.candidate(candidate_id)?.index_deadline(manifest)
+    }
+}
+
+fn capability_measured(manifest: &Manifest, candidate_id: &str, capability: &str) -> bool {
+    manifest
+        .candidate(candidate_id)
+        .and_then(|candidate| candidate.capabilities.get(capability))
+        .map(|capability| {
+            capability.status == crate::manifest::CapabilityStatus::Measured
+        })
+        .unwrap_or(false)
+}
+
+fn query_tasks<'a>(
+    gold: &'a Gold,
+    repository: &str,
+) -> Vec<(&'static str, Vec<&'a GoldTask>)> {
+    [
+        ("typo", &gold.typo),
+        ("natural_language", &gold.natural_language),
+        ("concept", &gold.concept),
+        ("concept_equivalence", &gold.concept_equivalence),
+    ]
+    .into_iter()
+    .map(|(metric, tasks)| {
+        (
+            metric,
+            tasks
+                .iter()
+                .filter(|task| task.repository == repository)
+                .collect(),
+        )
+    })
+    .collect()
+}
+
+fn push_query_result(
+    results: &mut Vec<RecordedResult>,
+    manifest: &Manifest,
+    candidate_id: &str,
+    repository: &crate::manifest::Repository,
+    metric: &str,
+    task: &GoldTask,
+    arm: &str,
+    outcome: Result<Vec<crate::adapters::session::CandidateAnswer>, crate::adapters::session::SessionError>,
+) {
+    let candidate = manifest.candidate(candidate_id);
+    let (locations, error) = match outcome {
+        Ok(answers) => (crate::adapters::session::normalize_answers(&answers), None),
+        Err(error) => (
+            Vec::new(),
+            Some(match error.detail {
+                Some(detail) => format!("{}: {detail}", error.reason),
+                None => error.reason,
+            }),
+        ),
+    };
+    results.push(RecordedResult {
+        candidate: candidate_id.to_string(),
+        candidate_version: candidate.map(|candidate| candidate.version.clone()),
+        candidate_commit: candidate.map(|candidate| candidate.commit.clone()),
+        repository: repository.id.clone(),
+        repository_commit: repository.commit.clone(),
+        metric: metric.to_string(),
+        task: task.id.clone(),
+        arm: arm.to_string(),
+        results: locations,
+        explanation: None,
+        error,
+        model_requests: Vec::new(),
+    });
 }
 
 /// A published report must carry at least one measured candidate cell for
@@ -407,6 +923,8 @@ fn reproduction(
     command: String,
     model_cassette_fingerprint: String,
     result_cassette_fingerprint: String,
+    targets_fingerprint: String,
+    provenance_fingerprint: Option<String>,
     candidate_install_required: bool,
     external_model_calls: bool,
 ) -> Result<Reproduction> {
@@ -421,6 +939,8 @@ fn reproduction(
             .collect(),
         model_cassette_fingerprint,
         result_cassette_fingerprint,
+        targets_fingerprint,
+        provenance_fingerprint,
         candidate_install_required,
         external_model_calls,
     })
@@ -452,6 +972,9 @@ fn assemble_report(
                     revision: repository.revision.clone(),
                     commit: repository.commit.clone(),
                     language: repository.language.clone(),
+                    power: repository
+                        .power
+                        .map(|power| power.disclosure_label().to_string()),
                     loc: LineCountReport {
                         language_code_lines: repository.loc.language_code_lines,
                         total_code_lines: repository.loc.total_code_lines,
@@ -472,6 +995,7 @@ fn assemble_report(
                     fingerprint: set.fingerprint.clone(),
                 })
                 .collect(),
+            targets: manifest.targets.clone(),
         },
         candidates: manifest
             .candidates

@@ -31,9 +31,12 @@ pub enum Command {
         /// Terminal width used for the summary. Defaults to `COLUMNS` or 80.
         #[arg(long)]
         width: Option<usize>,
-        /// Loopback OpenAI-compatible endpoint used in record mode.
+        /// Loopback OpenAI-compatible embedding endpoint used in record mode.
         #[arg(long)]
-        model_endpoint: Option<String>,
+        embedding_endpoint: Option<String>,
+        /// OpenAI-compatible explanation endpoint used in record mode.
+        #[arg(long)]
+        explanation_endpoint: Option<String>,
     },
 }
 
@@ -60,7 +63,8 @@ pub fn run() -> Result<()> {
             mode,
             out,
             width,
-            model_endpoint,
+            embedding_endpoint,
+            explanation_endpoint,
         } => {
             let out = out.unwrap_or_else(|| PathBuf::from("reports/benchmark"));
             let width = width.unwrap_or_else(crate::report::render::terminal_width);
@@ -72,10 +76,18 @@ pub fn run() -> Result<()> {
                     Ok(())
                 }
                 RunMode::Record => {
-                    let endpoint = model_endpoint.ok_or_else(|| {
-                        anyhow::anyhow!("--model-endpoint is required in record mode")
+                    let embedding_endpoint = embedding_endpoint.ok_or_else(|| {
+                        anyhow::anyhow!("--embedding-endpoint is required in record mode")
                     })?;
-                    let report = runner::run_record(&manifest, &out, &endpoint)?;
+                    let explanation_endpoint = explanation_endpoint.ok_or_else(|| {
+                        anyhow::anyhow!("--explanation-endpoint is required in record mode")
+                    })?;
+                    let report = runner::run_record(
+                        &manifest,
+                        &out,
+                        &embedding_endpoint,
+                        &explanation_endpoint,
+                    )?;
                     print!("{}", crate::report::render::terminal_summary(&report, width));
                     println!("Report: {}", out.join("report.json").display());
                     Ok(())

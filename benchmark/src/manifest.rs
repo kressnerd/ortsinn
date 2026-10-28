@@ -483,6 +483,28 @@ impl Manifest {
         self.candidates.iter().find(|candidate| candidate.id == id)
     }
 
+    pub fn candidate_mut(&mut self, id: &str) -> Option<&mut Candidate> {
+        self.candidates
+            .iter_mut()
+            .find(|candidate| candidate.id == id)
+    }
+
+    /// Load the referenced targets file over the inline targets. The file is
+    /// required when `targets_file` is declared, so a report cannot silently
+    /// publish unstated targets.
+    pub fn apply_targets_file(&mut self, manifest_path: &Path) -> Result<()> {
+        let Some(targets_file) = &self.targets_file else {
+            return Ok(());
+        };
+        let targets_path = Self::base_dir(manifest_path).join(targets_file);
+        let targets_text = fs::read_to_string(&targets_path)
+            .with_context(|| format!("read targets {}", targets_path.display()))?;
+        let targets: BTreeMap<String, Target> = serde_yaml_ng::from_str(&targets_text)
+            .with_context(|| format!("parse targets {}", targets_path.display()))?;
+        self.targets.extend(targets);
+        Ok(())
+    }
+
     pub fn gold_set(&self, metric: &str) -> Option<&GoldSet> {
         self.gold.iter().find(|gold| gold.metric == metric)
     }
