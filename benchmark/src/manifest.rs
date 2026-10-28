@@ -493,15 +493,37 @@ impl Manifest {
     /// required when `targets_file` is declared, so a report cannot silently
     /// publish unstated targets.
     pub fn apply_targets_file(&mut self, manifest_path: &Path) -> Result<()> {
-        let Some(targets_file) = &self.targets_file else {
-            return Ok(());
+        self.apply_targets(manifest_path, None)
+    }
+
+    /// Apply the target source with the documented precedence: an explicit
+    /// `--targets` path overrides `targets_file`, which overrides inline
+    /// targets. Supplying more than one source is a usage failure, never a
+    /// silent merge.
+    pub fn apply_targets(
+        &mut self,
+        manifest_path: &Path,
+        explicit: Option<&Path>,
+    ) -> Result<()> {
+        let inline = !self.targets.is_empty();
+        let referenced = self.targets_file.is_some();
+        let supplied = usize::from(explicit.is_some())
+            + usize::from(referenced)
+            + usize::from(inline);
+        anyhow::ensure!(
+            supplied <= 1,
+            "targets sources are mutually exclusive: explicit --targets, targets_file, and inline targets"
+        );
+        let path = match (explicit, &self.targets_file) {
+            (Some(path), _) => path.to_path_buf(),
+            (None, Some(targets_file)) => Self::base_dir(manifest_path).join(targets_file),
+            (None, None) => return Ok(()),
         };
-        let targets_path = Self::base_dir(manifest_path).join(targets_file);
-        let targets_text = fs::read_to_string(&targets_path)
-            .with_context(|| format!("read targets {}", targets_path.display()))?;
+        let targets_text = fs::read_to_string(&path)
+            .with_context(|| format!("read targets {}", path.display()))?;
         let targets: BTreeMap<String, Target> = serde_yaml_ng::from_str(&targets_text)
-            .with_context(|| format!("parse targets {}", targets_path.display()))?;
-        self.targets.extend(targets);
+            .with_context(|| format!("parse targets {}", path.display()))?;
+        self.targets = targets;
         Ok(())
     }
 
@@ -621,6 +643,73 @@ mod tests {
             version: version.to_string(),
             commit: commit.to_string(),
         })
+    }
+
+    /// Targets precedence: an explicit path overrides the manifest source;
+    /// two sources are a usage failure, never a silent merge.
+    #[test]
+    fn explicit_targets_override_is_exclusive() {
+        let dir = std::env::temp_dir().join(format!(
+            "benchmark-targets-{}-{}",
+            std::process::id(),
+            "precedence"
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let explicit = dir.join("explicit.yaml");
+        std::fs::write(
+            &explicit,
+            "typo_recall_at_1: {value: 0.5, status: proposed, source: explicit-file}\n",
+        )
+        .expect("write targets");
+        std::fs::write(
+            dir.join("targets.yaml"),
+            "typo_recall_at_1: {value: 0.7, status: proposed, source: manifest-file}\n",
+        )
+        .expect("write targets");
+        let manifest_path = dir.join("manifest.yaml");
+
+        let mut inline = manifest(Vec::new());
+        inline.targets.insert(
+            "typo_recall_at_1".to_string(),
+            Target {
+                value: Some(0.9),
+                status: TargetStatus::Proposed,
+                source: "inline".to_string(),
+            },
+        );
+        let error = inline
+            .apply_targets(&manifest_path, Some(&explicit))
+            .expect_err("inline plus explicit targets must fail");
+        assert!(format!("{error:#}").contains("mutually exclusive"), "{error:#}");
+
+        let mut referenced = manifest(Vec::new());
+        referenced.targets_file = Some("targets.yaml".to_string());
+        let error = referenced
+            .apply_targets(&manifest_path, Some(&explicit))
+            .expect_err("targets_file plus explicit targets must fail");
+        assert!(format!("{error:#}").contains("mutually exclusive"), "{error:#}");
+
+        let mut explicit_only = manifest(Vec::new());
+        explicit_only
+            .apply_targets(&manifest_path, Some(&explicit))
+            .expect("explicit targets load");
+        assert_eq!(
+            explicit_only.targets["typo_recall_at_1"].source,
+            "explicit-file"
+        );
+
+        let mut referenced_only = manifest(Vec::new());
+        referenced_only.targets_file = Some("targets.yaml".to_string());
+        referenced_only
+            .apply_targets(&manifest_path, None)
+            .expect("referenced targets load");
+        assert_eq!(
+            referenced_only.targets["typo_recall_at_1"].source,
+            "manifest-file"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S5: a setup deviation labels exactly the affected capability and

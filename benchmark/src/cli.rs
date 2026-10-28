@@ -31,6 +31,9 @@ pub enum Command {
         /// Terminal width used for the summary. Defaults to `COLUMNS` or 80.
         #[arg(long)]
         width: Option<usize>,
+        /// Explicit targets file. Overrides the manifest's targets source.
+        #[arg(long)]
+        targets: Option<PathBuf>,
         /// Loopback OpenAI-compatible embedding endpoint used in record mode.
         #[arg(long)]
         embedding_endpoint: Option<String>,
@@ -63,6 +66,7 @@ pub fn run() -> Result<()> {
             mode,
             out,
             width,
+            targets,
             embedding_endpoint,
             explanation_endpoint,
         } => {
@@ -70,7 +74,8 @@ pub fn run() -> Result<()> {
             let width = width.unwrap_or_else(crate::report::render::terminal_width);
             match RunMode::from(mode) {
                 RunMode::Replay => {
-                    let report = runner::run_replay(&manifest, &out)?;
+                    let report =
+                        runner::run_replay_with_targets(&manifest, &out, targets.as_deref())?;
                     print!("{}", crate::report::render::terminal_summary(&report, width));
                     println!("Report: {}", out.join("report.json").display());
                     Ok(())
@@ -82,11 +87,12 @@ pub fn run() -> Result<()> {
                     let explanation_endpoint = explanation_endpoint.ok_or_else(|| {
                         anyhow::anyhow!("--explanation-endpoint is required in record mode")
                     })?;
-                    let report = runner::run_record(
+                    let report = runner::run_record_with_targets(
                         &manifest,
                         &out,
                         &embedding_endpoint,
                         &explanation_endpoint,
+                        targets.as_deref(),
                     )?;
                     print!("{}", crate::report::render::terminal_summary(&report, width));
                     println!("Report: {}", out.join("report.json").display());

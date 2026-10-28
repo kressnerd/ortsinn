@@ -132,7 +132,17 @@ pub type RunResult<T> = std::result::Result<T, RunFailure>;
 ///
 /// A missing recorded response stops the run before any report is written.
 pub fn run_replay(manifest_path: &Path, out_dir: &Path) -> RunResult<Report> {
-    run_replay_inner(manifest_path, out_dir).map_err(RunFailure::from_error)
+    run_replay_with_targets(manifest_path, out_dir, None)
+}
+
+/// Replay with an explicit `--targets` override. The manifest must not also
+/// declare a targets file or inline targets.
+pub fn run_replay_with_targets(
+    manifest_path: &Path,
+    out_dir: &Path,
+    targets: Option<&Path>,
+) -> RunResult<Report> {
+    run_replay_inner(manifest_path, out_dir, targets).map_err(RunFailure::from_error)
 }
 
 /// Run the fixture candidates once against the loopback recording boundary,
@@ -147,18 +157,40 @@ pub fn run_record(
     embedding_endpoint: &str,
     explanation_endpoint: &str,
 ) -> RunResult<Report> {
+    run_record_with_targets(
+        manifest_path,
+        out_dir,
+        embedding_endpoint,
+        explanation_endpoint,
+        None,
+    )
+}
+
+/// Record with an explicit `--targets` override.
+pub fn run_record_with_targets(
+    manifest_path: &Path,
+    out_dir: &Path,
+    embedding_endpoint: &str,
+    explanation_endpoint: &str,
+    targets: Option<&Path>,
+) -> RunResult<Report> {
     run_record_inner(
         manifest_path,
         out_dir,
         embedding_endpoint,
         explanation_endpoint,
+        targets,
     )
     .map_err(RunFailure::from_error)
 }
 
-fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
+fn run_replay_inner(
+    manifest_path: &Path,
+    out_dir: &Path,
+    targets: Option<&Path>,
+) -> Result<Report> {
     let mut manifest = Manifest::load(manifest_path)?;
-    manifest.apply_targets_file(manifest_path)?;
+    manifest.apply_targets(manifest_path, targets)?;
     let base = Manifest::base_dir(manifest_path);
     let gold = Gold::load(&manifest, &base)?;
 
@@ -311,8 +343,10 @@ fn run_record_inner(
     out_dir: &Path,
     embedding_endpoint: &str,
     explanation_endpoint: &str,
+    targets: Option<&Path>,
 ) -> Result<Report> {
-    let manifest = Manifest::load(manifest_path)?;
+    let mut manifest = Manifest::load(manifest_path)?;
+    manifest.apply_targets(manifest_path, targets)?;
     if manifest
         .candidates
         .iter()
@@ -323,6 +357,7 @@ fn run_record_inner(
             out_dir,
             embedding_endpoint,
             explanation_endpoint,
+            targets,
         );
     }
     let base = Manifest::base_dir(manifest_path);
@@ -437,10 +472,11 @@ fn run_real_record_inner(
     out_dir: &Path,
     embedding_endpoint: &str,
     explanation_endpoint: &str,
+    targets: Option<&Path>,
 ) -> Result<Report> {
     let utc_start = provenance::utc_now();
     let mut manifest = Manifest::load(manifest_path)?;
-    manifest.apply_targets_file(manifest_path)?;
+    manifest.apply_targets(manifest_path, targets)?;
     let base = Manifest::base_dir(manifest_path);
     let lock = SetupLock::load(&base.join("setup.lock.json"))?;
     anyhow::ensure!(
