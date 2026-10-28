@@ -22,8 +22,8 @@ use crate::record::keys;
 use crate::record::proxy::ModelRecorder;
 use crate::report::model::{
     CandidateReport, CandidateStatus, CellStatus, Gaps, GoldSetReport, Inputs, LineCountReport,
-    Metrics, PathDecision, PathDecisionStatus, Report, Reproduction, RepositoryReport, RunReport,
-    SCHEMA_VERSION,
+    EndpointReport, Metrics, PathDecision, PathDecisionStatus, Report, Reproduction,
+    RepositoryReport, RunEndpoints, RunReport, SCHEMA_VERSION,
 };
 use crate::report::render;
 use crate::setup::SetupLock;
@@ -181,7 +181,8 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
 
     let cassette = ResultCassette::load(&results_path)?;
     let models = ModelCassette::load(&model_path)?;
-    let provenance_fingerprint = apply_recorded_provenance(&mut manifest, &base, out_dir)?;
+    let (provenance_fingerprint, recorded_endpoints) =
+        apply_recorded_provenance(&mut manifest, &base, out_dir)?;
     verify_fixed_inputs(&manifest, &cassette)?;
     verify_recorded_model_responses(&gold, &cassette, &models)?;
     let metrics = metrics::score(&manifest, &gold, &cassette)?;
@@ -209,6 +210,7 @@ fn run_replay_inner(manifest_path: &Path, out_dir: &Path) -> Result<Report> {
         gaps,
         RunMode::Replay,
         0,
+        recorded_endpoints.unwrap_or_else(RunEndpoints::fixture),
         reproduction,
     );
 
@@ -224,13 +226,13 @@ fn apply_recorded_provenance(
     manifest: &mut Manifest,
     base: &Path,
     out_dir: &Path,
-) -> Result<Option<String>> {
+) -> Result<(Option<String>, Option<RunEndpoints>)> {
     if manifest
         .candidates
         .iter()
         .all(|candidate| candidate.adapter == "fixture")
     {
-        return Ok(None);
+        return Ok((None, None));
     }
     let local = out_dir.join("provenance.json");
     let committed = base.join("evidence/real-run/provenance.json");
@@ -241,6 +243,20 @@ fn apply_recorded_provenance(
         path.display()
     );
     let provenance = provenance::load(&path)?;
+    let endpoints = RunEndpoints {
+        embedding: EndpointReport {
+            locality: provenance.endpoints.embedding.locality.clone(),
+            model: provenance.endpoints.embedding.model.clone(),
+            query_budget: provenance.endpoints.embedding.query_budget,
+            queries_consumed: provenance.endpoints.embedding.queries_consumed,
+        },
+        explanation: EndpointReport {
+            locality: provenance.endpoints.explanation.locality.clone(),
+            model: provenance.endpoints.explanation.model.clone(),
+            query_budget: provenance.endpoints.explanation.query_budget,
+            queries_consumed: provenance.endpoints.explanation.queries_consumed,
+        },
+    };
     for pin in provenance.candidates {
         let Some(candidate) = manifest.candidate_mut(&pin.id) else {
             continue;
@@ -254,7 +270,10 @@ fn apply_recorded_provenance(
         candidate.capabilities = pin.capabilities;
         candidate.setup = pin.setup;
     }
-    Ok(Some(provenance::file_fingerprint(&path)?))
+    Ok((
+        Some(provenance::file_fingerprint(&path)?),
+        Some(endpoints),
+    ))
 }
 
 /// Resolve the explanation model recorded at setup. A fixture run has no
@@ -398,7 +417,15 @@ fn run_record_inner(
         false,
         true,
     )?;
-    let report = assemble_report(&manifest, metrics, gaps, RunMode::Record, 0, reproduction);
+    let report = assemble_report(
+        &manifest,
+        metrics,
+        gaps,
+        RunMode::Record,
+        0,
+        RunEndpoints::fixture(),
+        reproduction,
+    );
 
     render::write_reports(&report, out_dir)
         .with_context(|| format!("write report into {}", out_dir.display()))?;
@@ -686,6 +713,25 @@ fn run_real_record_inner(
         gaps,
         RunMode::Record,
         explanation_queries,
+        RunEndpoints {
+            embedding: EndpointReport {
+                locality: lock.endpoints.embedding.locality.clone(),
+                model: lock
+                    .endpoints
+                    .embedding
+                    .model
+                    .clone()
+                    .unwrap_or_default(),
+                query_budget: None,
+                queries_consumed: None,
+            },
+            explanation: EndpointReport {
+                locality: lock.endpoints.explanation.locality.clone(),
+                model: explanation_model.clone(),
+                query_budget: lock.endpoints.explanation.query_budget,
+                queries_consumed: Some(explanation_queries),
+            },
+        },
         reproduction,
     );
 
@@ -942,7 +988,12 @@ fn reproduction(
         gold_fingerprints: manifest
             .gold
             .iter()
-            .map(|set| (set.metric.clone(), set.fingerprint.clone()))
+            .map(|set| {
+                (
+                    format!("{}/{}", set.repository, set.metric),
+                    set.fingerprint.clone(),
+                )
+            })
             .collect(),
         model_cassette_fingerprint,
         result_cassette_fingerprint,
@@ -959,6 +1010,7 @@ fn assemble_report(
     gaps: Gaps,
     mode: RunMode,
     external_requests: u64,
+    endpoints: RunEndpoints,
     reproduction: Reproduction,
 ) -> Report {
     let limitations = report_limitations(manifest, &metrics);
@@ -968,6 +1020,7 @@ fn assemble_report(
             id: manifest.run_id.clone(),
             mode,
             external_requests,
+            endpoints,
         },
         inputs: Inputs {
             repositories: manifest
@@ -1000,6 +1053,7 @@ fn assemble_report(
                     version: set.version,
                     tasks: set.tasks,
                     fingerprint: set.fingerprint.clone(),
+                    reviewed_by: set.reviewed_by.clone(),
                 })
                 .collect(),
             targets: manifest.targets.clone(),

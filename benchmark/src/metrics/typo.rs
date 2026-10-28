@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 
 use super::common::{
-    candidate_unavailable_cell, capability, combine_scores, hit_at, index_unavailable_cell_for,
-    label_setup_deviations, recorded_locations, target, unmeasured_cell,
+    candidate_unavailable_cell, capability, combine_scores, contributes_to_aggregate, hit_at,
+    index_unavailable_cell_for, label_setup_deviations, recorded_locations, target,
+    unmeasured_cell,
 };
 use crate::gold::{Gold, GoldTask};
 use crate::manifest::Manifest;
@@ -51,6 +52,9 @@ pub fn score(manifest: &Manifest, gold: &Gold, cassette: &ResultCassette) -> Res
             repository.id.clone(),
             combine_scores(&outcome.cells),
         );
+        if !contributes_to_aggregate(repository) {
+            continue;
+        }
         repository_cells.extend(outcome.cells.iter().cloned());
         repository_recall_at_5.extend(outcome.recall_at_5_cells.iter().cloned());
         for (candidate, cell) in outcome.per_candidate {

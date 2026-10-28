@@ -17,7 +17,7 @@ use crate::manifest::{Capability, Manifest, Power};
 use crate::record::cassette;
 use crate::setup::SetupLock;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Provenance {
     pub schema_version: u32,
     pub recording_mode: String,
@@ -33,20 +33,20 @@ pub struct Provenance {
     pub fingerprints: Fingerprints,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Host {
     pub os: String,
     pub kernel: String,
     pub architecture: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Endpoints {
     pub embedding: Endpoint,
     pub explanation: Endpoint,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Endpoint {
     pub locality: String,
     pub model: String,
@@ -56,7 +56,7 @@ pub struct Endpoint {
     pub queries_consumed: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CandidatePin {
     pub id: String,
     pub version: String,
@@ -69,14 +69,14 @@ pub struct CandidatePin {
     pub setup: crate::manifest::CandidateSetup,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnavailablePin {
     pub reason: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepositoryPin {
     pub id: String,
     pub commit: String,
@@ -84,7 +84,7 @@ pub struct RepositoryPin {
     pub power: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexOutcome {
     pub candidate: String,
     pub repository: String,
@@ -96,7 +96,7 @@ pub struct IndexOutcome {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fingerprints {
     pub manifest: String,
     pub targets: String,

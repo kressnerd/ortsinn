@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result};
 
 use super::common::{
-    candidate_unavailable_cell, capability, combine_scores, index_unavailable_cell_for,
-    label_setup_deviations, recorded_locations, target, unmeasured_cell,
+    candidate_unavailable_cell, capability, combine_scores, contributes_to_aggregate,
+    index_unavailable_cell_for, label_setup_deviations, recorded_locations, target,
+    unmeasured_cell,
 };
 use crate::adapters::Citation;
 use crate::gold::{ExplanationTask, Gold};
@@ -50,6 +51,9 @@ pub fn score(
             repository.id.clone(),
             combine_scores(&outcome.cells),
         );
+        if !contributes_to_aggregate(repository) {
+            continue;
+        }
         cells.extend(outcome.cells);
         for (candidate, cell) in outcome.per_candidate {
             per_candidate_parts

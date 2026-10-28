@@ -79,6 +79,14 @@ pub(crate) struct BenchmarkWorld {
     pub(crate) gold_minimum: Option<(String, String, u64, u64)>,
     /// Real gold sets loaded from the committed manifest and checkouts.
     pub(crate) real_gold: Option<benchmark::gold::Gold>,
+    /// Committed real evidence loaded by S7/S8/S11/S15.
+    pub(crate) real_manifest: Option<Manifest>,
+    pub(crate) real_setup_lock: Option<benchmark::setup::SetupLock>,
+    pub(crate) real_provenance: Option<benchmark::provenance::Provenance>,
+    pub(crate) real_report: Option<Report>,
+    pub(crate) real_results: Option<benchmark::record::cassette::ResultCassette>,
+    pub(crate) real_models: Option<benchmark::record::cassette::ModelCassette>,
+    pub(crate) real_replay_report: Option<Report>,
 }
 
 impl Default for BenchmarkWorld {
@@ -119,6 +127,13 @@ impl Default for BenchmarkWorld {
             floor: None,
             gold_minimum: None,
             real_gold: None,
+            real_manifest: None,
+            real_setup_lock: None,
+            real_provenance: None,
+            real_report: None,
+            real_results: None,
+            real_models: None,
+            real_replay_report: None,
         }
     }
 }

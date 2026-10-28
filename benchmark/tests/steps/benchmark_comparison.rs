@@ -2033,15 +2033,21 @@ fn reproduction_fingerprints(world: &mut BenchmarkWorld) -> Result<(), String> {
     let expected_gold: std::collections::BTreeMap<String, String> = manifest
         .gold
         .iter()
-        .map(|set| (set.metric.clone(), set.fingerprint.clone()))
+        .map(|set| {
+            (
+                format!("{}/{}", set.repository, set.metric),
+                set.fingerprint.clone(),
+            )
+        })
         .collect();
     assert_eq!(
         reproduction.gold_fingerprints, expected_gold,
         "gold fingerprints"
     );
     for metric in ["typo", "natural_language", "explanation", "concept"] {
-        if !reproduction.gold_fingerprints.contains_key(metric) {
-            return Err(format!("report has no {metric} gold fingerprint"));
+        let key = format!("fixture-repo/{metric}");
+        if !reproduction.gold_fingerprints.contains_key(&key) {
+            return Err(format!("report has no {key} gold fingerprint"));
         }
     }
     assert_eq!(
@@ -3344,6 +3350,1044 @@ fn real_manifest_path() -> PathBuf {
 
 fn real_setup_lock_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("setup.lock.json")
+}
+
+/// Path to committed evidence, overridable so the assertion logic can be
+/// exercised against a scratch record run without touching the committed
+/// evidence. The committed paths are the default.
+fn evidence_path(variable: &str, default: PathBuf) -> PathBuf {
+    std::env::var_os(variable)
+        .map(PathBuf::from)
+        .unwrap_or(default)
+}
+
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root")
+        .to_path_buf()
+}
+
+fn load_committed_real_evidence(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest_path = evidence_path(
+        "BENCHMARK_REAL_MANIFEST",
+        workspace_root().join("benchmark/manifest.yaml"),
+    );
+    let mut manifest = Manifest::load(&manifest_path).map_err(|error| {
+        format!(
+            "committed real evidence is missing: load manifest {}: {error:#}",
+            manifest_path.display()
+        )
+    })?;
+    manifest
+        .apply_targets_file(&manifest_path)
+        .map_err(|error| format!("load committed targets: {error:#}"))?;
+    let lock_path = evidence_path(
+        "BENCHMARK_REAL_LOCK",
+        workspace_root().join("benchmark/setup.lock.json"),
+    );
+    let lock = benchmark::setup::SetupLock::load(&lock_path)
+        .map_err(|error| format!("load committed setup lock {}: {error:#}", lock_path.display()))?;
+    let provenance_path = evidence_path(
+        "BENCHMARK_REAL_PROVENANCE",
+        workspace_root().join("benchmark/evidence/real-run/provenance.json"),
+    );
+    let provenance = benchmark::provenance::load(&provenance_path).map_err(|error| {
+        format!(
+            "committed real evidence is missing: load provenance {}: {error:#}",
+            provenance_path.display()
+        )
+    })?;
+    let report_path = evidence_path(
+        "BENCHMARK_REAL_REPORT",
+        workspace_root().join("benchmark/reports/report.json"),
+    );
+    let report_text = fs::read_to_string(&report_path).map_err(|error| {
+        format!(
+            "committed real evidence is missing: read report {}: {error}",
+            report_path.display()
+        )
+    })?;
+    let report: Report = serde_json::from_str(&report_text)
+        .map_err(|error| format!("parse committed report {}: {error}", report_path.display()))?;
+    let cassette_base = evidence_path(
+        "BENCHMARK_REAL_CASSETTES",
+        workspace_root().join("benchmark"),
+    );
+    let results_path = cassette_base.join(&manifest.cassettes.results.path);
+    let results = benchmark::record::cassette::ResultCassette::load(&results_path)
+        .map_err(|error| format!("load committed result cassette: {error:#}"))?;
+    let models_path = cassette_base.join(&manifest.cassettes.model.path);
+    let models = ModelCassette::load(&models_path)
+        .map_err(|error| format!("load committed model cassette: {error:#}"))?;
+    world.manifest_path = manifest_path;
+    world.manifest = Some(manifest.clone());
+    world.real_manifest = Some(manifest);
+    world.real_setup_lock = Some(lock);
+    world.real_provenance = Some(provenance);
+    world.real_report = Some(report);
+    world.real_results = Some(results);
+    world.real_models = Some(models);
+    Ok(())
+}
+
+#[given("the committed real benchmark evidence")]
+fn committed_real_benchmark_evidence(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_committed_real_evidence(world)
+}
+
+fn real_report(world: &BenchmarkWorld) -> Result<&Report, String> {
+    world
+        .real_report
+        .as_ref()
+        .ok_or_else(|| "the committed real evidence was not loaded".to_string())
+}
+
+#[then("it states that the run used record mode")]
+fn committed_run_used_record_mode(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    if report.run.mode != benchmark::manifest::RunMode::Record {
+        return Err(format!("report mode is {:?}, expected record", report.run.mode));
+    }
+    if provenance.recording_mode != "record" {
+        return Err(format!(
+            "provenance recording mode is {}, expected record",
+            provenance.recording_mode
+        ));
+    }
+    Ok(())
+}
+
+#[then("it records the model and result cassette fingerprints")]
+fn committed_cassette_fingerprints(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    let manifest = world
+        .real_manifest
+        .as_ref()
+        .ok_or("the committed manifest was not loaded")?;
+    let cassette_base = evidence_path(
+        "BENCHMARK_REAL_CASSETTES",
+        workspace_root().join("benchmark"),
+    );
+    let model_path = cassette_base.join(&manifest.cassettes.model.path);
+    let results_path = cassette_base.join(&manifest.cassettes.results.path);
+    let model_digest = benchmark::record::cassette::fingerprint(&model_path)
+        .map_err(|error| format!("fingerprint model cassette: {error:#}"))?;
+    let result_digest = benchmark::record::cassette::fingerprint(&results_path)
+        .map_err(|error| format!("fingerprint result cassette: {error:#}"))?;
+    for (label, reported, recorded, recomputed) in [
+        (
+            "model",
+            &report.reproduction.model_cassette_fingerprint,
+            &provenance.fingerprints.model_cassette,
+            &model_digest,
+        ),
+        (
+            "result",
+            &report.reproduction.result_cassette_fingerprint,
+            &provenance.fingerprints.result_cassette,
+            &result_digest,
+        ),
+    ] {
+        if !(reported == recorded && recorded == recomputed) {
+            return Err(format!(
+                "{label} cassette fingerprints disagree: report {reported}, provenance {recorded}, file {recomputed}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("every measured cell's model dependency exists in the model cassette")]
+fn committed_model_dependencies_exist(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let results = world
+        .real_results
+        .as_ref()
+        .ok_or("the committed result cassette was not loaded")?;
+    let models = world
+        .real_models
+        .as_ref()
+        .ok_or("the committed model cassette was not loaded")?;
+    for result in results.entries() {
+        if result.error.is_some() {
+            continue;
+        }
+        if result.metric == "explanation" && result.model_requests.is_empty() {
+            return Err(format!(
+                "measured explanation cell {}/{} declares no model dependency",
+                result.candidate, result.task
+            ));
+        }
+        for dependency in &result.model_requests {
+            if models.get(&dependency.key).is_none() {
+                return Err(format!(
+                    "measured cell {}/{} depends on missing model response {}",
+                    result.candidate, result.task, dependency.key
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[then("its provenance record names the exact run command, the UTC start and end, both endpoint localities, both model names, and the explanation-query budget")]
+fn committed_provenance_names_the_run(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    if provenance.command.trim().is_empty() {
+        return Err("provenance has no run command".into());
+    }
+    for (label, time) in [
+        ("start", &provenance.utc_start),
+        ("end", &provenance.utc_end),
+    ] {
+        if !time.contains('T') || !time.ends_with('Z') {
+            return Err(format!("provenance {label} is not a UTC timestamp: {time}"));
+        }
+    }
+    for (label, endpoint) in [
+        ("embedding", &provenance.endpoints.embedding),
+        ("explanation", &provenance.endpoints.explanation),
+    ] {
+        if endpoint.locality.trim().is_empty() {
+            return Err(format!("provenance does not name the {label} locality"));
+        }
+        if endpoint.model.trim().is_empty() {
+            return Err(format!("provenance does not name the {label} model"));
+        }
+    }
+    if provenance.endpoints.explanation.query_budget.is_none() {
+        return Err("provenance does not record the explanation-query budget".into());
+    }
+    if let (Some(consumed), Some(budget)) = (
+        provenance.endpoints.explanation.queries_consumed,
+        provenance.endpoints.explanation.query_budget,
+    ) {
+        if consumed > budget {
+            return Err(format!(
+                "provenance consumed {consumed} explanation queries above the {budget} budget"
+            ));
+        }
+    } else {
+        return Err("provenance does not record the consumed explanation queries".into());
+    }
+    Ok(())
+}
+
+#[given("a recorded real benchmark run")]
+fn a_recorded_real_benchmark_run(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_committed_real_evidence(world)
+}
+
+#[when("the maintainer replays the recorded real run")]
+fn the_maintainer_replays_the_recorded_real_run(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest_path = world.manifest_path.clone();
+    let manifest = world
+        .real_manifest
+        .as_ref()
+        .ok_or("the committed real evidence was not loaded")?
+        .clone();
+    let cassette_base = evidence_path(
+        "BENCHMARK_REAL_CASSETTES",
+        workspace_root().join("benchmark"),
+    );
+    let out = workspace_root()
+        .join("target")
+        .join("benchmark-real-replay");
+    let _ = fs::remove_dir_all(&out);
+    let results_target = out.join(&manifest.cassettes.results.path);
+    let model_target = out.join(&manifest.cassettes.model.path);
+    for (source, target) in [
+        (
+            cassette_base.join(&manifest.cassettes.results.path),
+            results_target,
+        ),
+        (
+            cassette_base.join(&manifest.cassettes.model.path),
+            model_target,
+        ),
+    ] {
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("create replay cassette dir: {error}"))?;
+        }
+        fs::copy(&source, &target).map_err(|error| {
+            format!(
+                "copy cassette {} to {}: {error}",
+                source.display(),
+                target.display()
+            )
+        })?;
+    }
+    let provenance_source = evidence_path(
+        "BENCHMARK_REAL_PROVENANCE",
+        workspace_root().join("benchmark/evidence/real-run/provenance.json"),
+    );
+    fs::copy(&provenance_source, out.join("provenance.json")).map_err(|error| {
+        format!(
+            "copy provenance {} into the replay directory: {error}",
+            provenance_source.display()
+        )
+    })?;
+    let replay = benchmark::runner::run_replay(&manifest_path, &out).map_err(|failure| {
+        format!("real replay failed: {}", failure.message)
+    })?;
+    world.real_replay_report = Some(replay);
+    Ok(())
+}
+
+#[then("the measurements and their order match the recorded real run")]
+fn the_measurements_and_order_match(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let recorded = real_report(world)?;
+    let replay = world
+        .real_replay_report
+        .as_ref()
+        .ok_or("the recorded run was not replayed")?;
+    let recorded_metrics = serde_json::to_value(&recorded.metrics)
+        .map_err(|error| format!("serialize recorded metrics: {error}"))?;
+    let replay_metrics = serde_json::to_value(&replay.metrics)
+        .map_err(|error| format!("serialize replay metrics: {error}"))?;
+    if recorded_metrics != replay_metrics {
+        return Err("replay measurements or their order differ from the recorded run".into());
+    }
+    let recorded_candidates: Vec<&str> = recorded
+        .candidates
+        .iter()
+        .map(|candidate| candidate.id.as_str())
+        .collect();
+    let replay_candidates: Vec<&str> = replay
+        .candidates
+        .iter()
+        .map(|candidate| candidate.id.as_str())
+        .collect();
+    if recorded_candidates != replay_candidates {
+        return Err("replay candidate order differs from the recorded run".into());
+    }
+    Ok(())
+}
+
+#[then("no request leaves the recording boundary")]
+fn no_request_leaves_the_recording_boundary(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let replay = world
+        .real_replay_report
+        .as_ref()
+        .ok_or("the recorded run was not replayed")?;
+    if replay.run.external_requests != 0 {
+        return Err(format!(
+            "replay attempted {} external model request(s)",
+            replay.run.external_requests
+        ));
+    }
+    if replay.reproduction.external_model_calls {
+        return Err("replay report claims external model calls".into());
+    }
+    Ok(())
+}
+
+#[then("no candidate process starts")]
+fn no_candidate_process_starts(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let replay = world
+        .real_replay_report
+        .as_ref()
+        .ok_or("the recorded run was not replayed")?;
+    if replay.reproduction.candidate_install_required {
+        return Err("replay report claims a candidate install is required".into());
+    }
+    // run_replay reads the committed manifest and cassettes only; it never
+    // constructs a candidate adapter or starts a child process.
+    Ok(())
+}
+
+#[then("every installed candidate's measured slice replays identically")]
+fn every_installed_candidate_slice_replays(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let recorded = real_report(world)?;
+    let replay = world
+        .real_replay_report
+        .as_ref()
+        .ok_or("the recorded run was not replayed")?;
+    let recorded_candidates = serde_json::to_value(&recorded.candidates)
+        .map_err(|error| format!("serialize recorded candidates: {error}"))?;
+    let replay_candidates = serde_json::to_value(&replay.candidates)
+        .map_err(|error| format!("serialize replay candidates: {error}"))?;
+    if recorded_candidates != replay_candidates {
+        return Err("candidate setup or status differs between record and replay".into());
+    }
+    for (family, recorded_family, replay_family) in [
+        (
+            "typo",
+            serde_json::to_value(&recorded.metrics.typo.per_candidate),
+            serde_json::to_value(&replay.metrics.typo.per_candidate),
+        ),
+        (
+            "natural-language",
+            serde_json::to_value(&recorded.metrics.natural_language.per_candidate),
+            serde_json::to_value(&replay.metrics.natural_language.per_candidate),
+        ),
+        (
+            "explanation",
+            serde_json::to_value(&recorded.metrics.explanation.per_candidate),
+            serde_json::to_value(&replay.metrics.explanation.per_candidate),
+        ),
+        (
+            "concept",
+            serde_json::to_value(&recorded.metrics.concept.per_candidate),
+            serde_json::to_value(&replay.metrics.concept.per_candidate),
+        ),
+    ] {
+        let recorded_family = recorded_family
+            .map_err(|error| format!("serialize recorded {family} cells: {error}"))?;
+        let replay_family =
+            replay_family.map_err(|error| format!("serialize replay {family} cells: {error}"))?;
+        if recorded_family != replay_family {
+            return Err(format!(
+                "{family} per-candidate cells differ between record and replay"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[given("the real benchmark manifest and the committed result cassette")]
+fn real_manifest_and_committed_result_cassette(world: &mut BenchmarkWorld) -> Result<(), String> {
+    load_committed_real_evidence(world)
+}
+
+const AUDITED_FAMILIES: [&str; 4] = ["typo", "natural_language", "explanation", "concept"];
+
+fn metric_per_candidate<'a>(
+    report: &'a Report,
+    metric: &str,
+) -> Option<&'a BTreeMap<String, benchmark::report::model::Score>> {
+    match metric {
+        "typo" => Some(&report.metrics.typo.per_candidate),
+        "natural_language" => Some(&report.metrics.natural_language.per_candidate),
+        "explanation" => Some(&report.metrics.explanation.per_candidate),
+        "concept" => Some(&report.metrics.concept.per_candidate),
+        _ => None,
+    }
+}
+
+#[then("every candidate, repository, and metric combination in the manifest has a measured, unavailable, or not-applicable cell")]
+fn every_candidate_repository_metric_combination(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = world
+        .real_manifest
+        .as_ref()
+        .ok_or("the committed manifest was not loaded")?;
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    let report = real_report(world)?;
+    let results = world
+        .real_results
+        .as_ref()
+        .ok_or("the committed result cassette was not loaded")?;
+    for candidate in &manifest.candidates {
+        let pin = provenance
+            .candidates
+            .iter()
+            .find(|pin| pin.id == candidate.id)
+            .ok_or_else(|| format!("provenance omits candidate {}", candidate.id))?;
+        let candidate_report = report
+            .candidates
+            .iter()
+            .find(|reported| reported.id == candidate.id)
+            .ok_or_else(|| format!("report omits candidate {}", candidate.id))?;
+        for repository in &manifest.repositories {
+            let index = candidate_report
+                .setup
+                .indexes
+                .iter()
+                .find(|index| index.repository == repository.id);
+            for metric in AUDITED_FAMILIES {
+                let cells = metric_per_candidate(report, metric)
+                    .ok_or_else(|| format!("report has no {metric} cells"))?;
+                if !cells.contains_key(&candidate.id) {
+                    return Err(format!(
+                        "report has no {metric} cell for candidate {}",
+                        candidate.id
+                    ));
+                }
+                let index_blocked = index.is_none_or(|index| {
+                    index.status == "timeout"
+                        || index.seconds
+                            > index.deadline_seconds.unwrap_or(u64::MAX) as f64
+                        || !matches!(index.status.as_str(), "ok" | "indexed")
+                });
+                if pin.unavailable.is_some() || index_blocked {
+                    continue;
+                }
+                let capability_measured = pin
+                    .capabilities
+                    .get(metric)
+                    .map(|capability| {
+                        capability.status == benchmark::manifest::CapabilityStatus::Measured
+                    })
+                    .unwrap_or(false);
+                if !capability_measured {
+                    continue;
+                }
+                let recorded = results.entries().any(|entry| {
+                    entry.candidate == candidate.id
+                        && entry.metric == metric
+                        && entry.repository == repository.id
+                        && entry.arm == "default"
+                });
+                if !recorded {
+                    return Err(format!(
+                        "manifest combination {}/{}/{} has no measured cell or recorded result",
+                        candidate.id, repository.id, metric
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[then("no manifest candidate or repository is omitted")]
+fn no_manifest_candidate_or_repository_omitted(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let manifest = world
+        .real_manifest
+        .as_ref()
+        .ok_or("the committed manifest was not loaded")?;
+    let report = real_report(world)?;
+    let reported_candidates: Vec<&str> = report
+        .candidates
+        .iter()
+        .map(|candidate| candidate.id.as_str())
+        .collect();
+    let manifest_candidates: Vec<&str> = manifest
+        .candidates
+        .iter()
+        .map(|candidate| candidate.id.as_str())
+        .collect();
+    if reported_candidates != manifest_candidates {
+        return Err(format!(
+            "report candidates {reported_candidates:?} differ from the manifest {manifest_candidates:?}"
+        ));
+    }
+    let reported_repositories: Vec<&str> = report
+        .inputs
+        .repositories
+        .iter()
+        .map(|repository| repository.id.as_str())
+        .collect();
+    let manifest_repositories: Vec<&str> = manifest
+        .repositories
+        .iter()
+        .map(|repository| repository.id.as_str())
+        .collect();
+    if reported_repositories != manifest_repositories {
+        return Err(format!(
+            "report repositories {reported_repositories:?} differ from the manifest {manifest_repositories:?}"
+        ));
+    }
+    Ok(())
+}
+
+#[then("every index outcome in the provenance record agrees with the report")]
+fn every_index_outcome_agrees(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    let report = real_report(world)?;
+    assert_index_outcomes_agree(provenance, report)
+}
+
+#[then("an index outcome that exceeded its deadline is unavailable with the reason \"index_timeout\" and its elapsed time")]
+fn timed_out_index_is_unavailable(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    let report = real_report(world)?;
+    for outcome in &provenance.index_outcomes {
+        let timed_out = outcome.status == "timeout"
+            || outcome
+                .deadline_seconds
+                .is_some_and(|deadline| outcome.seconds > deadline as f64);
+        if !timed_out {
+            continue;
+        }
+        if outcome.reason.as_deref() != Some("index_timeout") {
+            return Err(format!(
+                "timed-out index {}/{} has reason {:?}, expected index_timeout",
+                outcome.candidate, outcome.repository, outcome.reason
+            ));
+        }
+        let candidate = report
+            .candidates
+            .iter()
+            .find(|candidate| candidate.id == outcome.candidate)
+            .ok_or_else(|| format!("report omits candidate {}", outcome.candidate))?;
+        let index = candidate
+            .setup
+            .indexes
+            .iter()
+            .find(|index| index.repository == outcome.repository)
+            .ok_or_else(|| {
+                format!(
+                    "report omits index {}/{}",
+                    outcome.candidate, outcome.repository
+                )
+            })?;
+        if index.reason.as_deref() != Some("index_timeout")
+            || index.deadline_seconds != outcome.deadline_seconds
+            || (index.seconds - outcome.seconds).abs() > f64::EPSILON
+        {
+            return Err(format!(
+                "timed-out index {}/{} does not carry its reason, deadline, and elapsed time",
+                outcome.candidate, outcome.repository
+            ));
+        }
+        let candidate_timed_out_everywhere = candidate
+            .setup
+            .indexes
+            .iter()
+            .filter(|index| {
+                index.status == "timeout"
+                    || index
+                        .deadline_seconds
+                        .is_some_and(|deadline| index.seconds > deadline as f64)
+            })
+            .count()
+            == candidate.setup.indexes.len();
+        if candidate_timed_out_everywhere {
+            for metric in AUDITED_FAMILIES {
+                let cell = metric_per_candidate(report, metric)
+                    .and_then(|cells| cells.get(&outcome.candidate))
+                    .ok_or_else(|| {
+                        format!(
+                            "report has no {metric} cell for timed-out candidate {}",
+                            outcome.candidate
+                        )
+                    })?;
+                if cell.reason.as_deref() != Some("index_timeout") {
+                    return Err(format!(
+                        "timed-out candidate {} {metric} cell is not unavailable with index_timeout",
+                        outcome.candidate
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[then("each installed candidate's recorded slice replays identically")]
+fn each_installed_candidate_slice_replays(world: &mut BenchmarkWorld) -> Result<(), String> {
+    every_installed_candidate_slice_replays(world)
+}
+
+#[when("the maintainer reads the real report")]
+fn the_maintainer_reads_the_real_report(world: &mut BenchmarkWorld) -> Result<(), String> {
+    real_report(world).map(|_| ())
+}
+
+fn measured(value: Option<f64>, label: &str) -> Result<f64, String> {
+    value.ok_or_else(|| format!("{label} has no measured value"))
+}
+
+#[then("it contains the typo, natural-language, explanation, and concept-recall measurements and their measured gaps")]
+fn real_report_contains_measurements_and_gaps(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    for (label, score, gap_key) in [
+        ("typo", &report.metrics.typo.aggregate, "typo_recall_at_1"),
+        (
+            "natural-language",
+            &report.metrics.natural_language.aggregate,
+            "natural_language_recall_at_5",
+        ),
+        (
+            "explanation",
+            &report.metrics.explanation.aggregate,
+            "explanation_correctness",
+        ),
+        (
+            "concept",
+            &report.metrics.concept.aggregate,
+            "concept_recall_at_5",
+        ),
+    ] {
+        measured(score.value, &format!("{label} aggregate"))?;
+        let gap = report
+            .gaps
+            .to_best
+            .get(gap_key)
+            .ok_or_else(|| format!("report has no {gap_key} best gap"))?;
+        measured(gap.value, &format!("{gap_key} best gap"))?;
+    }
+    Ok(())
+}
+
+#[then("it contains the concept no-expansion arm where applicable")]
+fn real_report_contains_no_expansion_arm(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    let expansion_measured = provenance.candidates.iter().any(|pin| {
+        pin.capabilities
+            .get("expansion")
+            .map(|capability| {
+                capability.status == benchmark::manifest::CapabilityStatus::Measured
+            })
+            .unwrap_or(false)
+    });
+    let arm = &report.metrics.concept.arms.no_expansion.score;
+    if expansion_measured {
+        measured(arm.value, "concept no-expansion arm")?;
+    } else if arm.status != benchmark::report::model::CellStatus::NotApplicable {
+        return Err(format!(
+            "concept no-expansion arm is {:?} although no candidate exposes an expansion switch",
+            arm.status
+        ));
+    }
+    Ok(())
+}
+
+#[then("it names the committed targets with their labels and sources, the targets fingerprint, and the provenance fingerprint")]
+fn real_report_names_targets_and_fingerprints(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    if report.inputs.targets.is_empty() {
+        return Err("report names no committed targets".into());
+    }
+    for (name, target) in &report.inputs.targets {
+        if target.source.trim().is_empty() {
+            return Err(format!("target {name} has no source"));
+        }
+    }
+    if report.reproduction.targets_fingerprint != provenance.fingerprints.targets {
+        return Err("report targets fingerprint disagrees with provenance".into());
+    }
+    let provenance_fingerprint = report
+        .reproduction
+        .provenance_fingerprint
+        .as_deref()
+        .ok_or("report has no provenance fingerprint")?;
+    if !provenance_fingerprint.starts_with("sha256:") {
+        return Err(format!(
+            "report provenance fingerprint is not a sha256 value: {provenance_fingerprint}"
+        ));
+    }
+    let provenance_path = evidence_path(
+        "BENCHMARK_REAL_PROVENANCE",
+        workspace_root().join("benchmark/evidence/real-run/provenance.json"),
+    );
+    let digest = benchmark::provenance::file_fingerprint(&provenance_path)
+        .map_err(|error| format!("fingerprint committed provenance: {error:#}"))?;
+    if provenance_fingerprint != digest {
+        return Err(format!(
+            "report provenance fingerprint {provenance_fingerprint} does not match the committed record {digest}"
+        ));
+    }
+    Ok(())
+}
+
+#[then("it names both endpoint localities, both model names, and the explanation-query budget")]
+fn real_report_names_endpoints(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?;
+    for (label, endpoint, recorded) in [
+        (
+            "embedding",
+            &report.run.endpoints.embedding,
+            &provenance.endpoints.embedding,
+        ),
+        (
+            "explanation",
+            &report.run.endpoints.explanation,
+            &provenance.endpoints.explanation,
+        ),
+    ] {
+        if endpoint.locality.trim().is_empty() || endpoint.model.trim().is_empty() {
+            return Err(format!("report does not name the {label} locality and model"));
+        }
+        if endpoint.locality != recorded.locality || endpoint.model != recorded.model {
+            return Err(format!(
+                "report {label} endpoint disagrees with provenance"
+            ));
+        }
+    }
+    if report.run.endpoints.explanation.query_budget.is_none() {
+        return Err("report does not name the explanation-query budget".into());
+    }
+    if report.run.endpoints.explanation.queries_consumed
+        != provenance.endpoints.explanation.queries_consumed
+    {
+        return Err("report explanation-query consumption disagrees with provenance".into());
+    }
+    Ok(())
+}
+
+#[then("it labels each secondary repository lower-power and excludes it from cross-repository aggregate claims")]
+fn real_report_labels_lower_power(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    let manifest = world
+        .real_manifest
+        .as_ref()
+        .ok_or("the committed manifest was not loaded")?;
+    let secondary: Vec<&str> = manifest
+        .repositories
+        .iter()
+        .filter(|repository| {
+            repository.power == Some(benchmark::manifest::Power::Secondary)
+        })
+        .map(|repository| repository.id.as_str())
+        .collect();
+    if secondary.is_empty() {
+        return Ok(());
+    }
+    let primary: Vec<&str> = manifest
+        .repositories
+        .iter()
+        .filter(|repository| {
+            repository.power != Some(benchmark::manifest::Power::Secondary)
+        })
+        .map(|repository| repository.id.as_str())
+        .collect();
+    for id in secondary {
+        let repository = report
+            .inputs
+            .repositories
+            .iter()
+            .find(|repository| repository.id == id)
+            .ok_or_else(|| format!("report omits secondary repository {id}"))?;
+        if repository.power.as_deref() != Some("lower_power") {
+            return Err(format!(
+                "secondary repository {id} is labelled {:?}, expected lower_power",
+                repository.power
+            ));
+        }
+    }
+    for (family, aggregate, per_repository) in [
+        (
+            "typo",
+            &report.metrics.typo.aggregate,
+            &report.metrics.typo.per_repository,
+        ),
+        (
+            "concept",
+            &report.metrics.concept.aggregate,
+            &report.metrics.concept.per_repository,
+        ),
+    ] {
+        let primary_denominator: u64 = primary
+            .iter()
+            .filter_map(|id| per_repository.get(*id))
+            .map(|cell| cell.denominator)
+            .sum();
+        if aggregate.denominator != primary_denominator {
+            return Err(format!(
+                "{family} aggregate denominator {} includes secondary repositories; primary-only is {primary_denominator}",
+                aggregate.denominator
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[then("it names every candidate, repository, gold set, and cassette fingerprint")]
+fn real_report_names_identities(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    let manifest = world
+        .real_manifest
+        .as_ref()
+        .ok_or("the committed manifest was not loaded")?;
+    for candidate in &manifest.candidates {
+        if !report.candidates.iter().any(|reported| reported.id == candidate.id) {
+            return Err(format!("report omits candidate {}", candidate.id));
+        }
+    }
+    for repository in &manifest.repositories {
+        if !report
+            .inputs
+            .repositories
+            .iter()
+            .any(|reported| reported.id == repository.id)
+        {
+            return Err(format!("report omits repository {}", repository.id));
+        }
+    }
+    for set in &manifest.gold {
+        let key = format!("{}/{}", set.repository, set.metric);
+        if !report
+            .inputs
+            .gold
+            .iter()
+            .any(|reported| reported.repository == set.repository && reported.metric == set.metric)
+        {
+            return Err(format!("report omits gold set {key}"));
+        }
+        if !report.reproduction.gold_fingerprints.contains_key(&key) {
+            return Err(format!("report omits the {key} gold fingerprint"));
+        }
+    }
+    for (label, fingerprint) in [
+        (
+            "model cassette",
+            &report.reproduction.model_cassette_fingerprint,
+        ),
+        (
+            "result cassette",
+            &report.reproduction.result_cassette_fingerprint,
+        ),
+    ] {
+        if !fingerprint.starts_with("sha256:") {
+            return Err(format!("{label} fingerprint is not a sha256 value"));
+        }
+    }
+    Ok(())
+}
+
+#[then("it records the product-path decision as deferred to the Ortsinn maintainer and the post-report decision record")]
+fn real_report_defers_the_path_decision(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let report = real_report(world)?;
+    let decision = &report.path_decision;
+    if decision.status != benchmark::report::model::PathDecisionStatus::Deferred {
+        return Err(format!(
+            "path decision is {:?}, expected deferred",
+            decision.status
+        ));
+    }
+    for (label, value) in [
+        ("owner", &decision.owner),
+        ("artifact", &decision.artifact),
+        ("rule", &decision.rule),
+    ] {
+        if value.trim().is_empty() {
+            return Err(format!("deferred path decision has no {label}"));
+        }
+    }
+    if !decision.owner.contains("maintainer") {
+        return Err(format!(
+            "path decision owner {} does not name the maintainer",
+            decision.owner
+        ));
+    }
+    Ok(())
+}
+
+#[then("its provenance pins, cassette digests, and index outcomes agree with the manifest, setup lock, cassettes, and report")]
+fn committed_provenance_agrees(world: &mut BenchmarkWorld) -> Result<(), String> {
+    let provenance = world
+        .real_provenance
+        .as_ref()
+        .ok_or("the committed provenance was not loaded")?
+        .clone();
+    let manifest = world
+        .real_manifest
+        .as_ref()
+        .ok_or("the committed manifest was not loaded")?
+        .clone();
+    let lock = world
+        .real_setup_lock
+        .as_ref()
+        .ok_or("the committed setup lock was not loaded")?
+        .clone();
+    let report = world
+        .real_report
+        .as_ref()
+        .ok_or("the committed report was not loaded")?
+        .clone();
+
+    if provenance.candidates.len() != manifest.candidates.len() {
+        return Err("provenance does not name every manifest candidate".into());
+    }
+    for candidate in &manifest.candidates {
+        let pin = provenance
+            .candidates
+            .iter()
+            .find(|pin| pin.id == candidate.id)
+            .ok_or_else(|| format!("provenance omits candidate {}", candidate.id))?;
+        if pin.version != candidate.version || pin.commit != candidate.commit {
+            return Err(format!(
+                "provenance pin for {} is {} {}, manifest pins {} {}",
+                candidate.id, pin.version, pin.commit, candidate.version, candidate.commit
+            ));
+        }
+    }
+    if provenance.repositories.len() != manifest.repositories.len() {
+        return Err("provenance does not name every manifest repository".into());
+    }
+    for repository in &manifest.repositories {
+        let pin = provenance
+            .repositories
+            .iter()
+            .find(|pin| pin.id == repository.id)
+            .ok_or_else(|| format!("provenance omits repository {}", repository.id))?;
+        if pin.commit != repository.commit {
+            return Err(format!(
+                "provenance commit for {} is {}, manifest pins {}",
+                repository.id, pin.commit, repository.commit
+            ));
+        }
+    }
+    if provenance.toolchains != lock.toolchains {
+        return Err("provenance toolchains disagree with the setup lock".into());
+    }
+    if provenance.fingerprints.manifest != report.reproduction.manifest_fingerprint {
+        return Err("provenance manifest fingerprint disagrees with the report".into());
+    }
+    if provenance.fingerprints.targets != report.reproduction.targets_fingerprint {
+        return Err("provenance targets fingerprint disagrees with the report".into());
+    }
+    assert_index_outcomes_agree(&provenance, &report)
+}
+
+fn assert_index_outcomes_agree(
+    provenance: &benchmark::provenance::Provenance,
+    report: &Report,
+) -> Result<(), String> {
+    for outcome in &provenance.index_outcomes {
+        let candidate = report
+            .candidates
+            .iter()
+            .find(|candidate| candidate.id == outcome.candidate)
+            .ok_or_else(|| format!("report omits candidate {}", outcome.candidate))?;
+        let index = candidate
+            .setup
+            .indexes
+            .iter()
+            .find(|index| index.repository == outcome.repository)
+            .ok_or_else(|| {
+                format!(
+                    "report omits index {}/{}",
+                    outcome.candidate, outcome.repository
+                )
+            })?;
+        if index.status != outcome.status
+            || index.deadline_seconds != outcome.deadline_seconds
+            || index.reason != outcome.reason
+            || (index.seconds - outcome.seconds).abs() > f64::EPSILON
+        {
+            return Err(format!(
+                "index outcome {}/{} disagrees between provenance and report",
+                outcome.candidate, outcome.repository
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn load_real_manifest(world: &mut BenchmarkWorld) -> Result<Manifest, String> {

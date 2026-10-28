@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 
 use super::common::{
-    candidate_unavailable_cell, capability, combine_scores, first_rank, hit_at,
-    index_unavailable_cell_for, label_setup_deviations, recorded_locations, target,
+    candidate_unavailable_cell, capability, combine_scores, contributes_to_aggregate, first_rank,
+    hit_at, index_unavailable_cell_for, label_setup_deviations, recorded_locations, target,
     unmeasured_cell,
 };
 use crate::gold::{Gold, GoldTask};
@@ -54,6 +54,9 @@ pub fn score(
             repository.id.clone(),
             combine_scores(&outcome.cells),
         );
+        if !contributes_to_aggregate(repository) {
+            continue;
+        }
         repository_cells.extend(outcome.cells);
         for (candidate, cell) in outcome.per_candidate {
             per_candidate_parts
@@ -194,7 +197,7 @@ fn proxy_arms(
             .iter()
             .filter(|task| task.repository == repository.id)
             .collect();
-        if tasks.is_empty() {
+        if tasks.is_empty() || !contributes_to_aggregate(repository) {
             continue;
         }
         let task_count = tasks.len() as u64;

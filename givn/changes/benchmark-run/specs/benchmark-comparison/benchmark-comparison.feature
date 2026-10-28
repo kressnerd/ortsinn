@@ -60,8 +60,8 @@ Feature: Benchmark comparison
   @givn.added @wip
   Scenario: A real replay reproduces the report without an external call
     Given  a recorded real benchmark run
-    When  the maintainer replays the recorded run
-    Then  the measurements and their order match the recorded run
+    When  the maintainer replays the recorded real run
+    Then  the measurements and their order match the recorded real run
     And  no request leaves the recording boundary
     And  no candidate process starts
     And  every installed candidate's measured slice replays identically

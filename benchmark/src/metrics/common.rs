@@ -20,6 +20,14 @@ pub fn target(manifest: &Manifest, key: &str) -> Target {
         })
 }
 
+/// Cross-repository aggregates combine primary repositories only. A
+/// secondary (lower-power) repository publishes its per-repository cells but
+/// is excluded from every aggregate claim. A fixture manifest has no power
+/// label and contributes.
+pub fn contributes_to_aggregate(repository: &crate::manifest::Repository) -> bool {
+    repository.power != Some(crate::manifest::Power::Secondary)
+}
+
 pub fn capability<'a>(candidate: &'a Candidate, name: &str) -> Option<&'a Capability> {
     candidate.capabilities.get(name)
 }

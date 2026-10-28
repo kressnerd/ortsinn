@@ -29,9 +29,26 @@ pub fn markdown(report: &Report) -> String {
     out.push_str(&format!("- Run: `{}`\n", report.run.id));
     out.push_str(&format!("- Mode: `{:?}`\n", report.run.mode));
     out.push_str(&format!(
-        "- External model requests: {}\n\n",
+        "- External model requests: {}\n",
         report.run.external_requests
     ));
+    for (label, endpoint) in [
+        ("Embedding", &report.run.endpoints.embedding),
+        ("Explanation", &report.run.endpoints.explanation),
+    ] {
+        out.push_str(&format!(
+            "- {label} endpoint: locality `{}`, model `{}`",
+            endpoint.locality, endpoint.model
+        ));
+        if let Some(budget) = endpoint.query_budget {
+            out.push_str(&format!(", budget {budget}"));
+        }
+        if let Some(consumed) = endpoint.queries_consumed {
+            out.push_str(&format!(", consumed {consumed}"));
+        }
+        out.push('\n');
+    }
+    out.push('\n');
     out.push_str("## Reproduction\n\n");
     let reproduction = &report.reproduction;
     out.push_str(&format!(
@@ -100,8 +117,16 @@ pub fn markdown(report: &Report) -> String {
     out.push_str("### Gold sets\n\n");
     for set in &report.inputs.gold {
         out.push_str(&format!(
-            "- `{}` v{}: {} tasks, fingerprint `{}`\n",
-            set.metric, set.version, set.tasks, set.fingerprint
+            "- `{}/{}` v{}: {} tasks, fingerprint `{}`{}\n",
+            set.repository,
+            set.metric,
+            set.version,
+            set.tasks,
+            set.fingerprint,
+            set.reviewed_by
+                .as_ref()
+                .map(|reviewer| format!(", reviewed by `{reviewer}`"))
+                .unwrap_or_default()
         ));
     }
     out.push_str("\n### Targets\n\n");

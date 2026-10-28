@@ -44,11 +44,34 @@ cargo run -q -p benchmark --bin benchmark -- run \
   --explanation-endpoint "$BENCHMARK_EXPLANATION_ENDPOINT" \
   --out "$out"
 
+cp "$out/report.json" "$out/report.record.json"
+cp "$out/report.md" "$out/report.record.md"
+
 echo "run-real: replaying the recorded run without an external call"
 cargo run -q -p benchmark --bin benchmark -- run \
   --manifest "$manifest" \
   --mode replay \
   --out "$out"
+
+cp "$out/report.json" "$out/report.replay.json"
+cp "$out/report.md" "$out/report.replay.md"
+
+# The replay must reproduce the measurement payload. Run metadata and the
+# reproduction command legitimately differ.
+jq -S 'del(.run.mode, .reproduction.command, .reproduction.candidate_install_required, .reproduction.external_model_calls)' \
+  "$out/report.record.json" > "$out/report.record.comparable.json"
+jq -S 'del(.run.mode, .reproduction.command, .reproduction.candidate_install_required, .reproduction.external_model_calls)' \
+  "$out/report.replay.json" > "$out/report.replay.comparable.json"
+if ! cmp -s "$out/report.record.comparable.json" "$out/report.replay.comparable.json"; then
+  echo "run-real: replay does not reproduce the recorded measurement payload" >&2
+  diff -u "$out/report.record.comparable.json" "$out/report.replay.comparable.json" >&2 || true
+  exit 1
+fi
+rm -f "$out/report.record.comparable.json" "$out/report.replay.comparable.json"
+
+# The committed report is the record run; S7 and S15 read record mode.
+mv "$out/report.record.json" "$out/report.json"
+mv "$out/report.record.md" "$out/report.md"
 
 for evidence in \
   "$out/provenance.json" \

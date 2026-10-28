@@ -67,18 +67,20 @@ impl Report {
                 "{label} fingerprint is not a sha256 value: {fingerprint}"
             );
         }
-        for metric in [
-            "typo",
-            "natural_language",
-            "explanation",
-            "concept",
-            "concept_equivalence",
-        ] {
+        for set in &self.inputs.gold {
+            let key = format!("{}/{}", set.repository, set.metric);
             anyhow::ensure!(
-                self.reproduction.gold_fingerprints.contains_key(metric),
-                "report has no {metric} gold fingerprint"
+                self.reproduction
+                    .gold_fingerprints
+                    .get(&key)
+                    .is_some_and(|fingerprint| fingerprint == &set.fingerprint),
+                "report has no matching {key} gold fingerprint"
             );
         }
+        anyhow::ensure!(
+            self.reproduction.gold_fingerprints.len() == self.inputs.gold.len(),
+            "report gold fingerprints do not match the published gold sets"
+        );
         for (label, score) in self.scores() {
             validate_score(&label, score)?;
         }
@@ -254,6 +256,44 @@ pub struct RunReport {
     /// External model requests attempted during the run. Replay reads only
     /// local cassettes, so this is zero.
     pub external_requests: u64,
+    pub endpoints: RunEndpoints,
+}
+
+/// Both legs of the hybrid model boundary, published verbatim.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunEndpoints {
+    pub embedding: EndpointReport,
+    pub explanation: EndpointReport,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EndpointReport {
+    pub locality: String,
+    pub model: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_budget: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queries_consumed: Option<u64>,
+}
+
+impl RunEndpoints {
+    /// Fixture runs use the loopback fake boundary and the fixture models.
+    pub fn fixture() -> Self {
+        Self {
+            embedding: EndpointReport {
+                locality: "loopback".to_string(),
+                model: "nomic-embed-text".to_string(),
+                query_budget: None,
+                queries_consumed: None,
+            },
+            explanation: EndpointReport {
+                locality: "loopback".to_string(),
+                model: "fixture-completion".to_string(),
+                query_budget: None,
+                queries_consumed: None,
+            },
+        }
+    }
 }
 
 /// Everything needed to reproduce the run from the fixed inputs without a
@@ -292,6 +332,8 @@ pub struct GoldSetReport {
     pub version: u32,
     pub tasks: u64,
     pub fingerprint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reviewed_by: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

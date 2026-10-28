@@ -453,6 +453,7 @@ mod tests {
                     detail: Some("Usage".to_string()),
                 },
                 toolchain: BTreeMap::from([("node".to_string(), "v24.21.0".to_string())]),
+                indexers: BTreeMap::new(),
             },
         );
         let mut repositories = BTreeMap::new();
