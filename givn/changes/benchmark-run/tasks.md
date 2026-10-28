@@ -283,7 +283,7 @@
   - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`; `./run-tests.sh` → `2 features / 42 scenarios (42 passed) / 244 steps (244 passed)`, exit 0.
 - [x] REFACTOR — targeted run; paste zero output.
   - Output: `1 scenario (1 passed)`, `6 steps (6 passed)`, `EXIT=0`.
-- [ ] COMMIT: _(hash)_
+- [x] COMMIT: 568a180
 - Design constraints: primary 170; secondary 85; synthetic generated; lower-power label; `reviewed_by`; typed below-minimum failure.
 
 ## S13 — A real candidate's evidence keeps its order and resolution
