@@ -26,6 +26,11 @@ coverage/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+
+
+# opencode runtime state
+.opencode/index/
+
 # givn:begin:rules
 .opencode/skills/givn-*/
 .agents/skills/givn-*/
@@ -47,6 +52,3 @@ coverage/
 # givn:begin:history
 givn/history/
 # givn:end:history
-
-# opencode runtime state
-.opencode/index/
