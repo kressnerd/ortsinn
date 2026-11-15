@@ -12,3 +12,5 @@ run = true
 net = false
 env = false
 agent = false
+session_read = true
+session_write = true

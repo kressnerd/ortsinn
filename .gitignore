@@ -47,3 +47,6 @@ coverage/
 # givn:begin:history
 givn/history/
 # givn:end:history
+
+# opencode runtime state
+.opencode/index/
