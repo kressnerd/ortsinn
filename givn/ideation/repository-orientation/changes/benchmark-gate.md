@@ -1,6 +1,6 @@
 # Change seed: benchmark-gate
 
-Status: proposed by benchmark-gate
+Status: implemented in benchmark-gate
 
 - Use-case IDs: none — this is a project gate, not a product use case.
 - Topic: `repository-orientation`

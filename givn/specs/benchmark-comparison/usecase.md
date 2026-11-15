@@ -28,8 +28,7 @@ replay of a completed run.
 - Record mode — the committed fixture manifest fixes the repository, the fixture candidate identities, the target records, the gold sets, and the cassettes.
 - Record mode — the fixture checkout, gold sets, and recorded result cassette exist at the fixed revision.
 - Record mode — a local OpenAI-compatible model endpoint is available; the fixture record boundary runs against a loopback fake endpoint.
-- Record mode — no real candidate install is required; real candidate installs
-  are outside this fixture contract.
+- Record mode — no real candidate install is required; real candidate installs are outside this fixture contract.
 - Replay mode — a benchmark manifest fixes the inputs, candidate identities, target records, gold sets, and cassettes.
 - Replay mode — recorded result and model cassettes exist for the manifest, gold, and candidate set, and the manifest records each repository's fixed checkout.
 - Replay mode — no candidate install and no model endpoint are required; replay starts no candidate process.
@@ -110,8 +109,8 @@ that extension, and the fixture evidence asserts the report contract it uses.
 
 ## Personas
 
-- maintainer--ortsinn — confirmed; the user-visible actor.
-- upstream--maintainer — conditional; relevant only if the post-report path is a contribution; not exercised by this change.
+- maintainer--ortsinn
+- upstream--maintainer
 
 ## Capabilities
 

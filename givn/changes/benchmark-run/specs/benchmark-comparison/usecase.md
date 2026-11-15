@@ -126,8 +126,8 @@ cassettes are the evidence of the real candidate path.
 
 ## Personas
 
-- maintainer--ortsinn — confirmed; the user-visible actor.
-- upstream--maintainer — conditional; relevant only if the post-report path is a contribution; not exercised by this change.
+- maintainer--ortsinn
+- upstream--maintainer
 
 ## Capabilities
 
